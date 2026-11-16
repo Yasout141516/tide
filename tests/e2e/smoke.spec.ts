@@ -1,4 +1,6 @@
-import { test, expect, _electron as electron } from '@playwright/test'
+import { appendFileSync } from 'fs'
+import { test, expect } from '@playwright/test'
+import { launchTide } from './launch'
 
 // The preload bridge as seen from the page (see src/preload/index.d.ts).
 type TideWindow = {
@@ -12,11 +14,9 @@ type TideWindow = {
   }
   tideTest: { ttsLoad(): Promise<{ loadMs: number }> }
 }
+
 test('window opens titled Tide', async () => {
-  const app = await electron.launch({
-    args: ['out/main/index.js'],
-    env: { ...process.env, TIDE_E2E: '1' }
-  })
+  const app = await launchTide()
   const win = await app.firstWindow()
   await expect(win).toHaveTitle('Tide')
   await expect(win.getByText('Tide')).toBeVisible()
@@ -24,10 +24,7 @@ test('window opens titled Tide', async () => {
 })
 
 test('speaks one sentence offline', async () => {
-  const app = await electron.launch({
-    args: ['out/main/index.js'],
-    env: { ...process.env, TIDE_E2E: '1', TIDE_OFFLINE_GUARD: '1' }
-  })
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
   const win = await app.firstWindow()
   const { loadMs } = await win.evaluate(() => (window as unknown as TideWindow).tideTest.ttsLoad())
   const r = await win.evaluate(() =>
@@ -41,6 +38,9 @@ test('speaks one sentence offline', async () => {
   )
   expect(r.sampleRate).toBe(24000)
   expect(r.pcm.length).toBeGreaterThan(24000) // > 1 s of audio
-  console.log(JSON.stringify({ loadMs, synthMs: r.synthMs, audioSec: r.pcm.length / 24000 }))
+  const metrics = JSON.stringify({ loadMs, synthMs: r.synthMs, audioSec: r.pcm.length / 24000 })
+  console.log(metrics)
+  // CI reads this file to put load time and real-time factor in the job summary.
+  if (process.env.TIDE_METRICS_FILE) appendFileSync(process.env.TIDE_METRICS_FILE, metrics + '\n')
   await app.close()
 })

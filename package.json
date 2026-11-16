@@ -14,10 +14,8 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "install-electron && electron-builder install-app-deps",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux",
+    "build:unpack": "electron-vite build && electron-builder --dir",
+    "package": "electron-vite build && electron-builder --publish never",
     "test": "vitest run",
     "e2e": "playwright test",
     "fetch-model": "node scripts/fetch-model.mjs"

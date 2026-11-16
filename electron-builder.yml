@@ -2,37 +2,57 @@ appId: com.yasout141516.tide
 productName: Tide
 directories:
   buildResources: build
+  output: release
 files:
   - '!**/.vscode/*'
   - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!local-fixtures/**'
+  - '!tests/**'
+  - '!docs/**'
+  - '!scripts/**'
+  # The model ships once, via extraResources below, not inside the asar.
+  - '!resources/**'
+  - '!{test-results,playwright-report,.superpowers,.github}/**'
+  - '!{electron.vite.config,playwright.config,vitest.config}.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+# Runtime modules that read their own files from disk (kokoro-js voices) or ship native
+# binaries (onnxruntime-node, ffmpeg-static) must exist outside the asar archive.
 asarUnpack:
-  - resources/**
+  - node_modules/onnxruntime-node/**
+  - node_modules/kokoro-js/**
+  - node_modules/@huggingface/transformers/**
+  - node_modules/phonemizer/**
+  - node_modules/ffmpeg-static/**
+extraResources:
+  - from: resources/models
+    to: models
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+  # Ad-hoc signature: no Apple account, but macOS offers "Open Anyway" instead of "damaged".
+  identity: '-'
+  hardenedRuntime: false
+  notarize: false
+  category: public.app-category.education
+  # Reopening a recent PDF by path from these folders triggers a macOS privacy prompt.
+  extendInfo:
+    NSDocumentsFolderUsageDescription: Tide reads the PDFs you open from your Documents folder.
+    NSDownloadsFolderUsageDescription: Tide reads the PDFs you open from your Downloads folder.
 win:
-  executableName: tide
+  target:
+    - target: nsis
+      arch: [x64]
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  oneClick: true
+  perMachine: false
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
-mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
-linux:
-  target:
-    - AppImage
-    - snap
-    - deb
-  maintainer: electronjs.org
-  category: Utility
-appImage:
-  artifactName: ${name}-${version}.${ext}
+# Used only by release.yml (`--publish always` on a v* tag); CI and `npm run package` never publish.
+publish:
+  provider: github
+  releaseType: draft
+# All native deps are N-API prebuilds; nothing to rebuild against Electron's headers.
 npmRebuild: false

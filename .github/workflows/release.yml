@@ -1,0 +1,50 @@
+name: Release
+
+# Pushing a v* tag builds both installers and attaches them to a draft GitHub release
+# (publish settings in electron-builder.yml). The draft is published by hand.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Ad-hoc signed Mac build (mac.identity "-"); never pick up a real certificate.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Restore Kokoro model cache
+        uses: actions/cache@v4
+        with:
+          path: resources/models
+          key: kokoro-model-${{ runner.os }}-${{ hashFiles('scripts/model-manifest.json') }}
+
+      - run: npm run fetch-model
+
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Build and publish to a draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-vite build && npx electron-builder --publish always

@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  package-and-smoke:
+    name: package + packaged smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Never pick up a real certificate: the Mac build is ad-hoc signed (mac.identity "-").
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder skips all signing on pull_request builds unless told otherwise.
+      # Ad-hoc signing uses no secrets, so it is safe to keep on for PRs.
+      CSC_FOR_PULL_REQUEST: 'true'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Restore Kokoro model cache
+        uses: actions/cache@v4
+        with:
+          path: resources/models
+          key: kokoro-model-${{ runner.os }}-${{ hashFiles('scripts/model-manifest.json') }}
+
+      - run: npm run fetch-model
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+
+      - name: Packaged offline smoke
+        env:
+          TIDE_PACKAGED: '1'
+          TIDE_OFFLINE_GUARD: '1'
+          TIDE_METRICS_FILE: ${{ runner.temp }}/tts-metrics.jsonl
+        run: npx playwright test
+
+      - name: Voice speed summary
+        if: ${{ !cancelled() }}
+        env:
+          TIDE_METRICS_FILE: ${{ runner.temp }}/tts-metrics.jsonl
+        run: |
+          node -e '
+            const fs = require("fs")
+            const os = require("os")
+            const f = process.env.TIDE_METRICS_FILE
+            const out = [`### Packaged voice smoke: ${process.env.RUNNER_OS} (${os.arch()})`, ""]
+            out.push(`CPU: ${os.cpus()[0]?.model ?? "unknown"} x ${os.cpus().length}`, "")
+            if (!fs.existsSync(f)) {
+              out.push("No metrics logged: the speak test did not get that far.")
+            } else {
+              const line = fs.readFileSync(f, "utf8").trim().split("\n").pop()
+              const m = JSON.parse(line)
+              const rtf = m.synthMs / 1000 / m.audioSec
+              out.push("```json", line, "```", "")
+              out.push("| loadMs | synthMs | audioSec | real-time factor |", "|---|---|---|---|")
+              out.push(`| ${m.loadMs} | ${m.synthMs} | ${m.audioSec.toFixed(3)} | ${rtf.toFixed(3)} |`, "")
+              out.push(`Targets: first audio < 2000 ms after load (${m.synthMs < 2000 ? "met" : "MISSED"}), RTF < 1 (${rtf < 1 ? "met" : "MISSED"}).`)
+            }
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n")
+            console.log(out.join("\n"))
+          '
+
+      - name: 'M0b: ad-hoc signature and Gatekeeper state'
+        if: runner.os == 'macOS'
+        run: |
+          # bash runs with -eo pipefail: a failed codesign or grep fails the job.
+          app=release/mac-arm64/Tide.app
+          summary() { tee -a "$GITHUB_STEP_SUMMARY"; }
+          printf '### M0b: macOS signature\n\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          file "$app/Contents/MacOS/Tide" | summary
+          echo '$ codesign --verify --deep --strict Tide.app' | summary
+          codesign --verify --deep --strict --verbose=2 "$app" 2>&1 | summary
+          echo '=> verify OK' | summary
+          echo '$ codesign -dv Tide.app' | summary
+          codesign -dv "$app" 2>&1 | summary > codesign-dv.txt
+          printf '```\n\n' >> "$GITHUB_STEP_SUMMARY"
+          grep 'Signature=adhoc' codesign-dv.txt
+          echo '**Signature=adhoc: yes**' >> "$GITHUB_STEP_SUMMARY"
+
+          # Mark the app as downloaded by Safari, as a real download would be, and ask Gatekeeper.
+          # Expected: "rejected", the state in which macOS offers Open Anyway (not "damaged").
+          xattr -w com.apple.quarantine "0081;$(printf %x $(date +%s));Safari;" "$app"
+          {
+            echo
+            echo '### M0b: Gatekeeper on a quarantined copy'
+            echo
+            echo '```'
+            echo '$ spctl --assess --type execute -vv Tide.app'
+            spctl --assess --type execute -vv "$app" 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: tide-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: error
+          retention-days: 7
