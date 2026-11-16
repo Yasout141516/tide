@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 
 let quitting = false
@@ -34,15 +35,20 @@ function createWindow(): void {
     }
   })
 
-  win.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
+  // Tide never opens windows or navigates anywhere.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  const devUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  const indexFile = join(__dirname, '../renderer/index.html')
+  const ownUrl = devUrl ?? pathToFileURL(indexFile).toString()
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url !== ownUrl) e.preventDefault()
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (devUrl) {
+    win.loadURL(devUrl)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(indexFile)
   }
 }
 
