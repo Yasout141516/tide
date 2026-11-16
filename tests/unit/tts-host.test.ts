@@ -88,4 +88,17 @@ describe('TtsHost', () => {
     child().emit('exit', 1)
     await expect(p).rejects.toThrow(/voice engine stopped/)
   })
+
+  it("survives a fatal 'error' event and rejects pending requests on the following exit", async () => {
+    const { host, child } = hostWith(loads) // loads, but never answers 'synthesize'
+    await host.start()
+    const p = host.synthesize('Hello.', { voice: 'af_heart', speed: 1 })
+    await vi.waitFor(() => expect(child().sent.some((m) => m.type === 'synthesize')).toBe(true))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Electron emits 'error' (type, location, report) on a fatal V8 error, then 'exit'.
+    expect(() => child().emit('error', 'FatalError', 'onnx.cc:1', '{}')).not.toThrow()
+    child().emit('exit', 134)
+    await expect(p).rejects.toThrow(/voice engine stopped/)
+    spy.mockRestore()
+  })
 })

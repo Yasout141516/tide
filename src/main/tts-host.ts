@@ -6,6 +6,8 @@ export interface TtsChild {
   postMessage(message: TtsRequest): void
   on(event: 'message', listener: (message: TtsResponse) => void): this
   on(event: 'exit', listener: (code: number) => void): this
+  /** Fatal V8 error in the child. Electron always follows it with 'exit'. */
+  on(event: 'error', listener: (type: string, location: string, report: string) => void): this
   kill(): boolean
 }
 
@@ -121,6 +123,11 @@ export class TtsHost {
       clearTimeout(p.timer)
       if (res.type === 'error') p.reject(new Error(res.message))
       else p.resolve(res)
+    })
+    // Must be handled: an 'error' with no listener would throw ERR_UNHANDLED_ERROR in main.
+    // Only log here; the 'exit' that always follows does the cleanup.
+    child.on('error', (type, location) => {
+      console.error(`[tide] voice engine fatal error: ${type} at ${location}`)
     })
     child.on('exit', () => {
       if (this.child !== child) return
