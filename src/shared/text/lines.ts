@@ -3,8 +3,13 @@ import type { Line, PageText, TextItem } from './types'
 
 /** Tolerance (points) for "an item touches the gutter" comparisons. */
 const EPS = 0.01
-/** Two columns need items on both sides of the gutter over this share of the text's vertical span. */
+/** Two columns need items on both sides of the gutter over this share of the body text's vertical span. */
 const MIN_COLUMN_COVERAGE = 0.7
+/**
+ * Share of the page height at the top and bottom where running headers, footers and page numbers sit
+ * (the same zones the header/footer filter uses). Items there do not count towards column detection.
+ */
+const EDGE_ZONE = 0.08
 
 /**
  * Groups a page's items into lines in reading order.
@@ -23,7 +28,7 @@ export function buildLines(page: PageText): Line[] {
   const items = page.items.filter((i) => i.str.trim() !== '')
   if (items.length === 0) return []
   const rows = groupRows(items)
-  const gutter = findGutter(items, page.width)
+  const gutter = findGutter(items, page)
   if (gutter === null) return rows.map((r) => toLine(page.page, r))
 
   const left: Line[] = []
@@ -111,27 +116,30 @@ function crosses(item: TextItem, x: number): boolean {
 /**
  * Returns the gutter x of a two-column page, or null for a single-column page.
  *
- * A candidate x in the middle third of the page qualifies when items lie wholly on both sides of it
- * across >= 70% of the vertical span between the first and last line of text, and no item crosses it
- * inside that two-sided region (full-width lines above or below the columns, such as a title or a
- * centered footer, may cross it). Sides are measured as y-intervals of their items, merging gaps of up
- * to 2.5 lines, so the two columns' baselines need not line up. The gutter is the middle of the widest
- * run of qualifying x.
+ * Only body text takes part: items in the top and bottom 8% of the page (running headers, footers,
+ * page numbers) are ignored. A candidate x in the middle third of the page qualifies when body items
+ * lie wholly on both sides of it across >= 70% of the vertical span between the first and last body
+ * line that does not cross x, and no item crosses x inside that two-sided region. Lines that cross x
+ * outside the region (a title, an abstract or a footnote spanning both columns) neither block the
+ * gutter nor dilute the span, so short columns under a full-width block still count. Sides are
+ * measured as y-intervals of their items, merging gaps of up to 2.5 lines, so the two columns'
+ * baselines need not line up. The gutter is the middle of the widest run of qualifying x.
  */
-function findGutter(items: TextItem[], pageWidth: number): number | null {
-  const byY = [...items].sort((a, b) => a.y - b.y)
-  const span = byY[byY.length - 1].y - byY[0].y
-  if (span <= 0) return null
-  const sizes = items.map((i) => i.fontSize).sort((a, b) => a - b)
+function findGutter(items: TextItem[], page: PageText): number | null {
+  const top = page.height * EDGE_ZONE
+  const bottom = page.height * (1 - EDGE_ZONE)
+  const body = items.filter((i) => i.y >= top && i.y <= bottom).sort((a, b) => a.y - b.y)
+  if (body.length < 2) return null
+  const sizes = body.map((i) => i.fontSize).sort((a, b) => a - b)
   const maxGap = 2.5 * sizes[Math.floor(sizes.length / 2)]
 
   let bestStart = -1
   let bestLen = 0
   let runStart = -1
-  const lo = Math.ceil(pageWidth * 0.33)
-  const hi = Math.floor(pageWidth * 0.67)
+  const lo = Math.ceil(page.width * 0.33)
+  const hi = Math.floor(page.width * 0.67)
   for (let x = lo; x <= hi + 1; x++) {
-    const ok = x <= hi && coverage(byY, x, maxGap) >= MIN_COLUMN_COVERAGE * span
+    const ok = x <= hi && twoSidedShare(body, x, maxGap) >= MIN_COLUMN_COVERAGE
     if (ok && runStart < 0) runStart = x
     if (!ok && runStart >= 0) {
       if (x - runStart > bestLen) {
@@ -144,8 +152,11 @@ function findGutter(items: TextItem[], pageWidth: number): number | null {
   return bestLen > 0 ? bestStart + (bestLen - 1) / 2 : null
 }
 
-/** Vertical extent (points) over which items lie on both sides of `x`; 0 if an item crosses it there. */
-function coverage(byY: TextItem[], x: number, maxGap: number): number {
+/**
+ * Share (0..1) of the vertical span of the y-sorted items not crossing `x` over which items lie on both
+ * sides of `x`; 0 if an item crosses `x` inside that two-sided region.
+ */
+function twoSidedShare(byY: TextItem[], x: number, maxGap: number): number {
   const leftYs: number[] = []
   const rightYs: number[] = []
   const crossYs: number[] = []
@@ -157,10 +168,14 @@ function coverage(byY: TextItem[], x: number, maxGap: number): number {
   if (leftYs.length === 0 || rightYs.length === 0) return 0
   const both = intersect(intervals(leftYs, maxGap), intervals(rightYs, maxGap))
   if (both.length === 0) return 0
-  const top = both[0][0]
-  const bottom = both[both.length - 1][1]
-  if (crossYs.some((y) => y >= top && y <= bottom)) return 0
-  return both.reduce((sum, [a, b]) => sum + (b - a), 0)
+  const regionTop = both[0][0]
+  const regionBottom = both[both.length - 1][1]
+  if (crossYs.some((y) => y >= regionTop && y <= regionBottom)) return 0
+  const span =
+    Math.max(leftYs[leftYs.length - 1], rightYs[rightYs.length - 1]) -
+    Math.min(leftYs[0], rightYs[0])
+  if (span <= 0) return 0
+  return both.reduce((sum, [a, b]) => sum + (b - a), 0) / span
 }
 
 type Interval = [number, number]

@@ -131,27 +131,87 @@ describe('buildLines', () => {
     )
   })
 
-  it('places full-width lines before the first column that starts below them, and after both otherwise', () => {
-    const items: Array<Partial<TextItem> & { str: string; x: number; y: number }> = [
-      { str: 'Title', x: 150, y: 60, width: 300 },
-      { str: 'Footer', x: 290, y: 760, width: 30 }
+  const col = (
+    side: 'L' | 'R',
+    n: number,
+    top = 100
+  ): Array<Partial<TextItem> & { str: string; x: number; y: number }> =>
+    [...Array(n).keys()].map((k) => ({
+      str: `${side}${k}`,
+      x: side === 'L' ? 72 : 324,
+      y: top + k * 13,
+      width: 200
+    }))
+  const names = (side: 'L' | 'R', n: number): string[] =>
+    [...Array(n).keys()].map((k) => `${side}${k}`)
+
+  it('reads a short two-column page with a running header and page footer column by column', () => {
+    // The columns cover 117pt of the 720pt from header to footer: coverage is measured over body text
+    // only, so the header/footer in the top and bottom 8% of the page must not dilute it.
+    const items = [
+      { str: 'PSYC 201 — Week 4', x: 72, y: 40, width: 90, fontSize: 9 },
+      { str: 'Page 3', x: 292, y: 760, width: 27, fontSize: 9 },
+      ...col('L', 10),
+      ...col('R', 10)
     ]
-    for (let k = 0; k < 10; k++) {
-      items.push({ str: `L${k}`, x: 72, y: 100 + k * 13, width: 200 })
-      items.push({ str: `R${k}`, x: 324, y: 100 + k * 13, width: 200 })
-    }
-    // With the footer included the column rows cover 117 of 700pt, so the page is NOT two-column...
-    expect(buildLines(page(items)).map((l) => l.text)[1]).toBe('L0 R0')
-    // ...but with columns filling most of the span it is, and the title/footer bracket the columns.
-    for (let k = 10; k < 50; k++) {
-      items.push({ str: `L${k}`, x: 72, y: 100 + k * 13, width: 200 })
-      items.push({ str: `R${k}`, x: 324, y: 100 + k * 13, width: 200 })
-    }
-    const text = buildLines(page(items)).map((l) => l.text)
-    expect(text[0]).toBe('Title')
-    expect(text[1]).toBe('L0')
-    expect(text[51]).toBe('R0')
-    expect(text[text.length - 1]).toBe('Footer')
+    expect(buildLines(page(items)).map((l) => l.text)).toEqual([
+      'PSYC 201 — Week 4',
+      ...names('L', 10),
+      ...names('R', 10),
+      'Page 3'
+    ])
+  })
+
+  it('reads a short last page (balanced columns ending high on the page) column by column', () => {
+    const items = [
+      { str: 'Running head', x: 72, y: 40, width: 60, fontSize: 9 },
+      ...col('L', 8),
+      ...col('R', 7),
+      { str: '12', x: 300, y: 760, width: 10, fontSize: 9 }
+    ]
+    expect(buildLines(page(items)).map((l) => l.text)).toEqual([
+      'Running head',
+      ...names('L', 8),
+      ...names('R', 7),
+      '12'
+    ])
+  })
+
+  it('does not let full-width lines above the columns dilute the coverage', () => {
+    // A long full-width abstract above short columns, as on the first page of a paper.
+    const abstract = [...Array(12).keys()].map((k) => ({
+      str: `Abstract ${k}`,
+      x: 72,
+      y: 80 + k * 13,
+      width: 468
+    }))
+    const items = [...abstract, ...col('L', 8, 250), ...col('R', 8, 250)]
+    expect(buildLines(page(items)).map((l) => l.text)).toEqual([
+      ...abstract.map((a) => a.str),
+      ...names('L', 8),
+      ...names('R', 8)
+    ])
+  })
+
+  it('places full-width lines before the first column that starts below them, and after both otherwise', () => {
+    const items = [
+      { str: 'Title', x: 150, y: 60, width: 300 },
+      { str: 'Footer', x: 290, y: 760, width: 30 },
+      ...col('L', 50),
+      ...col('R', 50)
+    ]
+    expect(buildLines(page(items)).map((l) => l.text)).toEqual([
+      'Title',
+      ...names('L', 50),
+      ...names('R', 50),
+      'Footer'
+    ])
+  })
+
+  it('still needs both sides over 70% of the body span', () => {
+    // Right column only a third as tall as the left: not detected as two columns.
+    const text = buildLines(page([...col('L', 12), ...col('R', 4)])).map((l) => l.text)
+    expect(text[0]).toBe('L0 R0')
   })
 
   it('treats ordinary single-column text as one column', () => {
