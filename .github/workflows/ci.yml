@@ -35,7 +35,7 @@ jobs:
       - run: npm ci
 
       - name: Restore Kokoro model cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: resources/models
           key: kokoro-model-${{ runner.os }}-${{ hashFiles('scripts/model-manifest.json') }}
@@ -69,11 +69,14 @@ jobs:
             } else {
               const line = fs.readFileSync(f, "utf8").trim().split("\n").pop()
               const m = JSON.parse(line)
+              // Real-time factor: seconds of compute per second of audio (< 1 = faster than playback).
               const rtf = m.synthMs / 1000 / m.audioSec
+              const warmRtf = m.warmSynthMs / 1000 / m.audioSec
               out.push("```json", line, "```", "")
-              out.push("| loadMs | synthMs | audioSec | real-time factor |", "|---|---|---|---|")
-              out.push(`| ${m.loadMs} | ${m.synthMs} | ${m.audioSec.toFixed(3)} | ${rtf.toFixed(3)} |`, "")
-              out.push(`Targets: first audio < 2000 ms after load (${m.synthMs < 2000 ? "met" : "MISSED"}), RTF < 1 (${rtf < 1 ? "met" : "MISSED"}).`)
+              out.push("| loadMs | synthMs (cold) | audioSec | RTF (cold) | warmSynthMs | RTF (warm) |")
+              out.push("|---|---|---|---|---|---|")
+              out.push(`| ${m.loadMs} | ${m.synthMs} | ${m.audioSec.toFixed(3)} | ${rtf.toFixed(3)} | ${m.warmSynthMs} | ${warmRtf.toFixed(3)} |`, "")
+              out.push(`Targets: first audio < 2000 ms after load (${m.synthMs < 2000 ? "met" : "MISSED"}), RTF < 1 (cold ${rtf < 1 ? "met" : "MISSED"}, warm ${warmRtf < 1 ? "met" : "MISSED"}).`)
             }
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n")
             console.log(out.join("\n"))
@@ -91,7 +94,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app" 2>&1 | summary
           echo '=> verify OK' | summary
           echo '$ codesign -dv Tide.app' | summary
-          codesign -dv "$app" 2>&1 | summary > codesign-dv.txt
+          codesign -dv "$app" 2>&1 | tee codesign-dv.txt | summary
           printf '```\n\n' >> "$GITHUB_STEP_SUMMARY"
           grep 'Signature=adhoc' codesign-dv.txt
           echo '**Signature=adhoc: yes**' >> "$GITHUB_STEP_SUMMARY"
@@ -104,13 +107,15 @@ jobs:
             echo '### M0b: Gatekeeper on a quarantined copy'
             echo
             echo '```'
+            echo '$ xattr -p com.apple.quarantine Tide.app'
+            xattr -p com.apple.quarantine "$app"
             echo '$ spctl --assess --type execute -vv Tide.app'
             spctl --assess --type execute -vv "$app" 2>&1 || true
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | summary
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tide-${{ runner.os }}
           path: |

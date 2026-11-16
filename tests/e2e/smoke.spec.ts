@@ -27,18 +27,24 @@ test('speaks one sentence offline', async () => {
   const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
   const win = await app.firstWindow()
   const { loadMs } = await win.evaluate(() => (window as unknown as TideWindow).tideTest.ttsLoad())
-  const r = await win.evaluate(() =>
-    (window as unknown as TideWindow).tide.tts.synthesize(
-      'Most adults can keep about four items in mind at once.',
-      {
-        voice: 'af_heart',
-        speed: 1
-      }
+  const speak = (): Promise<{ pcm: Float32Array; sampleRate: number; synthMs: number }> =>
+    win.evaluate(() =>
+      (window as unknown as TideWindow).tide.tts.synthesize(
+        'Most adults can keep about four items in mind at once.',
+        { voice: 'af_heart', speed: 1 }
+      )
     )
-  )
+  const r = await speak()
   expect(r.sampleRate).toBe(24000)
   expect(r.pcm.length).toBeGreaterThan(24000) // > 1 s of audio
-  const metrics = JSON.stringify({ loadMs, synthMs: r.synthMs, audioSec: r.pcm.length / 24000 })
+  // synthMs is the first (cold) synthesis; warmSynthMs repeats it, as during steady playback.
+  const warm = await speak()
+  const metrics = JSON.stringify({
+    loadMs,
+    synthMs: r.synthMs,
+    audioSec: r.pcm.length / 24000,
+    warmSynthMs: warm.synthMs
+  })
   console.log(metrics)
   // CI reads this file to put load time and real-time factor in the job summary.
   if (process.env.TIDE_METRICS_FILE) appendFileSync(process.env.TIDE_METRICS_FILE, metrics + '\n')

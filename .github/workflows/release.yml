@@ -34,7 +34,7 @@ jobs:
       - run: npm ci
 
       - name: Restore Kokoro model cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: resources/models
           key: kokoro-model-${{ runner.os }}-${{ hashFiles('scripts/model-manifest.json') }}
