@@ -9,7 +9,7 @@ const MIN_COLUMN_COVERAGE = 0.7
  * Share of the page height at the top and bottom where running headers, footers and page numbers sit
  * (the same zones the header/footer filter uses). Items there do not count towards column detection.
  */
-const EDGE_ZONE = 0.08
+export const EDGE_ZONE = 0.08
 
 /**
  * Groups a page's items into lines in reading order.
