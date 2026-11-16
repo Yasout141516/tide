@@ -1,0 +1,374 @@
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Nunito+Sans:wght@400;600;700;800&family=Literata:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  .t4 * { box-sizing: border-box; }
+  .t4 { font-family:'Nunito Sans', system-ui, sans-serif;
+    --bg:#F2F9FF; --shelf-a:#DDEFFC; --shelf-b:#EAF5FE; --surface:#FFFFFF; --ink:#12324A; --muted:#567189;
+    --primary:#0F6FA8; --primary-deep:#0B5884; --on-primary:#FFFFFF; --soft:#E3F2FD; --soft-ink:#0B5884; --border:#C9E6FA;
+    --stage-a:#CFE8FA; --stage-b:#E6F3FD; --stage-c:#F2F9FF; --page:#FFFFFF; --page-ink:#1D2B36; --page-meta:#0F6FA8;
+    --hl:#CDEBFF; --hl-line:#1E88C7; --sel:rgba(91,182,236,.28); --warn:#B4532A; --warn-soft:#FDEEE6; --ok:#1B7F5B;
+    --wave-off:#C9E6FA; --wave-on:#1E88C7; --scrim:rgba(10,46,69,.32); --shadow:rgba(11,88,132,.16); --bubble:#0A2E45; }
+  .t4.dark {
+    --bg:#0B1D2C; --shelf-a:#0A1826; --shelf-b:#0D2134; --surface:#11293D; --ink:#E4F1FA; --muted:#8EA9BF;
+    --primary:#4FB0E8; --primary-deep:#2E8FC8; --on-primary:#06192A; --soft:#163650; --soft-ink:#A9DAF7; --border:#1C3A54;
+    --stage-a:#0E2A40; --stage-b:#0C2236; --stage-c:#0B1D2C; --page:#132B3E; --page-ink:#D7E4EE; --page-meta:#6CC3F2;
+    --hl:rgba(79,176,232,.30); --hl-line:#6CC3F2; --sel:rgba(108,195,242,.22); --warn:#F0A07A; --warn-soft:#3A2620; --ok:#5FD3A3;
+    --wave-off:#1C3A54; --wave-on:#6CC3F2; --scrim:rgba(2,10,18,.55); --shadow:rgba(0,0,0,.45); --bubble:#E4F1FA; }
+
+  .t4 .toggle { display:inline-flex; background:#E3F2FD; border-radius:12px; padding:4px; gap:4px; margin:4px 0 18px; }
+  .t4 .toggle button { border:0; font:inherit; font-weight:800; font-size:14px; padding:9px 18px; border-radius:9px; cursor:pointer; background:transparent; color:#0B5884; }
+  .t4:not(.dark) .toggle .bl, .t4.dark .toggle .bd { background:#0F6FA8; color:#fff; }
+
+  .t4 .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap:22px; }
+  .t4 .shot h3 { margin:0 0 4px; font-size:16px; }
+  .t4 .shot p.cap { margin:0 0 10px; font-size:13px; opacity:.8; }
+  .t4 .frame { border-radius:14px; overflow:hidden; border:1px solid var(--border); background:var(--bg); color:var(--ink); position:relative; transition: background .25s, color .25s; }
+
+  /* app shell */
+  .t4 .app { display:grid; grid-template-columns:220px 1fr; grid-template-rows:1fr auto; height:470px; }
+  .t4 .shelf { grid-row:1 / 3; background:linear-gradient(180deg,var(--shelf-a),var(--shelf-b)); padding:16px 12px; display:flex; flex-direction:column; border-right:1px solid var(--border); }
+  .t4 .mark { font-family:'Fraunces',serif; font-weight:700; font-size:21px; color:var(--primary-deep); display:flex; align-items:center; gap:8px; margin:0 4px 14px; }
+  .t4.dark .mark { color:var(--soft-ink); }
+  .t4 .add { display:flex; align-items:center; justify-content:center; gap:8px; background:var(--primary); color:var(--on-primary); font-weight:800; font-size:14px; padding:11px 12px; border-radius:12px; margin-bottom:14px; }
+  .t4 .course { font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin:12px 6px 4px; }
+  .t4 .item { padding:8px 10px; border-radius:10px; font-size:13px; line-height:1.3; font-weight:600; }
+  .t4 .item small { display:block; font-weight:400; font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .t4 .item.on { background:var(--surface); box-shadow:0 1px 3px var(--shadow); }
+  .t4 .item.on small { color:var(--primary); font-weight:700; }
+  .t4 .item.missing small { color:var(--warn); font-weight:700; }
+  .t4 .foot { margin-top:auto; display:flex; gap:7px; font-size:12px; color:var(--muted); font-weight:700; padding:6px; align-items:center; }
+  .t4 .stage { position:relative; display:flex; justify-content:center; padding:20px 28px 0; background:linear-gradient(180deg,var(--stage-a),var(--stage-b) 55%,var(--stage-c)); overflow:hidden; }
+  .t4 .page { position:relative; width:100%; max-width:480px; background:var(--page); color:var(--page-ink); padding:26px 32px; border-radius:4px 4px 0 0; font-family:'Literata',serif; font-size:13px; line-height:1.8; box-shadow:0 8px 28px var(--shadow); }
+  .t4 .page .meta { font-family:'Nunito Sans'; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--page-meta); font-weight:800; margin-bottom:12px; }
+  .t4 .page h4 { font-family:'Literata',serif; font-weight:600; font-size:15px; margin:0 0 10px; }
+  .t4 .hl { background:var(--hl); box-shadow:inset 0 -2px 0 var(--hl-line); border-radius:3px; }
+  .t4 .sel { background:var(--sel); }
+  .t4 .bubble { position:absolute; display:flex; gap:4px; background:var(--bubble); padding:5px; border-radius:12px; box-shadow:0 8px 20px var(--shadow); font-family:'Nunito Sans'; }
+  .t4 .bubble span { color:var(--bg); font-size:12px; font-weight:800; padding:7px 11px; border-radius:8px; white-space:nowrap; }
+  .t4 .bubble span.p { background:var(--primary); color:var(--on-primary); }
+  .t4 .player { display:flex; align-items:center; gap:16px; padding:12px 22px; background:var(--surface); border-top:1px solid var(--border); }
+  .t4 .skip { width:38px; height:38px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:var(--soft-ink); font-size:11px; font-weight:800; background:var(--soft); flex:none; }
+  .t4 .play { width:52px; height:52px; border-radius:50%; background:var(--primary); display:inline-flex; align-items:center; justify-content:center; flex:none; box-shadow:0 4px 12px var(--shadow); }
+  .t4 .play rect { fill:var(--on-primary); }
+  .t4 .wave { flex:1; min-width:120px; }
+  .t4 .wave .lbl { display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:2px; font-weight:600; }
+  .t4 .ctl { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:var(--soft-ink); background:var(--soft); padding:9px 13px; border-radius:11px; white-space:nowrap; }
+  .t4 .ctl.live { background:var(--primary); color:var(--on-primary); }
+
+  /* dialogs */
+  .t4 .scrim { height:100%; min-height:400px; display:flex; align-items:center; justify-content:center; padding:24px; background:linear-gradient(180deg,var(--stage-a),var(--stage-c)); position:relative; }
+  .t4 .scrim::before { content:''; position:absolute; inset:0; background:var(--scrim); }
+  .t4 .dlg { position:relative; width:100%; max-width:400px; background:var(--surface); color:var(--ink); border-radius:18px; padding:22px; box-shadow:0 24px 50px var(--shadow); }
+  .t4 .dlg h4 { font-family:'Fraunces',serif; font-weight:700; font-size:20px; margin:0 0 4px; color:var(--ink); }
+  .t4 .dlg .sub { font-size:13px; color:var(--muted); margin-bottom:14px; line-height:1.45; }
+  .t4 .row { display:flex; align-items:center; gap:10px; }
+  .t4 .field { background:var(--bg); border:1.5px solid var(--border); border-radius:11px; padding:10px 12px; font-size:13px; }
+  .t4 .lab { font-size:12px; font-weight:800; color:var(--muted); margin:12px 0 6px; text-transform:uppercase; letter-spacing:.8px; }
+  .t4 .radio { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:11px; font-size:13.5px; font-weight:700; }
+  .t4 .radio i { width:18px; height:18px; border-radius:50%; border:2px solid var(--border); flex:none; }
+  .t4 .radio.on { background:var(--soft); }
+  .t4 .radio.on i { border:5px solid var(--primary); }
+  .t4 .radio small { margin-left:auto; color:var(--muted); font-weight:600; font-size:12px; }
+  .t4 .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .t4 .b { padding:11px 18px; border-radius:11px; font-weight:800; font-size:13.5px; }
+  .t4 .b.pri { background:var(--primary); color:var(--on-primary); }
+  .t4 .b.ghost { color:var(--muted); }
+  .t4 .b.soft { background:var(--soft); color:var(--soft-ink); }
+  .t4 .chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 4px; }
+  .t4 .chip { padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; border:2px solid var(--border); }
+  .t4 .chip.sel { border-color:var(--primary); background:var(--soft); color:var(--soft-ink); }
+  .t4 .bar { height:8px; background:var(--soft); border-radius:99px; overflow:hidden; }
+  .t4 .bar i { display:block; height:100%; background:var(--primary); border-radius:99px; }
+  .t4 .pop { position:absolute; width:260px; background:var(--surface); color:var(--ink); border-radius:16px; box-shadow:0 18px 44px var(--shadow); border:1px solid var(--border); padding:12px; }
+  .t4 .pop h5 { margin:2px 6px 8px; font-size:14px; font-weight:800; }
+  .t4 .opt { padding:9px 10px; border-radius:10px; font-size:13.5px; font-weight:700; display:flex; justify-content:space-between; }
+  .t4 .opt.on { background:var(--soft); color:var(--soft-ink); box-shadow:inset 0 0 0 2px var(--primary); }
+  .t4 .toast { position:absolute; left:50%; transform:translateX(-50%); bottom:84px; background:var(--bubble); color:var(--bg); border-radius:14px; padding:10px 12px 10px 16px; display:flex; align-items:center; gap:14px; font-size:13.5px; font-weight:700; box-shadow:0 12px 30px var(--shadow); white-space:nowrap; }
+  .t4 .toast span.a { background:var(--primary); color:var(--on-primary); padding:7px 12px; border-radius:9px; font-weight:800; }
+
+  /* settings */
+  .t4 .set { display:grid; grid-template-columns:180px 1fr; height:520px; }
+  .t4 .set nav { background:linear-gradient(180deg,var(--shelf-a),var(--shelf-b)); border-right:1px solid var(--border); padding:16px 10px; }
+  .t4 .set nav div { padding:9px 12px; border-radius:10px; font-size:13.5px; font-weight:700; color:var(--muted); }
+  .t4 .set nav div.on { background:var(--surface); color:var(--ink); box-shadow:0 1px 3px var(--shadow); }
+  .t4 .set main { padding:20px 24px; overflow:hidden; }
+  .t4 .set h4 { font-family:'Fraunces',serif; font-size:19px; margin:0 0 12px; }
+  .t4 .themes { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .t4 .th { border-radius:12px; border:2px solid var(--border); padding:6px; font-size:12px; font-weight:800; text-align:center; }
+  .t4 .th.on { border-color:var(--primary); }
+  .t4 .th .sw { height:54px; border-radius:8px; margin-bottom:6px; position:relative; overflow:hidden; }
+  .t4 .tog { display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; gap:14px; }
+  .t4 .tog small { display:block; font-weight:400; color:var(--muted); font-size:12px; margin-top:2px; }
+  .t4 .sw2 { width:40px; height:24px; border-radius:99px; background:var(--border); position:relative; flex:none; }
+  .t4 .sw2::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); }
+  .t4 .sw2.on { background:var(--primary); }
+  .t4 .sw2.on::after { left:19px; }
+  .t4 .pron { display:flex; gap:8px; align-items:center; font-size:13px; padding:8px 10px; border-radius:10px; background:var(--bg); margin-bottom:6px; border:1px solid var(--border); }
+  .t4 .pron b { min-width:90px; } .t4 .pron span.l { color:var(--primary); font-weight:800; }
+  .t4 .pron .pv { margin-left:auto; color:var(--soft-ink); font-weight:800; font-size:12px; }
+
+  /* empty */
+  .t4 .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px; }
+  .t4 .empty h4 { font-family:'Fraunces',serif; font-size:24px; margin:16px 0 6px; }
+  .t4 .empty p { color:var(--muted); font-size:14px; max-width:340px; line-height:1.5; margin:0 0 18px; }
+  .t4 .tip { margin-top:18px; font-size:12.5px; color:var(--muted); background:var(--surface); border:1px dashed var(--border); padding:10px 14px; border-radius:12px; max-width:380px; line-height:1.5; }
+</style>
+
+<div class="t4" id="t4">
+<h2>Sky &amp; Sea: every screen, light and dark</h2>
+<p class="subtitle">Use this switch to flip every screen below between <b>Sky &amp; Sea</b> (light) and <b>Deep Sea</b> (dark). In the app she can pick either, or let it follow her Mac's setting.</p>
+<div class="toggle">
+  <button class="bl" onclick="document.getElementById('t4').classList.remove('dark')">☀ Sky &amp; Sea</button>
+  <button class="bd" onclick="document.getElementById('t4').classList.add('dark')">☾ Deep Sea</button>
+</div>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <path id="wv4" d="M0 10 Q 12.5 1 25 10 T 50 10 T 75 10 T 100 10 T 125 10 T 150 10 T 175 10 T 200 10 T 225 10 T 250 10 T 275 10 T 300 10 T 325 10 T 350 10 T 375 10 T 400 10" fill="none" stroke-width="3.2" stroke-linecap="round"/>
+  <clipPath id="wvc4"><rect x="0" y="0" width="248" height="20"/></clipPath>
+  <g id="logo4"><circle cx="17" cy="7" r="3.2" fill="#9DD2F5"/><path d="M1 14c3-3 5-3 7.5 0s4.5 3 7 0 5-3 7.5 0" stroke="#1E88C7" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M1 19c3-3 5-3 7.5 0s4.5 3 7 0 5-3 7.5 0" stroke="#4FB0E8" stroke-width="2.4" fill="none" stroke-linecap="round"/></g>
+</defs></svg>
+
+<!-- ============ 1 · READER ============ -->
+<div class="shot" style="margin-bottom:26px;">
+  <h3>1 · Reading (main screen)</h3>
+  <p class="cap">The screen she'll spend most of her time on. In dark mode the PDF page goes dark too, so a bright white page doesn't glare at her in bed. There's a setting to turn that off for pages with charts or photos.</p>
+  <div class="frame">
+    <div class="app">
+      <div class="shelf">
+        <div class="mark"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo4"/></svg>Tide</div>
+        <div class="add"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>Add reading</div>
+        <div class="course">PSYC 201</div>
+        <div class="item on">Ch 2 · Memory &amp; Attention<small>Playing · page 31 of 40</small></div>
+        <div class="item">Ch 3 · Learning<small>New</small></div>
+        <div class="course">SOC 110</div>
+        <div class="item">Week 3 · Social Class<small>Page 4 of 22</small></div>
+        <div class="item missing">Week 4 · Institutions<small>File moved · Find it</small></div>
+        <div class="course">Other</div>
+        <div class="item">Study skills handout<small>Finished</small></div>
+        <div class="foot">⚙ Settings &amp; themes</div>
+      </div>
+      <div class="stage">
+        <div class="page">
+          <div class="meta">PSYC 201 · page 31</div>
+          <h4>2.3 Memory and Attention</h4>
+          Working memory holds a small amount of information for a short time, and it is easily disrupted.
+          <span class="hl">Most adults can keep about four items in mind at once.</span>
+          Attention decides which of those items stay active and which quietly fade.
+          <span class="sel">This is why reading while distracted feels like nothing sticks, and why short, focused sessions work better than long, scattered ones.</span>
+          <div class="bubble" style="left:70px; top:176px;"><span class="p">▶ Read from here</span><span>↓ Save as audio</span></div>
+        </div>
+      </div>
+      <div class="player">
+        <span class="skip">↺15</span>
+        <span class="play"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="2" width="4" height="14" rx="1.5"/><rect x="11" y="2" width="4" height="14" rx="1.5"/></svg></span>
+        <span class="skip">15↻</span>
+        <div class="wave">
+          <svg viewBox="0 0 400 20" width="100%" height="20" preserveAspectRatio="none"><use href="#wv4" style="stroke:var(--wave-off)"/><use href="#wv4" style="stroke:var(--wave-on)" clip-path="url(#wvc4)"/></svg>
+          <div class="lbl"><span>Page 31 of 40</span><span>About 14 min left</span></div>
+        </div>
+        <span class="ctl">Heart · 1×</span>
+        <span class="ctl">☾ Sleep</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- ============ 2 · WELCOME ============ -->
+  <div class="shot">
+    <h3>2 · First time she opens it</h3>
+    <p class="cap">An empty shelf with one obvious thing to do, plus a tip about Open With.</p>
+    <div class="frame" style="height:420px; display:grid; grid-template-columns:150px 1fr;">
+      <div class="shelf" style="grid-row:auto; padding:14px 10px;">
+        <div class="mark" style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo4"/></svg>Tide</div>
+        <div class="add" style="font-size:12.5px; padding:9px;">＋ Add reading</div>
+        <div class="foot" style="font-size:11px;">⚙ Settings</div>
+      </div>
+      <div class="empty" style="background:linear-gradient(180deg,var(--stage-a),var(--stage-c));">
+        <svg width="120" height="70" viewBox="0 0 120 70" aria-hidden="true">
+          <circle cx="88" cy="20" r="11" fill="#9DD2F5"/>
+          <path d="M4 44c9-9 15-9 22 0s14 9 22 0 15-9 22 0 14 9 22 0 15-9 22 0" stroke="#1E88C7" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M4 58c9-9 15-9 22 0s14 9 22 0 15-9 22 0 14 9 22 0 15-9 22 0" stroke="#4FB0E8" stroke-width="4" fill="none" stroke-linecap="round" opacity=".7"/>
+        </svg>
+        <h4>Your shelf is empty</h4>
+        <p>Add a PDF from your course and Tide will read it to you in a calm voice.</p>
+        <span class="b pri" style="font-size:15px; padding:13px 22px;">＋ Add your first reading</span>
+        <div class="tip"><b>Tip:</b> you can also right-click any PDF in Finder and choose <b>Open With → Tide</b>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3 · ADD READING ============ -->
+  <div class="shot">
+    <h3>3 · Adding a reading</h3>
+    <p class="cap">After she picks a PDF. One optional question, then it's on her shelf.</p>
+    <div class="frame" style="height:420px;">
+      <div class="scrim">
+        <div class="dlg">
+          <h4>Which course is this for?</h4>
+          <div class="sub">Optional. It just keeps your shelf tidy.</div>
+          <div class="field row"><span style="font-size:18px;">📄</span><b>Week4_Institutions_Giddens.pdf</b><span style="margin-left:auto; color:var(--muted);">22 pages</span></div>
+          <div class="chips" style="margin-top:14px;">
+            <span class="chip">PSYC 201</span><span class="chip sel">SOC 110</span><span class="chip">BIO 150</span><span class="chip" style="border-style:dashed;">＋ New course</span>
+          </div>
+          <div class="actions"><span class="b ghost">Skip</span><span class="b pri">Add to shelf</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4 · SAVE AS AUDIO ============ -->
+  <div class="shot">
+    <h3>4 · Save as audio</h3>
+    <p class="cap">Opens from the "Save as audio" bubble. Her selection is picked already, and she can widen it to pages or the whole reading.</p>
+    <div class="frame" style="height:500px;">
+      <div class="scrim" style="min-height:500px;">
+        <div class="dlg">
+          <h4>Save as audio</h4>
+          <div class="sub">An audio file she can play on her phone, at the gym or anywhere.</div>
+          <div class="lab">What to save</div>
+          <div class="radio on"><i></i>The text I selected<small>about 1 min</small></div>
+          <div class="radio"><i></i>Pages <span class="field" style="padding:3px 8px;">31</span> to <span class="field" style="padding:3px 8px;">40</span><small>about 14 min</small></div>
+          <div class="radio"><i></i>The whole reading<small>about 52 min</small></div>
+          <div class="lab">File name</div>
+          <div class="field">PSYC 201 – Ch 2 Memory &amp; Attention – p31.mp3</div>
+          <div class="row" style="margin-top:10px; font-size:12.5px; color:var(--muted);">Voice: <b style="color:var(--ink)">Heart · 1×</b><span style="margin-left:auto;">Saves to <b style="color:var(--ink)">Music › Tide</b></span></div>
+          <div class="actions"><span class="b ghost">Cancel</span><span class="b pri">↓ Save audio</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 5 · SAVING + DONE ============ -->
+  <div class="shot">
+    <h3>5 · While it saves, and when it's done</h3>
+    <p class="cap">Saving happens in the background, so she can keep reading. A small note says when it's finished.</p>
+    <div class="frame" style="height:500px; display:flex; flex-direction:column;">
+      <div style="flex:1; background:linear-gradient(180deg,var(--stage-a),var(--stage-c)); position:relative; padding:20px;">
+        <div class="dlg" style="max-width:none; padding:16px 18px;">
+          <div class="row" style="margin-bottom:10px;"><b style="font-size:14px;">Making your audio…</b><span style="margin-left:auto; font-size:12.5px; color:var(--muted);">Pages 31–40 · 40%</span></div>
+          <div class="bar"><i style="width:40%"></i></div>
+          <div class="row" style="margin-top:10px; font-size:12.5px; color:var(--muted);">You can keep reading while this finishes.<span style="margin-left:auto; font-weight:800; color:var(--soft-ink);">Cancel</span></div>
+        </div>
+        <div class="toast" style="bottom:22px;">✓ Saved “PSYC 201 – Ch 2 – p31–40.mp3”<span class="a">Show in Finder</span></div>
+      </div>
+      <div class="player" style="gap:12px; padding:10px 16px;">
+        <span class="skip">↺15</span>
+        <span class="play" style="width:46px;height:46px;"><svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="2" width="4" height="14" rx="1.5"/><rect x="11" y="2" width="4" height="14" rx="1.5"/></svg></span>
+        <div class="wave"><svg viewBox="0 0 400 20" width="100%" height="18" preserveAspectRatio="none"><use href="#wv4" style="stroke:var(--wave-off)"/><use href="#wv4" style="stroke:var(--wave-on)" clip-path="url(#wvc4)"/></svg></div>
+        <span class="ctl">Heart · 1×</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 6 · VOICE ============ -->
+  <div class="shot">
+    <h3>6 · Voice &amp; speed</h3>
+    <p class="cap">Opens from "Heart · 1×" in the player. She taps Listen to hear a voice before choosing it.</p>
+    <div class="frame" style="height:440px; background:linear-gradient(180deg,var(--stage-a),var(--stage-c));">
+      <div class="pop" style="width:330px; left:50%; transform:translateX(-50%); top:24px; padding:16px;">
+        <h5>Choose a voice</h5>
+        <div class="opt on"><span>Heart<br><small style="font-weight:400; color:var(--muted);">Warm, gentle · default</small></span><span class="ctl" style="padding:5px 10px; font-size:12px; background:var(--surface);">▶ Listen</span></div>
+        <div class="opt"><span>Bella<br><small style="font-weight:400; color:var(--muted);">Soft, bright</small></span><span class="ctl" style="padding:5px 10px; font-size:12px;">▶ Listen</span></div>
+        <div class="opt"><span>Emma<br><small style="font-weight:400; color:var(--muted);">Calm, British</small></span><span class="ctl" style="padding:5px 10px; font-size:12px;">▶ Listen</span></div>
+        <div class="opt"><span>Michael<br><small style="font-weight:400; color:var(--muted);">Deep, relaxed</small></span><span class="ctl" style="padding:5px 10px; font-size:12px;">▶ Listen</span></div>
+        <div style="margin:12px 6px 0; padding-top:12px; border-top:1px solid var(--border); font-size:13px; font-weight:800;">Speed
+          <div class="row" style="gap:4px; margin-top:8px; background:var(--bg); padding:4px; border-radius:10px;">
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">0.8×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; background:var(--surface); border-radius:7px; color:var(--soft-ink); box-shadow:0 1px 3px var(--shadow);">1×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">1.25×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">1.5×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">2×</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 7 · SLEEP ============ -->
+  <div class="shot">
+    <h3>7 · Sleep timer</h3>
+    <p class="cap">Opens from "Sleep" in the player. While a timer is set, the button shows the countdown and the voice fades out gently at the end.</p>
+    <div class="frame" style="height:440px; display:flex; flex-direction:column;">
+      <div style="flex:1; background:linear-gradient(180deg,var(--stage-a),var(--stage-c)); position:relative;">
+        <div class="pop" style="right:20px; bottom:12px;">
+          <h5>Stop reading after…</h5>
+          <div class="opt">Off</div>
+          <div class="opt">10 minutes</div>
+          <div class="opt on">20 minutes <span>✓</span></div>
+          <div class="opt">30 minutes</div>
+          <div class="opt">45 minutes</div>
+          <div class="opt">End of this page</div>
+          <div class="opt">End of this reading</div>
+        </div>
+      </div>
+      <div class="player" style="gap:12px; padding:10px 16px;">
+        <span class="skip">↺15</span>
+        <span class="play" style="width:46px;height:46px;"><svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="2" width="4" height="14" rx="1.5"/><rect x="11" y="2" width="4" height="14" rx="1.5"/></svg></span>
+        <div class="wave"><svg viewBox="0 0 400 20" width="100%" height="18" preserveAspectRatio="none"><use href="#wv4" style="stroke:var(--wave-off)"/><use href="#wv4" style="stroke:var(--wave-on)" clip-path="url(#wvc4)"/></svg></div>
+        <span class="ctl live">☾ 19:42</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 8 · FILE MOVED ============ -->
+  <div class="shot">
+    <h3>8 · When a PDF has been moved</h3>
+    <p class="cap">Shown when she clicks a reading marked "File moved". Her saved place is kept, so nothing is lost.</p>
+    <div class="frame" style="height:440px;">
+      <div class="scrim" style="min-height:440px;">
+        <div class="dlg">
+          <div style="width:44px; height:44px; border-radius:12px; background:var(--warn-soft); color:var(--warn); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; margin-bottom:12px;">?</div>
+          <h4>Where did this one go?</h4>
+          <div class="sub">We can't find <b style="color:var(--ink)">Week 4 · Institutions</b>. It may have been moved, renamed or deleted. Point us to it and you'll carry on from <b style="color:var(--ink)">page 4</b>.</div>
+          <div class="actions" style="justify-content:space-between;"><span class="b ghost">Remove from shelf</span><span class="b pri">Find the file</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ 9 · SETTINGS ============ -->
+<div class="shot" style="margin-top:26px;">
+  <h3>9 · Settings &amp; themes</h3>
+  <p class="cap">One window with three tabs. These are the only settings; everything else just works.</p>
+  <div class="frame">
+    <div class="set">
+      <nav>
+        <div class="on">Look</div>
+        <div>Reading</div>
+        <div>Pronunciation</div>
+      </nav>
+      <main>
+        <h4>Look</h4>
+        <div class="themes">
+          <div class="th on"><div class="sw" style="background:linear-gradient(180deg,#CFE8FA,#F2F9FF);"><div style="position:absolute; left:18%; right:18%; top:10px; bottom:0; background:#fff; border-radius:3px 3px 0 0;"></div></div>Sky &amp; Sea</div>
+          <div class="th"><div class="sw" style="background:linear-gradient(180deg,#0E2A40,#0B1D2C);"><div style="position:absolute; left:18%; right:18%; top:10px; bottom:0; background:#132B3E; border-radius:3px 3px 0 0;"></div></div>Deep Sea</div>
+          <div class="th"><div class="sw" style="background:#12304A;"><div style="position:absolute; left:18%; right:18%; top:10px; bottom:12px; background:#FFFDF6; box-shadow:0 0 0 2px #071624;"></div><div style="position:absolute; left:0; right:0; bottom:0; height:8px; background:#2A7BA0;"></div></div>Pixel Quest</div>
+          <div class="th"><div class="sw" style="background:linear-gradient(90deg,#E6F3FD 50%,#0B1D2C 50%);"></div>Match my Mac</div>
+        </div>
+        <div class="tog" style="margin-top:10px;"><div>Dark pages in dark themes<small>Turn off for readings with lots of charts or photos.</small></div><span class="sw2 on"></span></div>
+        <div class="tog"><div>Text size in the reader</div><span class="row" style="gap:6px;"><span class="ctl" style="padding:5px 11px;">A−</span><b style="font-size:13px;">100%</b><span class="ctl" style="padding:5px 11px;">A+</span></span></div>
+
+        <h4 style="margin-top:18px;">Reading <span style="font-family:'Nunito Sans'; font-size:12px; color:var(--muted); font-weight:700;">(the next tab, shown here too)</span></h4>
+        <div class="tog"><div>Skip page numbers, headers and footers</div><span class="sw2 on"></span></div>
+        <div class="tog"><div>Skip footnotes</div><span class="sw2 on"></span></div>
+        <div class="tog"><div>Read citations aloud<small>e.g. “(Smith, 2019)”. Off reads more smoothly.</small></div><span class="sw2"></span></div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<div class="shot" style="margin-top:22px;">
+  <h3>10 · Pronunciation fixes</h3>
+  <p class="cap">For course words the voice gets wrong. She types how it should sound, taps Listen to check, and from then on the voice says it that way everywhere.</p>
+  <div class="frame" style="padding:20px 24px; max-width:620px;">
+    <div class="pron"><b>Vygotsky</b><span>says</span><span class="l">vih-GOT-skee</span><span class="pv">▶ Listen</span></div>
+    <div class="pron"><b>Bourdieu</b><span>says</span><span class="l">bor-DYUH</span><span class="pv">▶ Listen</span></div>
+    <div class="pron"><b>schema</b><span>says</span><span class="l">SKEE-muh</span><span class="pv">▶ Listen</span></div>
+    <span class="b soft" style="display:inline-block; margin-top:6px;">＋ Add a word</span>
+  </div>
+</div>
+
+</div>

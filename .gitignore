@@ -1,0 +1,18 @@
+# dependencies & build output
+node_modules/
+out/
+dist/
+release/
+*.log
+
+# brainstorming companion scratch files
+.superpowers/
+
+# her real course readings and voice samples: copyrighted, never committed
+local-fixtures/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
