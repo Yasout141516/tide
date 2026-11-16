@@ -2,6 +2,8 @@
 // answers TtsRequests from the main process. Never touches the network.
 import type { KokoroTTS } from 'kokoro-js'
 import type { TtsRequest, TtsResponse } from './protocol'
+import { splitForSpeech } from './split'
+import { countTokens } from './tokens'
 
 const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX'
 
@@ -35,17 +37,30 @@ async function handle(msg: TtsRequest): Promise<TtsResponse> {
     case 'synthesize': {
       if (!tts) throw new Error('voice engine is not loaded')
       const t0 = performance.now()
-      // Splitting into ≤400-token chunks is wired in by Task 4; for now one generate call.
+      // Kokoro truncates silently past ~510 tokens, so synthesize chunks of at most 400 and join.
       // kokoro-js validates the voice id itself and throws a readable error for unknown ones.
       const voice = msg.voice as NonNullable<Parameters<KokoroTTS['generate']>[1]>['voice']
-      const audio = await tts.generate(msg.text, { voice, speed: msg.speed })
+      const chunks = (await splitForSpeech(msg.text, countTokens, 400))
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0)
+      const parts: Float32Array[] = []
+      for (const chunk of chunks) {
+        const audio = await tts.generate(chunk, { voice, speed: msg.speed })
+        parts.push(audio.audio)
+      }
+      const pcm = new Float32Array(parts.reduce((n, p) => n + p.length, 0))
+      let off = 0
+      for (const p of parts) {
+        pcm.set(p, off)
+        off += p.length
+      }
       return {
         id: msg.id,
         type: 'audio',
-        pcm: audio.audio,
+        pcm,
         sampleRate: 24000,
         synthMs: Math.round(performance.now() - t0),
-        chunks: 1
+        chunks: chunks.length
       }
     }
   }
