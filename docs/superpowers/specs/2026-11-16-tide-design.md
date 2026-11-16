@@ -32,7 +32,7 @@ or her ever opening a terminal. She also makes MP3s of passages and plays them o
    to **"Read everything"**.
 5. A library ("shelf") grouped by course, which remembers her place in every reading.
 6. Background playback, sleep timer, speed control, and Mac media keys / Now Playing.
-7. Calm light and dark themes (Sky & Sea, Deep Sea) plus a playful alternative (Pixel Quest).
+7. Calm light and dark themes (Sky & Sea, Deep Sea) plus two playful alternatives (Pixel Quest, Kitty).
 8. A downloadable Mac app (primary) and Windows app (secondary), built by GitHub Actions.
 
 **Non-goals (v1)**
@@ -60,7 +60,7 @@ or her ever opening a terminal. She also makes MP3s of passages and plays them o
 - **Builder:** Yasin, on Windows, with **no Mac at all**. He is new to Electron. All Mac builds and Mac
   automated tests run on GitHub Actions `macos` (Apple-chip) runners. The first test on a real Mac
   happens at hand-off on her laptop (see §9, §12).
-- **No deadline.** Full v1 scope stays. If scope ever has to shrink, cut in this order: Pixel Quest →
+- **No deadline.** Full v1 scope stays. If scope ever has to shrink, cut in this order: Kitty and Pixel Quest →
   pronunciation fixes → Windows polish. Never cut the reader, voice, resume or Save as audio.
 
 ## 4. Approaches considered (decided: Electron)
@@ -76,7 +76,8 @@ or her ever opening a terminal. She also makes MP3s of passages and plays them o
 - **Layout:** "Classic". The shelf is on the left, the real PDF page in the middle, and the player bar along the bottom.
 - **Themes:** **Sky & Sea** (light, default) and **Deep Sea** (dark), mostly sky- and sea-blue.
   **Pixel Quest** is an alternative theme only, never the default. It is a seaside retro-RPG look with
-  an *original* sprout-critter mascot. Settings also offer "Match my Mac".
+  an *original* sprout-critter mascot. **Kitty** is a second alternative: a pastel kitten theme with an
+  original kitten, Mochi (§6.8). Settings also offer "Match my Mac".
 - **Simplicity rules:** one primary button ("Add reading"). Clicking a reading resumes it.
   Selecting text shows a bubble with **Read from here** / **Save as audio**. The player has only five
   controls: back 15s, play/pause, forward 15s, voice & speed, sleep. All labelled in words.
@@ -107,6 +108,7 @@ or her ever opening a terminal. She also makes MP3s of passages and plays them o
 
 Interactive mockups with a light/dark switch: [`docs/design/screens-sky-sea.html`](../../design/screens-sky-sea.html).
 Pixel Quest visual reference ("Coast route" card): [`docs/design/pixel-quest-reference.html`](../../design/pixel-quest-reference.html).
+Kitty theme: [`docs/design/kitty-theme.html`](../../design/kitty-theme.html).
 
 1. **Reading:** shelf, PDF page with sentence highlight, selection bubble, player bar. In dark
    themes the PDF page is darkened by default (toggle in Settings for chart-heavy readings).
@@ -154,6 +156,11 @@ Pixel Quest visual reference ("Coast route" card): [`docs/design/pixel-quest-ref
 dialogue box `#FDF3DC` on `#22223A` text, accent/title `#FFD66B`, play/Add `#C8432B`, progress
 `#4FC3D1`/`#3AA9B8`, sentence highlight `#FFE27A`, course badges `#B83D73` / `#2B6FA8` / `#8C6420` /
 `#3A7D30` / `#C8432B` (white text on every badge, all ≥ 5:1). Square corners, 3px "pixel" double borders, 3px offset hard shadows.
+
+**Kitty** (alternative theme): bg `#FFF7F2`, shelf `#FCE9EC` → `#FFF3EE`, surface `#FFFFFF`, ink `#4A3236`,
+muted `#7A5A60`, primary (rose) `#B8456A` with white text (5.1:1), pressed `#8E2F52`, soft `#FBE1E8` with
+`#8E2F52` text, pink `#F6B9C8`, peach `#FFD9C2`, ginger `#F2A65A`, lavender `#ECE6FB`/`#4B3F7A` (finished),
+border `#F3D3DA`, highlight `#FFD6E0` + `#B8456A` underline. Radii are larger (14–24 px). All text pairs checked ≥ 4.5:1.
 
 **Type** (all bundled locally):
 
@@ -205,7 +212,7 @@ Every message is plain language with one clear action. No error codes on screen 
 | UI | **React** + **Tailwind CSS** + **Radix UI** primitives (Dialog, Popover, Switch, RadioGroup) | Accessible popovers and dialogs for free. Themes are CSS variables. |
 | PDF | **pdfjs-dist** | Renders pages and gives positioned text for extraction and highlighting. |
 | Voice | **kokoro-js** (Kokoro-82M ONNX, Apache-2.0) on **onnxruntime-node**, CPU | The most natural free offline voice. Runs in Node, no Python. |
-| MP3 | **lamejs** (pure JS) | No native ffmpeg binary to bundle. |
+| Audio export | **ffmpeg-static** (AAC `.m4b` with chapters; MP3 via libmp3lame if present, else **lamejs**) | Only proven route to Apple-readable audiobook chapters (§6.5). |
 | Storage | **electron-store** (JSON in `app.getPath('userData')`, atomic writes, schema + migrations), plus a rolling `library.backup.json` | Data is tiny, so no database. A corrupted file must never wipe her shelf. |
 | Fonts | Bundled locally (Literata, Nunito Sans, Fraunces, Press Start 2P via @fontsource) | Offline: no Google Fonts at runtime. |
 | Packaging | **electron-builder**: Mac `.dmg` (**arm64 only**, matching her M5; onnxruntime-node ships per-arch binaries), Windows NSIS `.exe` (x64). `onnxruntime-node` and the model go in `asarUnpack`/`extraResources` | Uses `mac.identity: "-"` (ad-hoc signature) so macOS offers Open Anyway instead of "damaged". |
@@ -320,11 +327,16 @@ Pages with no extractable text show "This page has no readable text" and playbac
     AirDrops it to her iPhone and opens it in **Apple Books**, which remembers her place and shows the
     chapters. The Save panel says this in one line: *"Whole readings save as an audiobook. Open it in
     Books on your iPhone and it remembers your place."* A small "Save as MP3 instead" link covers other players.
-  - **How:** AAC via Chromium's **WebCodecs `AudioEncoder`** (`mp4a.40.2`, checked with
-    `isConfigSupported()`), muxed into MP4/M4B with chapter metadata. **Spike M0d** proves this
-    on the macOS runner (encode, mux, chapters visible in Books/QuickTime). **Fallback** if WebCodecs
-    AAC or chapter writing fails: bundle a static `ffmpeg` binary (GPL, compatible with Tide's licence)
-    for AAC + chapters.
+  - **How (revised 2026-11-16 during planning):** bundle a static **`ffmpeg`** binary (npm
+    `ffmpeg-static`, GPL, compatible with Tide's licence; roughly 40–80 MB) and run it from the main process.
+    PCM goes in on stdin, and an FFMETADATA file supplies the chapters. Output is AAC-LC mono 64 kbps `.m4b`
+    with a QuickTime chapter track, which is the chapter format Apple's AVFoundation (and so Apple Books) reads.
+    *Why not WebCodecs:* the only maintained JS MP4 muxer (mediabunny 1.66) has no MP4 chapter writing
+    (checked in its source), and hand-writing chapter tracks is risky with no Mac to test on. **Spike M0d**
+    proves chapters with an **AVFoundation check on the macOS runner** (`swift` script reading
+    `AVAsset.chapterMetadataGroups`). That's the same parser family Apple Books uses, so it's verified without owning a Mac.
+  - **MP3:** if the bundled ffmpeg includes `libmp3lame` (checked in M0d), MP3 also goes through ffmpeg
+    and lamejs is dropped. Otherwise lamejs in a Web Worker, as originally planned.
 - **Getting files to her iPhone** goes in her guide: Finder → right-click the file → Share → AirDrop →
   her iPhone. `.m4b` opens in Books and `.mp3` opens in Files.
 
@@ -358,6 +370,16 @@ Pages with no extractable text show "This page has no readable text" and playbac
   plays instantly.
 - Model precision: start with `q8` (~92 MB). Switch to fp32 (~326 MB) only if the listening test
   finds q8 noticeably worse.
+- **Where files come from (verified in kokoro-js 1.2.1 source):**
+  - Voice `.bin` files ship *inside* the `kokoro-js` npm package (`node_modules/kokoro-js/voices/`, 28 MB, all
+    voices), and in Node they're read from disk relative to the package. So `kokoro-js` must **not** be bundled
+    by Vite: it stays an external dependency so that relative path survives packaging. Unused voices can be pruned
+    at packaging time.
+  - The model and tokenizer load through transformers.js from a pinned local copy: repo
+    `onnx-community/Kokoro-82M-v1.0-ONNX` @ revision `1939ad2a8e416c0acfeecc08a694d14ef25f2231`.
+- **Silent truncation:** kokoro-js tokenizes with `truncation: true`, so over-long input is *silently
+  cut off*, not rejected. The long-sentence split (§6.3 #10) is therefore mandatory. A test asserts
+  every chunk is ≤ 400 tokens.
 
 ### 6.8 Themes
 
@@ -369,7 +391,20 @@ Pages with no extractable text show "This page has no readable text" and playbac
 - **Pixel Quest:** pixel font for labels/headings only, and reading text stays in a readable font.
   The sentence being read is mirrored in an RPG-style dialogue box above the player. Course "type"
   badges, pixel waves and an original mascot. **No Nintendo IP.**
-- Respect `prefers-reduced-motion` (no blinking cursor or animated waves).
+- **Kitty** (alternative theme, approved 2026-11-16; mockup [`docs/design/kitty-theme.html`](../../design/kitty-theme.html)):
+  - **Look:** pastel cream, blush and peach, with an original ginger-tabby kitten mascot, **Mochi**.
+  - **Controls:**
+    - The play/pause button is a paw pad.
+    - The progress bar is a yarn thread unrolling to a yarn ball at the current position.
+    - "Add reading" and primary buttons have cat-ear tips, and course labels have paw prints.
+    - The sleep timer is labelled **"Nap timer"** with a curled-up kitten.
+    - Each voice in the picker gets a differently tinted kitten avatar.
+  - **Mochi:** peeks over the player bar while it plays, and sits in a cardboard box on the empty shelf.
+  - **Copy:** light, playful and short ("Purring along", "File wandered off · Find it") and never
+    replaces the plain meaning.
+  - **Fonts:** Fredoka for headings and buttons, Nunito for UI, and the reading text stays the PDF's own.
+  - **No Sanrio/Hello Kitty IP:** no bow-on-one-ear, no mouthless white cat.
+- Respect `prefers-reduced-motion` (no blinking cursor, animated waves or Mochi animation).
 
 ### 6.9 Data, privacy and error logging
 
@@ -432,7 +467,7 @@ Media Session, background playback, sleep timer.
 
 **M5. Save as audio:** selection bubble, Save panel, MP3 export, `.m4b` audiobook export with chapters, progress, toast.
 
-**M6. Settings & themes:** Sky & Sea, Deep Sea, Pixel Quest, Match my Mac, dark pages, reading
+**M6. Settings & themes:** Sky & Sea, Deep Sea, Pixel Quest, Kitty, Match my Mac, dark pages, reading
 toggles, pronunciation fixes.
 
 **M7. Ship:** first-launch screen, app icon, the Open Anyway screenshot guide, README, `v1.0.0` release,
@@ -490,7 +525,7 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 **Answered (2026-11-16)**
 - Mac: **MacBook Air M5** (Apple chip). Mac build is arm64 only.
 - No real Mac available to Yasin. Her readings: Yasin will supply copies (kept git-ignored).
-- No deadline. Cut order if ever needed: Pixel Quest → pronunciation → Windows polish.
+- No deadline. Cut order if ever needed: Kitty & Pixel Quest → pronunciation → Windows polish.
 - Junk: stop at References, skip captions/table text and cover/copyright pages, each switchable, plus per-reading "Read everything".
 - Phone: **iPhone**, so whole readings export as `.m4b` audiobooks (Apple Books), and selections and ranges as MP3.
 - Repo: **public**. Name: **Tide**. Voices: **Yasin picks** from rendered samples during M0.

@@ -1,0 +1,265 @@
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&family=Literata:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  .kt * { box-sizing: border-box; }
+  .kt { font-family:'Nunito', system-ui, sans-serif;
+    --bg:#FFF7F2; --shelf-a:#FCE9EC; --shelf-b:#FFF3EE; --surface:#FFFFFF; --ink:#4A3236; --muted:#7A5A60;
+    --rose:#B8456A; --rose-deep:#A93D61; --on-rose:#FFFFFF; --pink:#F6B9C8; --pink-soft:#FBE1E8; --rose-ink:#8E2F52;
+    --peach:#FFD9C2; --ginger:#F2A65A; --ginger-dark:#C97A34; --lav:#ECE6FB; --lav-ink:#4B3F7A; --border:#F3D3DA;
+    --hl:#FFD6E0; --hl-line:#B8456A; --page:#FFFFFF; --page-ink:#3B2A2D; --shadow:rgba(184,69,106,.16); }
+  .kt .card-image { aspect-ratio:auto; display:block; padding:18px; }
+  .kt .frame { border-radius:20px; overflow:hidden; border:2px solid var(--border); background:var(--bg); color:var(--ink); position:relative; }
+  .kt .fred { font-family:'Fredoka', 'Nunito', sans-serif; }
+
+  /* ---------- app ---------- */
+  .kt .app { display:grid; grid-template-columns:230px 1fr; grid-template-rows:1fr auto; height:500px; }
+  .kt .shelf { grid-row:1 / 3; background:linear-gradient(180deg,var(--shelf-a),var(--shelf-b)); padding:16px 12px; display:flex; flex-direction:column; border-right:2px dashed var(--border); }
+  .kt .mark { font-family:'Fredoka'; font-weight:700; font-size:23px; color:var(--rose-deep); display:flex; align-items:center; gap:8px; margin:0 4px 16px; }
+  .kt .ears { position:relative; margin-top:10px; }
+  .kt .ears::before, .kt .ears::after { content:''; position:absolute; top:-9px; width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-bottom:12px solid var(--rose); }
+  .kt .ears::before { left:14px; } .kt .ears::after { right:14px; }
+  .kt .add { display:flex; align-items:center; justify-content:center; gap:8px; background:var(--rose); color:var(--on-rose); font-family:'Fredoka'; font-weight:600; font-size:15px; padding:11px 12px; border-radius:16px; margin-bottom:16px; box-shadow:0 3px 0 #8E2F52; }
+  .kt .course { font-size:11.5px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); margin:12px 6px 5px; display:flex; align-items:center; gap:6px; }
+  .kt .item { padding:8px 10px 8px 12px; border-radius:14px; font-size:13px; line-height:1.3; font-weight:700; position:relative; }
+  .kt .item small { display:block; font-weight:600; font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .kt .item.on { background:var(--surface); box-shadow:0 2px 6px var(--shadow); }
+  .kt .item.on::before { content:''; position:absolute; left:-2px; top:50%; transform:translateY(-50%); width:5px; height:60%; border-radius:4px; background:var(--rose); }
+  .kt .item.on small { color:var(--rose-deep); font-weight:800; }
+  .kt .item.missing small { color:#A4472A; font-weight:800; }
+  .kt .item.done small { color:var(--lav-ink); }
+  .kt .foot { margin-top:auto; display:flex; gap:7px; font-size:12.5px; color:var(--muted); font-weight:800; padding:6px; align-items:center; }
+
+  .kt .stage { position:relative; display:flex; justify-content:center; padding:20px 28px 0; overflow:hidden;
+     background: radial-gradient(circle at 12% 20%, rgba(246,185,200,.35) 0 6px, transparent 7px) 0 0/46px 46px, linear-gradient(180deg,#FDE3E9,#FFF1EC 60%,var(--bg)); }
+  .kt .page { position:relative; width:100%; max-width:470px; background:var(--page); color:var(--page-ink); padding:26px 32px; border-radius:16px 16px 0 0; font-family:'Literata',serif; font-size:13px; line-height:1.8; box-shadow:0 8px 26px var(--shadow); }
+  .kt .page .meta { font-family:'Nunito'; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--rose-deep); font-weight:800; margin-bottom:12px; }
+  .kt .page h4 { font-family:'Literata',serif; font-weight:600; font-size:15px; margin:0 0 10px; }
+  .kt .hl { background:var(--hl); border-radius:6px; padding:1px 2px; box-shadow: inset 0 -2px 0 var(--hl-line); }
+  .kt .sel { background:rgba(236,230,251,.9); }
+  .kt .bubble { position:absolute; display:flex; gap:4px; background:var(--rose-deep); padding:5px; border-radius:16px; box-shadow:0 8px 20px var(--shadow); font-family:'Nunito'; }
+  .kt .bubble span { color:#fff; font-size:12px; font-weight:800; padding:7px 11px; border-radius:12px; white-space:nowrap; }
+  .kt .bubble span.p { background:#fff; color:var(--rose-deep); }
+  .kt .bubble::after { content:''; position:absolute; left:30px; bottom:-7px; border:7px solid transparent; border-bottom:0; border-top-color:var(--rose-deep); }
+
+  /* peeking kitten over player */
+  .kt .peek { position:absolute; right:40px; bottom:-4px; z-index:3; }
+
+  .kt .player { position:relative; display:flex; align-items:center; gap:14px; padding:12px 22px; background:var(--surface); border-top:2px solid var(--border); }
+  .kt .skip { width:40px; height:40px; border-radius:50%; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; color:var(--rose-ink); font-size:10.5px; font-weight:800; background:var(--pink-soft); flex:none; line-height:1; }
+  .kt .yarn { flex:1; min-width:150px; }
+  .kt .yarn .lbl { display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:1px; font-weight:700; }
+  .kt .ctl { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:var(--rose-ink); background:var(--pink-soft); padding:9px 13px; border-radius:14px; white-space:nowrap; }
+
+  /* dialogs/popovers */
+  .kt .scrim { min-height:420px; height:100%; display:flex; align-items:center; justify-content:center; padding:26px; background:linear-gradient(180deg,#FDE3E9,var(--bg)); position:relative; }
+  .kt .scrim::before { content:''; position:absolute; inset:0; background:rgba(74,50,54,.22); }
+  .kt .dlg { position:relative; width:100%; max-width:400px; background:var(--surface); border-radius:24px; padding:22px; box-shadow:0 24px 50px var(--shadow); color:var(--ink); }
+  .kt .dlg h4 { font-family:'Fredoka'; font-size:21px; font-weight:600; margin:0 0 4px; color:var(--rose-deep); }
+  .kt .sub { font-size:13px; color:var(--muted); margin-bottom:14px; line-height:1.45; font-weight:600; }
+  .kt .radio { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:14px; font-size:13.5px; font-weight:700; }
+  .kt .radio i { width:18px; height:18px; border-radius:50%; border:2px solid var(--border); flex:none; }
+  .kt .radio.on { background:var(--pink-soft); } .kt .radio.on i { border:5px solid var(--rose); }
+  .kt .radio small { margin-left:auto; color:var(--muted); font-weight:700; font-size:12px; }
+  .kt .field { background:var(--bg); border:2px solid var(--border); border-radius:14px; padding:10px 12px; font-size:13px; font-weight:600; }
+  .kt .lab { font-size:11.5px; font-weight:800; color:var(--muted); margin:12px 0 6px; text-transform:uppercase; letter-spacing:.8px; }
+  .kt .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .kt .b { padding:11px 18px; border-radius:16px; font-weight:800; font-size:13.5px; }
+  .kt .b.pri { background:var(--rose); color:#fff; box-shadow:0 3px 0 #8E2F52; font-family:'Fredoka'; font-weight:600; font-size:14.5px; }
+  .kt .b.ghost { color:var(--muted); }
+  .kt .pop { position:absolute; background:var(--surface); border-radius:22px; box-shadow:0 18px 44px var(--shadow); border:2px solid var(--border); padding:14px; color:var(--ink); }
+  .kt .pop h5 { margin:2px 6px 10px; font-family:'Fredoka'; font-size:16px; font-weight:600; color:var(--rose-deep); display:flex; align-items:center; gap:8px; }
+  .kt .v { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:16px; font-size:13.5px; font-weight:800; }
+  .kt .v small { display:block; font-weight:600; color:var(--muted); font-size:12px; }
+  .kt .v.on { background:var(--pink-soft); box-shadow:inset 0 0 0 2px var(--rose); }
+  .kt .v .pv { margin-left:auto; font-size:12px; color:var(--rose-ink); font-weight:800; background:#fff; border:2px solid var(--pink); border-radius:999px; padding:5px 10px; }
+  .kt .opt { padding:9px 12px; border-radius:14px; font-size:13.5px; font-weight:700; display:flex; justify-content:space-between; }
+  .kt .opt.on { background:var(--pink-soft); color:var(--rose-ink); box-shadow:inset 0 0 0 2px var(--rose); }
+  .kt .toast { position:absolute; left:50%; transform:translateX(-50%); bottom:20px; background:var(--ink); color:#FFF7F2; border-radius:18px; padding:10px 12px 10px 14px; display:flex; align-items:center; gap:12px; font-size:13.5px; font-weight:800; white-space:nowrap; box-shadow:0 12px 30px var(--shadow); }
+  .kt .toast .a { background:var(--pink); color:var(--rose-ink); padding:7px 12px; border-radius:12px; }
+  .kt .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(400px,1fr)); gap:22px; }
+  .kt .shot h3 { margin:0 0 4px; font-size:16px; }
+  .kt .shot p.cap { margin:0 0 10px; font-size:13px; opacity:.8; }
+  .kt .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:26px; height:100%; }
+  .kt .empty h4 { font-family:'Fredoka'; font-weight:600; font-size:24px; margin:12px 0 6px; color:var(--rose-deep); }
+  .kt .empty p { color:var(--muted); font-size:14px; max-width:330px; line-height:1.5; margin:0 0 18px; font-weight:600; }
+  .kt .paw-ok { display:inline-flex; align-items:center; gap:5px; }
+</style>
+
+<!-- ===== shared original artwork ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <!-- Mochi: original ginger tabby kitten head -->
+  <g id="kit">
+    <path d="M14 26 L18 6 L32 20 Z" fill="#F2A65A" stroke="#4A3236" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M66 26 L62 6 L48 20 Z" fill="#F2A65A" stroke="#4A3236" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M19 21 L20.5 12 L27 18.5 Z" fill="#F6B9C8"/><path d="M61 21 L59.5 12 L53 18.5 Z" fill="#F6B9C8"/>
+    <ellipse cx="40" cy="40" rx="30" ry="25" fill="#FFD9C2" stroke="#4A3236" stroke-width="2.4"/>
+    <path d="M34 17 q2 6 0 9 M40 16 q1 7 0 10 M46 17 q-2 6 0 9" stroke="#F2A65A" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="29" cy="40" rx="4.6" ry="5.4" fill="#4A3236"/><ellipse cx="51" cy="40" rx="4.6" ry="5.4" fill="#4A3236"/>
+    <circle cx="30.6" cy="38" r="1.6" fill="#fff"/><circle cx="52.6" cy="38" r="1.6" fill="#fff"/>
+    <ellipse cx="21" cy="48" rx="4.5" ry="2.6" fill="#F6B9C8" opacity=".85"/><ellipse cx="59" cy="48" rx="4.5" ry="2.6" fill="#F6B9C8" opacity=".85"/>
+    <path d="M38 46 h4 l-2 2.4 z" fill="#E07C95"/>
+    <path d="M36 50 q2 2.4 4 0 q2 2.4 4 0" stroke="#4A3236" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M8 44 h12 M9 50 l11 -2 M72 44 h-12 M71 50 l-11 -2" stroke="#4A3236" stroke-width="1.4" stroke-linecap="round" opacity=".6"/>
+  </g>
+  <!-- sleeping kitten -->
+  <g id="sleepy">
+    <ellipse cx="30" cy="28" rx="24" ry="13" fill="#FFD9C2" stroke="#4A3236" stroke-width="2"/>
+    <path d="M10 22 L13 9 L22 17 Z M50 22 L47 9 L38 17 Z" fill="#F2A65A" stroke="#4A3236" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M20 27 q3 3 6 0 M34 27 q3 3 6 0" stroke="#4A3236" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M52 34 q10 0 8 -10" stroke="#F2A65A" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <text x="52" y="12" font-family="Fredoka" font-size="10" fill="#8E2F52" font-weight="700">z</text><text x="58" y="6" font-family="Fredoka" font-size="8" fill="#8E2F52" font-weight="700">z</text>
+  </g>
+  <!-- paw print -->
+  <g id="paw"><ellipse cx="12" cy="15" rx="5.5" ry="4.6"/><circle cx="5.5" cy="8.5" r="2.4"/><circle cx="10" cy="5" r="2.4"/><circle cx="14.5" cy="5" r="2.4"/><circle cx="19" cy="8.5" r="2.4"/></g>
+  <!-- yarn ball -->
+  <g id="yarnball"><circle cx="10" cy="10" r="9" fill="#F6B9C8" stroke="#B8456A" stroke-width="1.6"/><path d="M3 7 q7 3 14 -2 M2.5 11 q8 4 15 -3 M5 16 q6 -1 11 -8 M8 2 q-1 9 6 17" stroke="#B8456A" stroke-width="1.2" fill="none"/></g>
+</defs></svg>
+
+<div class="kt">
+<h2>Kitty: a cute kitten theme (alternative)</h2>
+<p class="subtitle">Soft pastel pinks and peach with a little ginger kitten called <b>Mochi</b>, original artwork. The play button is a paw, the progress bar is a ball of yarn unrolling along a thread, and Mochi peeks over the player. The reading page itself stays plain and easy to read.</p>
+
+<!-- ============ READER ============ -->
+<div class="card" data-choice="kitty-reader" onclick="toggleSelect(this)">
+  <div class="card-image">
+    <div class="frame">
+      <div class="app">
+        <div class="shelf">
+          <div class="mark"><svg width="34" height="30" viewBox="0 0 80 66" aria-hidden="true"><use href="#kit"/></svg>Tide</div>
+          <div class="ears"><div class="add"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>Add reading</div></div>
+          <div class="course"><svg width="13" height="13" viewBox="0 0 24 22" fill="#B8456A" aria-hidden="true"><use href="#paw"/></svg>PSYC 201</div>
+          <div class="item on">Ch 2 · Memory &amp; Attention<small>Purring along · page 31 of 40</small></div>
+          <div class="item">Ch 3 · Learning<small>New</small></div>
+          <div class="course"><svg width="13" height="13" viewBox="0 0 24 22" fill="#B8456A" aria-hidden="true"><use href="#paw"/></svg>SOC 110</div>
+          <div class="item">Week 3 · Social Class<small>Page 4 of 22</small></div>
+          <div class="item missing">Week 4 · Institutions<small>File wandered off · Find it</small></div>
+          <div class="course"><svg width="13" height="13" viewBox="0 0 24 22" fill="#B8456A" aria-hidden="true"><use href="#paw"/></svg>Other</div>
+          <div class="item done">Study skills handout<small class="paw-ok"><svg width="11" height="11" viewBox="0 0 24 22" fill="#4B3F7A" aria-hidden="true"><use href="#paw"/></svg>Finished</small></div>
+          <div class="foot">⚙ Settings &amp; themes</div>
+        </div>
+        <div class="stage">
+          <div class="page">
+            <div class="meta">PSYC 201 · page 31</div>
+            <h4>2.3 Memory and Attention</h4>
+            Working memory holds a small amount of information for a short time, and it is easily disrupted.
+            <span class="hl">Most adults can keep about four items in mind at once.</span>
+            Attention decides which of those items stay active and which quietly fade.
+            <span class="sel">This is why reading while distracted feels like nothing sticks.</span>
+            <div class="bubble" style="left:60px; top:196px;"><span class="p">▶ Read from here</span><span>↓ Save as audio</span></div>
+          </div>
+          <svg class="peek" width="96" height="62" viewBox="0 0 96 62" aria-hidden="true">
+            <g transform="translate(8,0)"><use href="#kit"/></g>
+            <ellipse cx="26" cy="58" rx="11" ry="7" fill="#FFD9C2" stroke="#4A3236" stroke-width="2.2"/>
+            <ellipse cx="70" cy="58" rx="11" ry="7" fill="#FFD9C2" stroke="#4A3236" stroke-width="2.2"/>
+            <path d="M22 56 v4 M26 55 v5 M30 56 v4 M66 56 v4 M70 55 v5 M74 56 v4" stroke="#4A3236" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="player">
+          <span class="skip"><svg width="12" height="11" viewBox="0 0 24 22" fill="#8E2F52" aria-hidden="true"><use href="#paw"/></svg>↺15</span>
+          <!-- paw play button -->
+          <svg width="62" height="62" viewBox="0 0 62 62" role="img" aria-label="Pause">
+            <circle cx="13" cy="20" r="6" fill="#B8456A"/><circle cx="24" cy="10" r="6.4" fill="#B8456A"/><circle cx="38" cy="10" r="6.4" fill="#B8456A"/><circle cx="49" cy="20" r="6" fill="#B8456A"/>
+            <ellipse cx="31" cy="40" rx="20" ry="17" fill="#B8456A"/>
+            <rect x="24" y="31" width="5" height="18" rx="2" fill="#fff"/><rect x="33" y="31" width="5" height="18" rx="2" fill="#fff"/>
+          </svg>
+          <span class="skip"><svg width="12" height="11" viewBox="0 0 24 22" fill="#8E2F52" aria-hidden="true"><use href="#paw"/></svg>15↻</span>
+          <div class="yarn">
+            <svg viewBox="0 0 400 26" width="100%" height="26" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M2 16 C 60 6, 120 24, 180 14 S 300 8, 398 15" stroke="#F3D3DA" stroke-width="3" fill="none" stroke-dasharray="2 6" stroke-linecap="round"/>
+              <path d="M2 16 C 60 6, 120 24, 180 14 S 230 11, 246 12" stroke="#B8456A" stroke-width="3" fill="none" stroke-linecap="round"/>
+            </svg>
+            <svg width="22" height="22" viewBox="0 0 20 20" style="position:relative; margin-top:-26px; margin-left:calc(62% - 11px); display:block;" aria-hidden="true"><use href="#yarnball"/></svg>
+            <div class="lbl" style="margin-top:2px;"><span>Page 31 of 40</span><span>About 14 min left</span></div>
+          </div>
+          <span class="ctl"><svg width="18" height="15" viewBox="0 0 80 66" aria-hidden="true"><use href="#kit"/></svg>Heart · 1×</span>
+          <span class="ctl"><svg width="22" height="16" viewBox="0 0 66 44" aria-hidden="true"><use href="#sleepy"/></svg>Nap timer</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <h3>Reading screen</h3>
+    <p>Same layout and controls as Sky &amp; Sea, dressed up. The "Add reading" button has cat ears, course labels have paw prints, the play button is a paw pad, and the progress bar is yarn unrolling from a ball. Mochi peeks over the player while it plays. The sleep timer becomes a "Nap timer" with a curled-up kitten, and the playful wording ("Purring along", "File wandered off") stays short and clear.</p>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:22px;">
+
+  <div class="shot">
+    <h3>First launch</h3>
+    <p class="cap">Mochi waiting in a box for something to read.</p>
+    <div class="frame" style="height:400px;">
+      <div class="empty" style="background:linear-gradient(180deg,#FDE3E9,var(--bg));">
+        <svg width="150" height="120" viewBox="0 0 150 120" aria-hidden="true">
+          <g transform="translate(35,8)"><use href="#kit"/></g>
+          <path d="M20 62 h110 l-8 52 h-94 z" fill="#E9C9A6" stroke="#4A3236" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M20 62 l-12 -14 h40 l10 14 M130 62 l12 -14 h-40 l-10 14" fill="#F2D9BC" stroke="#4A3236" stroke-width="2.4" stroke-linejoin="round"/>
+          <ellipse cx="58" cy="64" rx="9" ry="6" fill="#FFD9C2" stroke="#4A3236" stroke-width="2"/><ellipse cx="92" cy="64" rx="9" ry="6" fill="#FFD9C2" stroke="#4A3236" stroke-width="2"/>
+        </svg>
+        <h4>Mochi is waiting for a story</h4>
+        <p>Add a PDF from your course and Tide will read it to you in a cosy voice.</p>
+        <span class="b pri" style="padding:13px 22px;">＋ Add your first reading</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="shot">
+    <h3>Voice &amp; speed</h3>
+    <p class="cap">Each voice gets its own kitten. Tap Listen to hear it first.</p>
+    <div class="frame" style="height:400px; background:linear-gradient(180deg,#FDE3E9,var(--bg));">
+      <div class="pop" style="width:330px; left:50%; transform:translateX(-50%); top:18px;">
+        <h5><svg width="22" height="18" viewBox="0 0 80 66" aria-hidden="true"><use href="#kit"/></svg>Choose a voice</h5>
+        <div class="v on"><svg width="30" height="25" viewBox="0 0 80 66" aria-hidden="true"><use href="#kit"/></svg><div>Heart<small>Warm, gentle · default</small></div><span class="pv">▶ Listen</span></div>
+        <div class="v"><svg width="30" height="25" viewBox="0 0 80 66" aria-hidden="true" style="filter:grayscale(1) brightness(1.05)"><use href="#kit"/></svg><div>Bella<small>Soft, bright</small></div><span class="pv">▶ Listen</span></div>
+        <div class="v"><svg width="30" height="25" viewBox="0 0 80 66" aria-hidden="true" style="filter:hue-rotate(-30deg) saturate(.6)"><use href="#kit"/></svg><div>Emma<small>Calm, British</small></div><span class="pv">▶ Listen</span></div>
+        <div style="margin:12px 6px 0; padding-top:12px; border-top:2px dashed var(--border); font-size:13px; font-weight:800;">Speed
+          <div style="display:flex; gap:4px; margin-top:8px; background:var(--bg); padding:4px; border-radius:14px;">
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">0.8×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; background:#fff; border-radius:11px; color:var(--rose-ink); box-shadow:0 1px 4px var(--shadow);">1×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">1.25×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">1.5×</span>
+            <span style="flex:1; text-align:center; padding:7px 0; font-size:12.5px; color:var(--muted);">2×</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shot">
+    <h3>Nap timer</h3>
+    <p class="cap">The sleep timer, kitten style. The voice fades out gently at the end.</p>
+    <div class="frame" style="height:400px; background:linear-gradient(180deg,#FDE3E9,var(--bg));">
+      <div class="pop" style="width:270px; left:50%; transform:translateX(-50%); top:18px;">
+        <h5><svg width="34" height="24" viewBox="0 0 66 44" aria-hidden="true"><use href="#sleepy"/></svg>Stop reading after…</h5>
+        <div class="opt">Off</div>
+        <div class="opt">10 minutes</div>
+        <div class="opt on">20 minutes <span>✓</span></div>
+        <div class="opt">30 minutes</div>
+        <div class="opt">End of this page</div>
+        <div class="opt">End of this reading</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shot">
+    <h3>Save as audio + done</h3>
+    <p class="cap">Same choices as Sky &amp; Sea. The "saved" note has a paw print.</p>
+    <div class="frame" style="height:470px;">
+      <div class="scrim" style="min-height:470px; align-items:flex-start;">
+        <div class="dlg">
+          <h4>Save as audio</h4>
+          <div class="sub">Take it with you: gym, walks, or a cosy nap.</div>
+          <div class="lab">What to save</div>
+          <div class="radio on"><i></i>The text I selected<small>about 1 min</small></div>
+          <div class="radio"><i></i>Pages 31 to 40<small>about 14 min</small></div>
+          <div class="radio"><i></i>The whole reading (audiobook)<small>about 52 min</small></div>
+          <div class="lab">File name</div>
+          <div class="field">PSYC 201 – Ch 2 Memory &amp; Attention – p31.mp3</div>
+          <div class="actions"><span class="b ghost">Cancel</span><span class="b pri">↓ Save audio</span></div>
+        </div>
+        <div class="toast"><svg width="16" height="15" viewBox="0 0 24 22" fill="#F6B9C8" aria-hidden="true"><use href="#paw"/></svg>Saved “Ch 2 – p31.mp3”<span class="a">Show in Finder</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
