@@ -2,11 +2,17 @@ import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
+import { TtsHost } from './tts-host'
+import { registerIpc } from './ipc'
+import { resourcePath } from './paths'
+
+const e2e = process.env.TIDE_E2E === '1'
 
 let quitting = false
 let mainWindow: BrowserWindow | null = null
+let ttsHost: TtsHost | null = null
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     title: 'Tide',
     width: 1100,
@@ -20,7 +26,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      // The sandboxed preload reads this from process.argv to expose test-only hooks.
+      additionalArguments: e2e ? ['--tide-e2e'] : []
     }
   })
   mainWindow = win
@@ -50,19 +58,38 @@ function createWindow(): void {
   } else {
     win.loadFile(indexFile)
   }
+  return win
+}
+
+/** Warm the voice engine once the window has loaded, so first playback is quick. */
+function startTtsWhenLoaded(win: BrowserWindow): void {
+  win.webContents.once('did-finish-load', () => {
+    ttsHost?.start().catch((err) => console.error('[tide] voice engine failed to load:', err))
+  })
 }
 
 app.on('before-quit', () => {
   quitting = true
 })
 
+app.on('will-quit', () => {
+  ttsHost?.dispose()
+})
+
 app.whenReady().then(() => {
   app.setAppUserModelId('com.yasout141516.tide')
-  createWindow()
+
+  ttsHost = new TtsHost({
+    workerPath: join(__dirname, 'tts-worker.js'),
+    modelDir: resourcePath('models')
+  })
+  registerIpc(ttsHost, { e2e })
+
+  startTtsWhenLoaded(createWindow())
 
   app.on('activate', () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
-    else createWindow()
+    else startTtsWhenLoaded(createWindow())
   })
 })
 

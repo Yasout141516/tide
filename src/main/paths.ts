@@ -3,7 +3,9 @@ import { app } from 'electron'
 
 /** Resolve a path inside the app's resources dir (dev: <repo>/resources, packaged: process.resourcesPath). */
 export function resourcePath(...segments: string[]): string {
-  const base = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources')
+  // Dev: this code is bundled into <repo>/out/main/index.js. Anchor on that file rather than
+  // app.getAppPath(), which is <repo>/out/main when Electron is launched with a script path (e2e).
+  const base = app.isPackaged ? process.resourcesPath : join(__dirname, '..', '..', 'resources')
   return join(base, ...segments)
 }
 
