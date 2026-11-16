@@ -1,0 +1,78 @@
+{
+  "fixture": "captions-tables.pdf",
+  "description": "2 pages, 11pt body. Page 1: 14pt heading \"Results\", a paragraph that mentions Figure 1 mid-sentence, a drawn figure box with the 9pt caption \"Figure 1. Recall by list length.\", a paragraph, the 9pt caption \"Table 1. Mean words recalled by list length and age group.\" and a 4x4 table of short numbers (9pt, each cell its own text run, right-aligned columns ending at x=180/260/340/420). Page 2: a figure box with a two-line 9pt caption \"Figure 2. ...\" (the second line is a continuation at the same small size) between two body paragraphs.",
+  "pageCount": 2,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Results",
+        "Participants studied word lists of different lengths and then recalled as many words as they",
+        "could. As Figure 1 shows, recall fell steadily as the lists grew longer.",
+        "Figure 1. Recall by list length.",
+        "The pattern held for every age group we tested. Table 1 lists the mean number of words recalled",
+        "in each condition.",
+        "Table 1. Mean words recalled by list length and age group.",
+        "5 4.8 4.6 4.1",
+        "10 7.2 6.9 6.0",
+        "15 8.1 7.7 6.8",
+        "20 8.4 8.0 7.1",
+        "Longer lists also produced more intrusions, which we discuss below."
+      ],
+      "spoken": "Results Participants studied word lists of different lengths and then recalled as many words as they could. As Figure 1 shows, recall fell steadily as the lists grew longer. The pattern held for every age group we tested. Table 1 lists the mean number of words recalled in each condition. Longer lists also produced more intrusions, which we discuss below.",
+      "spokenReadEverything": "Results Participants studied word lists of different lengths and then recalled as many words as they could. As Figure 1 shows, recall fell steadily as the lists grew longer. Figure 1. Recall by list length. The pattern held for every age group we tested. Table 1 lists the mean number of words recalled in each condition. Table 1. Mean words recalled by list length and age group. 5 4.8 4.6 4.1 10 7.2 6.9 6.0 15 8.1 7.7 6.8 20 8.4 8.0 7.1 Longer lists also produced more intrusions, which we discuss below.",
+      "skipped": [
+        {
+          "text": "Figure 1. Recall by list length.",
+          "reason": "figure/table caption"
+        },
+        {
+          "text": "Table 1. Mean words recalled by list length and age group.",
+          "reason": "figure/table caption"
+        },
+        {
+          "text": "5 4.8 4.6 4.1",
+          "reason": "table"
+        },
+        {
+          "text": "10 7.2 6.9 6.0",
+          "reason": "table"
+        },
+        {
+          "text": "15 8.1 7.7 6.8",
+          "reason": "table"
+        },
+        {
+          "text": "20 8.4 8.0 7.1",
+          "reason": "table"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lines": [
+        "Recall was best for words at the start and end of each list.",
+        "Figure 2. Serial position curves for the 20-word lists, showing strong",
+        "primacy and recency effects in every age group we tested.",
+        "These results match the classic serial position effect."
+      ],
+      "spoken": "Recall was best for words at the start and end of each list. These results match the classic serial position effect.",
+      "spokenReadEverything": "Recall was best for words at the start and end of each list. Figure 2. Serial position curves for the 20-word lists, showing strong primacy and recency effects in every age group we tested. These results match the classic serial position effect.",
+      "skipped": [
+        {
+          "text": "Figure 2. Serial position curves for the 20-word lists, showing strong",
+          "reason": "figure/table caption"
+        },
+        {
+          "text": "primacy and recency effects in every age group we tested.",
+          "reason": "figure/table caption"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "fixture": "no-text.pdf",
+  "description": "2 pages, each with only a drawn grey rectangle and no text at all.",
+  "pageCount": 2,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "Both pages are textless: extractPages gives 0 items per page, buildLines gives [], and both pages belong in textlessPages."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [],
+      "spoken": "",
+      "spokenReadEverything": "",
+      "skipped": []
+    },
+    {
+      "page": 2,
+      "lines": [],
+      "spoken": "",
+      "spokenReadEverything": "",
+      "skipped": []
+    }
+  ]
+}

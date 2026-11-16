@@ -1,0 +1,31 @@
+{
+  "fixture": "long-sentence.pdf",
+  "description": "1 page, one 11pt paragraph that is a single 130-word sentence with commas but no other terminal punctuation.",
+  "pageCount": 1,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "wordCount": 130,
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "When students prepare for an exam in a crowded and noisy library while also answering",
+        "messages on their phones, listening to music through headphones, glancing at the clock every",
+        "few minutes, worrying about the other assignments that are due later in the same week, and",
+        "trying to remember which chapters the instructor said would be covered, they often find that the",
+        "material they read seems familiar at the time but slips away almost completely by the following",
+        "morning, because divided attention prevents the careful encoding that durable memories",
+        "require, and because the feeling of familiarity that comes from rereading is easily mistaken for",
+        "real understanding, which is why researchers recommend quiet surroundings, focused sessions,",
+        "regular self-testing and enough sleep as the most reliable ways to turn study into lasting",
+        "knowledge."
+      ],
+      "spoken": "When students prepare for an exam in a crowded and noisy library while also answering messages on their phones, listening to music through headphones, glancing at the clock every few minutes, worrying about the other assignments that are due later in the same week, and trying to remember which chapters the instructor said would be covered, they often find that the material they read seems familiar at the time but slips away almost completely by the following morning, because divided attention prevents the careful encoding that durable memories require, and because the feeling of familiarity that comes from rereading is easily mistaken for real understanding, which is why researchers recommend quiet surroundings, focused sessions, regular self-testing and enough sleep as the most reliable ways to turn study into lasting knowledge.",
+      "spokenReadEverything": "When students prepare for an exam in a crowded and noisy library while also answering messages on their phones, listening to music through headphones, glancing at the clock every few minutes, worrying about the other assignments that are due later in the same week, and trying to remember which chapters the instructor said would be covered, they often find that the material they read seems familiar at the time but slips away almost completely by the following morning, because divided attention prevents the careful encoding that durable memories require, and because the feeling of familiarity that comes from rereading is easily mistaken for real understanding, which is why researchers recommend quiet surroundings, focused sessions, regular self-testing and enough sleep as the most reliable ways to turn study into lasting knowledge.",
+      "skipped": []
+    }
+  ]
+}

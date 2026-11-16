@@ -1,0 +1,65 @@
+{
+  "fixture": "citations.pdf",
+  "description": "1 page, one 11pt paragraph of seven sentences containing (Smith, 2019), (Smith & Jones, 2019, p. 4), (e.g., Lee et al., 2020; Kim, 2021), [12], [3–5] (en dash), the narrative citation \"Smith (2019) argues\" and the non-citation \"(born 1990 in Leeds)\".",
+  "pageCount": 1,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "Default (readCitations: false) removes the parenthetical and bracketed citations together with the space before them, and the year from the narrative citation (\"Smith (2019) argues\" -> \"Smith argues\").",
+    "\"(born 1990 in Leeds)\" is not a citation and is always spoken.",
+    "With readCitations: true (and with READ_EVERYTHING) the text is spoken unchanged: see each page's `spokenWithCitations`."
+  ],
+  "sentences": [
+    "Short-term memory fades within seconds without rehearsal (Smith, 2019).",
+    "Chunking extends this limit considerably (Smith & Jones, 2019, p. 4).",
+    "Several studies replicate the effect (e.g., Lee et al., 2020; Kim, 2021).",
+    "Interference, not decay, explains most forgetting [12].",
+    "Earlier reviews reached the same conclusion [3–5].",
+    "Smith (2019) argues that rehearsal is the key mechanism.",
+    "The participant (born 1990 in Leeds) completed every session."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Short-term memory fades within seconds without rehearsal (Smith, 2019). Chunking extends",
+        "this limit considerably (Smith & Jones, 2019, p. 4). Several studies replicate the effect (e.g., Lee",
+        "et al., 2020; Kim, 2021). Interference, not decay, explains most forgetting [12]. Earlier reviews",
+        "reached the same conclusion [3–5]. Smith (2019) argues that rehearsal is the key mechanism.",
+        "The participant (born 1990 in Leeds) completed every session."
+      ],
+      "spoken": "Short-term memory fades within seconds without rehearsal. Chunking extends this limit considerably. Several studies replicate the effect. Interference, not decay, explains most forgetting. Earlier reviews reached the same conclusion. Smith argues that rehearsal is the key mechanism. The participant (born 1990 in Leeds) completed every session.",
+      "spokenWithCitations": "Short-term memory fades within seconds without rehearsal (Smith, 2019). Chunking extends this limit considerably (Smith & Jones, 2019, p. 4). Several studies replicate the effect (e.g., Lee et al., 2020; Kim, 2021). Interference, not decay, explains most forgetting [12]. Earlier reviews reached the same conclusion [3–5]. Smith (2019) argues that rehearsal is the key mechanism. The participant (born 1990 in Leeds) completed every session.",
+      "spokenReadEverything": "Short-term memory fades within seconds without rehearsal (Smith, 2019). Chunking extends this limit considerably (Smith & Jones, 2019, p. 4). Several studies replicate the effect (e.g., Lee et al., 2020; Kim, 2021). Interference, not decay, explains most forgetting [12]. Earlier reviews reached the same conclusion [3–5]. Smith (2019) argues that rehearsal is the key mechanism. The participant (born 1990 in Leeds) completed every session.",
+      "skipped": [
+        {
+          "text": "(Smith, 2019)",
+          "reason": "citation"
+        },
+        {
+          "text": "(Smith & Jones, 2019, p. 4)",
+          "reason": "citation"
+        },
+        {
+          "text": "(e.g., Lee et al., 2020; Kim, 2021)",
+          "reason": "citation"
+        },
+        {
+          "text": "[12]",
+          "reason": "citation"
+        },
+        {
+          "text": "[3–5]",
+          "reason": "citation"
+        },
+        {
+          "text": "Smith (2019) argues",
+          "reason": "citation"
+        }
+      ]
+    }
+  ]
+}

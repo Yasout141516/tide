@@ -1,0 +1,120 @@
+{
+  "fixture": "single-column.pdf",
+  "description": "4 pages, one column of 11pt body text. Running header \"PSYC 201 — Week 4\" (9pt, top) and footer \"Page N\" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break \"atten-\" / \"tion\", an inline 7pt raised footnote marker \"¹\" after \"capacity\", and a 7pt footnote \"¹ See Miller (1956).\" under a short rule above the footer.",
+  "pageCount": 4,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "PSYC 201 — Week 4",
+        "Week 4: Attention and Memory",
+        "This week we look at how attention shapes what we remember. Attention acts as a filter that",
+        "decides which parts of the world reach awareness. Information that is never attended to is rarely",
+        "stored for long.",
+        "Psychologists have long argued that memory depends on selective atten-",
+        "tion to the right details at the right moment. When attention is divided,",
+        "people encode less and later recall fewer of the items they saw.",
+        "Working memory capacity¹ is limited to a few items at once.",
+        "Most adults can hold about four chunks of information in mind.",
+        "¹ See Miller (1956).",
+        "Page 1"
+      ],
+      "spoken": "Week 4: Attention and Memory This week we look at how attention shapes what we remember. Attention acts as a filter that decides which parts of the world reach awareness. Information that is never attended to is rarely stored for long. Psychologists have long argued that memory depends on selective attention to the right details at the right moment. When attention is divided, people encode less and later recall fewer of the items they saw. Working memory capacity is limited to a few items at once. Most adults can hold about four chunks of information in mind.",
+      "spokenReadEverything": "PSYC 201 — Week 4 Week 4: Attention and Memory This week we look at how attention shapes what we remember. Attention acts as a filter that decides which parts of the world reach awareness. Information that is never attended to is rarely stored for long. Psychologists have long argued that memory depends on selective attention to the right details at the right moment. When attention is divided, people encode less and later recall fewer of the items they saw. Working memory capacity¹ is limited to a few items at once. Most adults can hold about four chunks of information in mind. ¹ See Miller (1956). Page 1",
+      "skipped": [
+        {
+          "text": "PSYC 201 — Week 4",
+          "reason": "running header"
+        },
+        {
+          "text": "¹",
+          "reason": "footnote marker"
+        },
+        {
+          "text": "¹ See Miller (1956).",
+          "reason": "footnote"
+        },
+        {
+          "text": "Page 1",
+          "reason": "page number footer"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lines": [
+        "PSYC 201 — Week 4",
+        "Attention is often compared to a spotlight that moves across a scene. Objects inside the",
+        "spotlight are processed quickly and in detail. Objects outside it are processed slowly, if at all.",
+        "A second view treats attention as a limited pool of resources. Hard tasks draw heavily on the",
+        "pool and leave little for anything else. This explains why talking on the phone makes driving",
+        "more dangerous.",
+        "Page 2"
+      ],
+      "spoken": "Attention is often compared to a spotlight that moves across a scene. Objects inside the spotlight are processed quickly and in detail. Objects outside it are processed slowly, if at all. A second view treats attention as a limited pool of resources. Hard tasks draw heavily on the pool and leave little for anything else. This explains why talking on the phone makes driving more dangerous.",
+      "spokenReadEverything": "PSYC 201 — Week 4 Attention is often compared to a spotlight that moves across a scene. Objects inside the spotlight are processed quickly and in detail. Objects outside it are processed slowly, if at all. A second view treats attention as a limited pool of resources. Hard tasks draw heavily on the pool and leave little for anything else. This explains why talking on the phone makes driving more dangerous. Page 2",
+      "skipped": [
+        {
+          "text": "PSYC 201 — Week 4",
+          "reason": "running header"
+        },
+        {
+          "text": "Page 2",
+          "reason": "page number footer"
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "lines": [
+        "PSYC 201 — Week 4",
+        "Memory researchers separate encoding, storage and retrieval. Encoding turns an experience",
+        "into a lasting trace. Storage keeps the trace over time, and retrieval brings it back when it is",
+        "needed.",
+        "Each stage can fail on its own. A student who never encoded a fact cannot retrieve it, no matter",
+        "how hard they try. A student who encoded it well may still fail to retrieve it under stress.",
+        "Page 3"
+      ],
+      "spoken": "Memory researchers separate encoding, storage and retrieval. Encoding turns an experience into a lasting trace. Storage keeps the trace over time, and retrieval brings it back when it is needed. Each stage can fail on its own. A student who never encoded a fact cannot retrieve it, no matter how hard they try. A student who encoded it well may still fail to retrieve it under stress.",
+      "spokenReadEverything": "PSYC 201 — Week 4 Memory researchers separate encoding, storage and retrieval. Encoding turns an experience into a lasting trace. Storage keeps the trace over time, and retrieval brings it back when it is needed. Each stage can fail on its own. A student who never encoded a fact cannot retrieve it, no matter how hard they try. A student who encoded it well may still fail to retrieve it under stress. Page 3",
+      "skipped": [
+        {
+          "text": "PSYC 201 — Week 4",
+          "reason": "running header"
+        },
+        {
+          "text": "Page 3",
+          "reason": "page number footer"
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "lines": [
+        "PSYC 201 — Week 4",
+        "Practice testing is one of the most reliable ways to improve retrieval. Each attempt to recall",
+        "strengthens the path back to the memory. Spacing practice over several days works better than",
+        "cramming the night before.",
+        "Next week we turn to long-term memory and the ways it can be distorted.",
+        "Page 4"
+      ],
+      "spoken": "Practice testing is one of the most reliable ways to improve retrieval. Each attempt to recall strengthens the path back to the memory. Spacing practice over several days works better than cramming the night before. Next week we turn to long-term memory and the ways it can be distorted.",
+      "spokenReadEverything": "PSYC 201 — Week 4 Practice testing is one of the most reliable ways to improve retrieval. Each attempt to recall strengthens the path back to the memory. Spacing practice over several days works better than cramming the night before. Next week we turn to long-term memory and the ways it can be distorted. Page 4",
+      "skipped": [
+        {
+          "text": "PSYC 201 — Week 4",
+          "reason": "running header"
+        },
+        {
+          "text": "Page 4",
+          "reason": "page number footer"
+        }
+      ]
+    }
+  ]
+}

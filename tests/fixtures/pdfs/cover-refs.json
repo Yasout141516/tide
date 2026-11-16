@@ -1,0 +1,145 @@
+{
+  "fixture": "cover-refs.pdf",
+  "description": "6 pages. Page 1: cover (28/16/12pt centered title lines) with the 9pt line \"© 2026 Course Pack — All rights reserved\". Page 2: table of contents (\"Contents\" 16pt, 11pt dot-leader entries including \"References ........ 6\"). Page 3: 14pt headings \"Introduction\" and a mid-document \"Notes\" (page 3 of 6, before 60% of the document). Pages 4-5: 14pt headings \"Results\", \"Discussion\" with body text. Page 6: a body paragraph, then a 14pt \"References\" heading followed by 10pt APA entries with an 18pt hanging indent. No running headers or footers.",
+  "pageCount": 6,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "Page 1 is skipped by default as a cover/copyright page (© / \"all rights reserved\" / \"course pack\" markers).",
+    "Page 2 (contents) is spoken by default: the spec has no table-of-contents filter, it has no cover markers, and it has more than 2 sentences. Its \"References ........ 6\" line must NOT stop reading (not a standalone heading; page 2 of 6).",
+    "The page 3 \"Notes\" heading is a standalone heading-sized line but lies before the last 40% of the document, so it must NOT stop reading.",
+    "Speech stops at the page 6 \"References\" heading (last 40% of the document): the heading and everything after it are not spoken by default."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Cognitive Psychology",
+        "Course Pack for PSYC 201",
+        "Fall 2026",
+        "© 2026 Course Pack — All rights reserved"
+      ],
+      "spoken": "",
+      "spokenReadEverything": "Cognitive Psychology Course Pack for PSYC 201 Fall 2026 © 2026 Course Pack — All rights reserved",
+      "skipped": [
+        {
+          "text": "Cognitive Psychology",
+          "reason": "cover page"
+        },
+        {
+          "text": "Course Pack for PSYC 201",
+          "reason": "cover page"
+        },
+        {
+          "text": "Fall 2026",
+          "reason": "cover page"
+        },
+        {
+          "text": "© 2026 Course Pack — All rights reserved",
+          "reason": "cover page"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lines": [
+        "Contents",
+        "Introduction ........ 3",
+        "Notes ........ 3",
+        "Results ........ 4",
+        "Discussion ........ 5",
+        "References ........ 6"
+      ],
+      "spoken": "Contents Introduction ........ 3 Notes ........ 3 Results ........ 4 Discussion ........ 5 References ........ 6",
+      "spokenReadEverything": "Contents Introduction ........ 3 Notes ........ 3 Results ........ 4 Discussion ........ 5 References ........ 6",
+      "skipped": []
+    },
+    {
+      "page": 3,
+      "lines": [
+        "Introduction",
+        "This course pack collects short readings on memory and attention. Each reading is followed by",
+        "questions that help you check your understanding. Read the introduction to each section before",
+        "the readings themselves.",
+        "Notes",
+        "These notes explain how the readings fit together. Some readings overlap, and the notes point",
+        "out where authors disagree. Use them as a guide, not as a replacement for the readings."
+      ],
+      "spoken": "Introduction This course pack collects short readings on memory and attention. Each reading is followed by questions that help you check your understanding. Read the introduction to each section before the readings themselves. Notes These notes explain how the readings fit together. Some readings overlap, and the notes point out where authors disagree. Use them as a guide, not as a replacement for the readings.",
+      "spokenReadEverything": "Introduction This course pack collects short readings on memory and attention. Each reading is followed by questions that help you check your understanding. Read the introduction to each section before the readings themselves. Notes These notes explain how the readings fit together. Some readings overlap, and the notes point out where authors disagree. Use them as a guide, not as a replacement for the readings.",
+      "skipped": []
+    },
+    {
+      "page": 4,
+      "lines": [
+        "Results",
+        "Students who used the questions after each reading scored higher on the final exam. The",
+        "benefit was largest for students who answered the questions without looking back at the text.",
+        "Students who only reread the material showed little improvement over the term."
+      ],
+      "spoken": "Results Students who used the questions after each reading scored higher on the final exam. The benefit was largest for students who answered the questions without looking back at the text. Students who only reread the material showed little improvement over the term.",
+      "spokenReadEverything": "Results Students who used the questions after each reading scored higher on the final exam. The benefit was largest for students who answered the questions without looking back at the text. Students who only reread the material showed little improvement over the term.",
+      "skipped": []
+    },
+    {
+      "page": 5,
+      "lines": [
+        "Discussion",
+        "Answering questions works because it forces retrieval. Each successful retrieval makes the",
+        "memory easier to find the next time. Rereading feels productive, but it mostly builds familiarity",
+        "rather than recall."
+      ],
+      "spoken": "Discussion Answering questions works because it forces retrieval. Each successful retrieval makes the memory easier to find the next time. Rereading feels productive, but it mostly builds familiarity rather than recall.",
+      "spokenReadEverything": "Discussion Answering questions works because it forces retrieval. Each successful retrieval makes the memory easier to find the next time. Rereading feels productive, but it mostly builds familiarity rather than recall.",
+      "skipped": []
+    },
+    {
+      "page": 6,
+      "lines": [
+        "In short, testing yourself is one of the most useful habits a student can build.",
+        "References",
+        "Baddeley, A. D. (2000). The episodic buffer: A new component of working memory? Trends in Cognitive",
+        "Sciences, 4(11), 417–423.",
+        "Miller, G. A. (1956). The magical number seven, plus or minus two: Some limits on our capacity for",
+        "processing information. Psychological Review, 63(2), 81–97.",
+        "Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning: Taking memory tests improves",
+        "long-term retention. Psychological Science, 17(3), 249–255."
+      ],
+      "spoken": "In short, testing yourself is one of the most useful habits a student can build.",
+      "spokenReadEverything": "In short, testing yourself is one of the most useful habits a student can build. References Baddeley, A. D. (2000). The episodic buffer: A new component of working memory? Trends in Cognitive Sciences, 4(11), 417–423. Miller, G. A. (1956). The magical number seven, plus or minus two: Some limits on our capacity for processing information. Psychological Review, 63(2), 81–97. Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning: Taking memory tests improves long-term retention. Psychological Science, 17(3), 249–255.",
+      "skipped": [
+        {
+          "text": "References",
+          "reason": "references"
+        },
+        {
+          "text": "Baddeley, A. D. (2000). The episodic buffer: A new component of working memory? Trends in Cognitive",
+          "reason": "references"
+        },
+        {
+          "text": "Sciences, 4(11), 417–423.",
+          "reason": "references"
+        },
+        {
+          "text": "Miller, G. A. (1956). The magical number seven, plus or minus two: Some limits on our capacity for",
+          "reason": "references"
+        },
+        {
+          "text": "processing information. Psychological Review, 63(2), 81–97.",
+          "reason": "references"
+        },
+        {
+          "text": "Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning: Taking memory tests improves",
+          "reason": "references"
+        },
+        {
+          "text": "long-term retention. Psychological Science, 17(3), 249–255.",
+          "reason": "references"
+        }
+      ]
+    }
+  ]
+}
