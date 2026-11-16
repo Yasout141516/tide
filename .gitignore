@@ -16,3 +16,9 @@ local-fixtures/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+# bundled TTS model (fetched by script), test output
+resources/models/
+test-results/
+playwright-report/
+.eslintcache
