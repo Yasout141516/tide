@@ -20,14 +20,16 @@ function zoneOf(line: Line, pageHeight: number): Zone | null {
  * Drops running headers, footers and page numbers.
  *
  * Only lines in the top or bottom 8% of their page (by baseline) are candidates. A candidate goes if
- * its digit-normalized key appears in the same zone on at least min(3, ceil(pageCount / 2)) pages, or
- * if it is a page number on its own (see `PAGE_NUMBER`). Kept lines are returned as-is, in order.
+ * its digit-normalized key appears in the same zone on at least max(2, min(3, ceil(pageCount / 2)))
+ * pages, or if it is a page number on its own (see `PAGE_NUMBER`, any page count). Kept lines are
+ * returned as-is, in order.
  *
  * @param pagesLines the lines of every page, in page order
  * @param pageHeights the height of each page, same order
  */
 export function dropHeadersFooters(pagesLines: Line[][], pageHeights: number[]): Line[][] {
-  const threshold = Math.min(3, Math.ceil(0.5 * pagesLines.length))
+  // Floor of 2: a line seen on one page only never repeated, so it is not a running header.
+  const threshold = Math.max(2, Math.min(3, Math.ceil(0.5 * pagesLines.length)))
   const zones = pagesLines.map((lines, p) => lines.map((l) => zoneOf(l, pageHeights[p])))
 
   // Number of pages on which each key appears, per zone.

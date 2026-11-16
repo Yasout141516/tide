@@ -54,6 +54,26 @@ describe('dropHeadersFooters', () => {
     expect(out.flat()).not.toContain('Unit B notes')
   })
 
+  it('keeps a top-zone title on a 1-page document but still drops its page number', () => {
+    for (const num of ['Page 1', '3']) {
+      const out = doc(1, () => [
+        { str: 'One-Page Handout', x: 72, y: TOP },
+        { str: num, x: 300, y: BOTTOM }
+      ])
+      expect(out[0]).toEqual(['One-Page Handout', 'Body text of page 1.', 'More body text.'])
+    }
+  })
+
+  it('drops a header repeated on both pages of a 2-page document', () => {
+    const out = doc(2, () => [{ str: 'Lab Manual', x: 72, y: TOP }])
+    expect(out.flat()).not.toContain('Lab Manual')
+  })
+
+  it('keeps a top-zone line that appears on only one page of a 2-page document', () => {
+    const out = doc(2, (k) => (k === 1 ? [{ str: 'Lab Manual', x: 72, y: TOP }] : []))
+    expect(out[0][0]).toBe('Lab Manual')
+  })
+
   it('counts top and bottom zones separately', () => {
     // Twice at the top and once at the bottom of a 6-page document: below the threshold in each zone.
     const out = doc(6, (k) =>
