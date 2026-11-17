@@ -16,13 +16,32 @@ const STAGE_BG = 'bg-linear-to-b from-stage-a from-0% via-stage-b via-55% to-sta
 
 export function AppShell({ renderShelf, stage, player }: Props): React.JSX.Element {
   const narrow = useMediaQuery(NARROW_QUERY)
-  const [open, setOpen] = useState(false)
+  const [openState, setOpen] = useState(false)
+  // A widen closes the overlay for good: narrowing again must not re-open it.
+  if (!narrow && openState) setOpen(false)
+  const open = openState && narrow
   const close = (): void => setOpen(false)
 
-  if (narrow) {
-    return (
-      <div className="grid h-full grid-cols-[1fr] grid-rows-[1fr_auto]">
-        <div className={`flex min-h-0 flex-col ${STAGE_BG}`}>
+  // The stage stays at one tree position (second child) in both modes, so crossing the
+  // breakpoint never remounts it; only the shelf and wordmark move.
+  return (
+    <div
+      className={
+        narrow
+          ? 'grid h-full grid-cols-[1fr] grid-rows-[1fr_auto]'
+          : 'grid h-full grid-cols-[240px_1fr] grid-rows-[1fr_auto]'
+      }
+    >
+      {narrow ? null : (
+        <aside className="row-span-2 flex min-h-0 flex-col border-r border-border bg-linear-to-b from-shelf-a to-shelf-b px-3 py-4">
+          <div className="mb-3.5">
+            <Wordmark />
+          </div>
+          {renderShelf(close)}
+        </aside>
+      )}
+      <div className={`flex min-h-0 flex-col ${STAGE_BG}`}>
+        {narrow ? (
           <div className="flex items-center gap-4 px-5 pt-3">
             <Dialog.Root open={open} onOpenChange={setOpen}>
               <Dialog.Trigger className="min-h-9 cursor-pointer rounded-xl border-0 bg-soft px-3.5 text-[13.5px] font-extrabold text-soft-ink">
@@ -41,22 +60,9 @@ export function AppShell({ renderShelf, stage, player }: Props): React.JSX.Eleme
             </Dialog.Root>
             <Wordmark />
           </div>
-          <div className="min-h-0 flex-1">{stage}</div>
-        </div>
-        {player}
+        ) : null}
+        <div className="min-h-0 flex-1">{stage}</div>
       </div>
-    )
-  }
-
-  return (
-    <div className="grid h-full grid-cols-[240px_1fr] grid-rows-[1fr_auto]">
-      <aside className="row-span-2 flex min-h-0 flex-col border-r border-border bg-linear-to-b from-shelf-a to-shelf-b px-3 py-4">
-        <div className="mb-3.5">
-          <Wordmark />
-        </div>
-        {renderShelf(close)}
-      </aside>
-      <div className={`min-h-0 ${STAGE_BG}`}>{stage}</div>
       {player}
     </div>
   )

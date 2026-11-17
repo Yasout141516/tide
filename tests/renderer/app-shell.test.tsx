@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppShell } from '../../src/renderer/src/shell/AppShell'
@@ -56,5 +57,38 @@ describe('AppShell', () => {
   it('the wordmark is a level-1 heading "Tide"', () => {
     renderShell()
     expect(screen.getByRole('heading', { level: 1, name: 'Tide' })).toBeTruthy()
+  })
+})
+
+function Counter(): React.JSX.Element {
+  const [n, setN] = useState(0)
+  return <button onClick={() => setN(n + 1)}>count {n}</button>
+}
+
+describe('AppShell across the breakpoint', () => {
+  it('keeps stage state across wide -> narrow -> wide', async () => {
+    setNarrow(false)
+    render(
+      <AppShell
+        renderShelf={() => <nav aria-label="Readings" />}
+        stage={<Counter />}
+        player={<footer aria-label="Player" />}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'count 0' }))
+    act(() => setNarrow(true))
+    expect(screen.getByRole('button', { name: 'count 1' })).toBeTruthy()
+    act(() => setNarrow(false))
+    expect(screen.getByRole('button', { name: 'count 1' })).toBeTruthy()
+  })
+
+  it('an open overlay does not come back after widening and narrowing again', async () => {
+    setNarrow(true)
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Shelf' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    act(() => setNarrow(false))
+    act(() => setNarrow(true))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
