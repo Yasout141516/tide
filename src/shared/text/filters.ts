@@ -96,8 +96,7 @@ export function dropFootnotes(pages: Line[][], heights: number[], body: number):
     const out: Line[] = []
     for (const l of kept) {
       const items = l.items.filter(
-        (i) =>
-          !(i.fontSize < 0.75 * body && MARKER.test(i.str.trim()) && i.y <= l.y - 0.2 * body)
+        (i) => !(i.fontSize < 0.75 * body && MARKER.test(i.str.trim()) && i.y <= l.y - 0.2 * body)
       )
       if (items.length === l.items.length) out.push(l)
       else if (items.length > 0) out.push(lineFromItems(l.page, items))
@@ -178,7 +177,7 @@ export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
         if (bodySize && SENTENCE_END.test(lines[j].text)) break
       }
     }
-    for (let i = 0; i < lines.length; ) {
+    for (let i = 0; i < lines.length;) {
       let j = i
       while (j < lines.length && isTableRow(lines[j])) j++
       if (j - i >= 3) for (let k = i; k < j; k++) drop.add(k)
@@ -227,7 +226,8 @@ export function referencesStart(
     for (let i = 0; i < pages[p].length; i++) {
       const l = pages[p][i]
       if (l.fontSize < body || /\d\s*$/.test(l.text)) continue
-      if (REFERENCES_HEADING.test(l.text.replace(/[.\s]*\d*$/, ''))) return { page: p + 1, lineIndex: i }
+      if (REFERENCES_HEADING.test(l.text.replace(/[.\s]*\d*$/, '')))
+        return { page: p + 1, lineIndex: i }
     }
   }
   return null

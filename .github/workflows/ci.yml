@@ -15,6 +15,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -42,6 +43,7 @@ jobs:
 
       - run: npm run fetch-model
 
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run package

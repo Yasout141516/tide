@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, renameSync, rmSync } from 'node:fs'
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  renameSync,
+  rmSync
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Readable } from 'node:stream'
@@ -7,6 +16,8 @@ import { pipeline } from 'node:stream/promises'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const manifest = JSON.parse(readFileSync(join(here, 'model-manifest.json'), 'utf8'))
+/** Per-file download limit (the fp32 model is about 325 MB), so a stalled download fails CI. */
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
 
 export async function verifySha256(filePath, expectedHex) {
   const hash = createHash('sha256')
@@ -32,7 +43,10 @@ async function isUpToDate(file, path) {
   }
 }
 
-export async function fetchModel({ dtype = 'q8', root = resolve(here, '..', 'resources', 'models') } = {}) {
+export async function fetchModel({
+  dtype = 'q8',
+  root = resolve(here, '..', 'resources', 'models')
+} = {}) {
   if (!['q8', 'fp32', 'all'].includes(dtype)) throw new Error(`unknown --dtype ${dtype}`)
   const wanted = manifest.files.filter(
     (f) => f.dtype === 'base' || dtype === 'all' || f.dtype === dtype
@@ -47,14 +61,22 @@ export async function fetchModel({ dtype = 'q8', root = resolve(here, '..', 'res
     mkdirSync(dirname(dest), { recursive: true })
     const url = `https://huggingface.co/${manifest.repo}/resolve/${manifest.revision}/${file.path}`
     console.log(`downloading ${file.path} (${file.size} bytes)`)
-    const res = await fetch(url, { redirect: 'follow' })
-    if (!res.ok || !res.body) throw new Error(`download failed for ${file.path}: HTTP ${res.status}`)
+    // The signal covers the body stream too: a download still running after the limit is aborted.
+    const signal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
     const part = `${dest}.part`
     try {
-      await pipeline(Readable.fromWeb(res.body), createWriteStream(part))
+      const res = await fetch(url, { redirect: 'follow', signal })
+      if (!res.ok || !res.body)
+        throw new Error(`download failed for ${file.path}: HTTP ${res.status}`)
+      await pipeline(Readable.fromWeb(res.body), createWriteStream(part), { signal })
       await verifyFile(file, part)
     } catch (err) {
       rmSync(part, { force: true })
+      if (err?.name === 'TimeoutError')
+        throw new Error(
+          `download of ${file.path} timed out after ${DOWNLOAD_TIMEOUT_MS / 60000} min`,
+          { cause: err }
+        )
       throw err
     }
     renameSync(part, dest)

@@ -6,6 +6,8 @@ import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
 import { resourcePath } from './paths'
 
+// Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
+// is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
 const e2e = process.env.TIDE_E2E === '1'
 
 let quitting = false

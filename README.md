@@ -13,4 +13,5 @@ references), remembers your place, and saves passages as audio for your phone.
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+GPL-3.0. See [LICENSE](LICENSE). The installers bundle third-party software (ffmpeg, the Kokoro voice
+model, ONNX Runtime and more): see [NOTICE.md](NOTICE.md) for their licences and source links.

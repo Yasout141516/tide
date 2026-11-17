@@ -13,18 +13,27 @@ import { lineOf, linesOf } from './helpers'
 const spoken = (pages: Line[][]): string => {
   const s = new SpokenText()
   for (const l of pages.flat()) s.appendLine(l)
-  return s.blocks().map((b) => b.text).join(' ')
+  return s
+    .blocks()
+    .map((b) => b.text)
+    .join(' ')
 }
 
 describe('footnotes', () => {
   it('drops the footnote and its inline marker', async () => {
     const { pages, lines } = await linesOf('single-column.pdf')
     const body = bodyFontSize(lines)
-    const out = dropFootnotes(lines, pages.map((p) => p.height), body)
+    const out = dropFootnotes(
+      lines,
+      pages.map((p) => p.height),
+      body
+    )
     const text = spoken(out)
     expect(text).not.toContain('See Miller')
     expect(text).not.toContain('¹')
-    expect(text).toContain('Next week we turn to long-term memory and the ways it can be distorted.')
+    expect(text).toContain(
+      'Next week we turn to long-term memory and the ways it can be distorted.'
+    )
     // inputs untouched
     expect(lines.flat().some((l) => l.text.includes('¹'))).toBe(true)
   })
