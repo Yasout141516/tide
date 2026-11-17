@@ -78,7 +78,7 @@ const MARKER = /^[\d¹²³⁴⁵⁶⁷⁸⁹⁰*†]{1,3}$/
 
 /**
  * Drops footnotes: in the bottom 35% of a page, the first line smaller than 0.85 x body that starts
- * with a digit, `*`, `†` or a superscript digit goes, with every line at or below it. Separately,
+ * with a digit, `*`, `†` or a superscript digit goes, with every line at or below it in the same column (x-ranges overlap). Separately,
  * inline markers (items under 0.75 x body matching `MARKER`, raised at least 0.2 x body above their
  * line's baseline) are removed and their line is rebuilt from the remaining items.
  */
@@ -88,7 +88,11 @@ export function dropFootnotes(pages: Line[][], heights: number[], body: number):
     const start = lines.find(
       (l) => l.y > cutoff && l.fontSize < 0.85 * body && FOOTNOTE_START.test(l.text)
     )
-    const kept = start ? lines.filter((l) => l.y < start.y) : lines
+    // Same column only: a line is cut when it sits at or below the footnote and overlaps its x-range
+    // (full-width lines overlap every column). Lines in the other column stay.
+    const inFootnote = (l: Line): boolean =>
+      !!start && l.y >= start.y && l.x < start.x + start.width && l.x + l.width > start.x
+    const kept = start ? lines.filter((l) => !inFootnote(l)) : lines
     const out: Line[] = []
     for (const l of kept) {
       const items = l.items.filter(
@@ -102,7 +106,22 @@ export function dropFootnotes(pages: Line[][], heights: number[], body: number):
   })
 }
 
-const CAPTION = /^(figure|fig\.|table|exhibit|chart)\s*\d+[.:]?/i
+const CAPTION_LOOSE = /^(figure|fig\.|table|exhibit|chart)\s*\d+[.:]?/i
+const CAPTION_STRICT = /^(figure|fig\.|table|exhibit|chart)\s*\d+[.:]/i
+const CAPTION_NUMBER_ONLY = /^(figure|fig\.|table|exhibit|chart)\s*\d+\s*$/i
+const SENTENCE_END = /[.!?]["')\]]*$/
+
+/**
+ * Punctuation after the number is required, unless the number is alone on the line or the line is
+ * smaller than body text: a wrapped body line starting "Table 1 lists the mean..." is not a caption.
+ */
+function isCaption(l: Line, body: number): boolean {
+  return (
+    CAPTION_STRICT.test(l.text) ||
+    CAPTION_NUMBER_ONLY.test(l.text) ||
+    (CAPTION_LOOSE.test(l.text) && l.fontSize < body)
+  )
+}
 
 /** The median baseline distance between consecutive lines of a page (1.2 x body below 2 lines). */
 function lineHeight(lines: Line[], body: number): number {
@@ -138,13 +157,17 @@ export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
     const drop = new Set<number>()
     const lh = lineHeight(lines, body)
     for (let i = 0; i < lines.length; i++) {
-      if (!CAPTION.test(lines[i].text)) continue
+      if (!isCaption(lines[i], body)) continue
       drop.add(i)
+      // A body-size caption is one sentence: continuation stops at the first sentence end.
+      const bodySize = lines[i].fontSize >= body - 0.5
+      if (bodySize && SENTENCE_END.test(lines[i].text)) continue
       for (let j = i + 1; j < lines.length; j++) {
         const gap = lines[j].y - lines[j - 1].y
         if (Math.abs(lines[j].fontSize - lines[i].fontSize) > 0.5 || gap < 0 || gap > 1.5 * lh)
           break
         drop.add(j)
+        if (bodySize && SENTENCE_END.test(lines[j].text)) break
       }
     }
     for (let i = 0; i < lines.length; ) {
@@ -161,6 +184,8 @@ const STRONG_MARKERS = /©|copyright|all rights reserved|isbn/i
 /** Phrases that also occur in running prose ("this course pack ..."), so they count only on a short line. */
 const WEAK_MARKERS = /course\s*pack|reproduced (with|by) permission/i
 const WEAK_MARKER_MAX_WORDS = 8
+/** A reprinted article's first page carries a (c) line too; only short pages are copyright pages. */
+const STRONG_MARKER_MAX_WORDS = 150
 
 /** The 1-based pages among the first three that are cover/copyright pages and should be skipped. */
 export function coverPages(pages: Line[][]): number[] {
@@ -170,7 +195,7 @@ export function coverPages(pages: Line[][]): number[] {
     const words = text.split(/\s+/).filter(Boolean).length
     const sentences = (text.match(/[.!?](?=\s|$)/g) ?? []).length
     const marked =
-      STRONG_MARKERS.test(text) ||
+      (STRONG_MARKERS.test(text) && words < STRONG_MARKER_MAX_WORDS) ||
       lines.some(
         (l) => WEAK_MARKERS.test(l.text) && l.text.split(/\s+/).length <= WEAK_MARKER_MAX_WORDS
       )
