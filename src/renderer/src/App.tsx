@@ -7,6 +7,12 @@ import { EmptyState } from './shelf/EmptyState'
 import { useLibrary, useLibraryLoadFailed } from './state/useLibrary'
 import { tide } from './lib/tide'
 import { useAddReading } from './add/useAddReading'
+import { MessageDialog } from './add/MessageDialog'
+import { ReaderHeader } from './reading/ReaderHeader'
+import { ReadingMenu } from './reading/ReadingMenu'
+import { FileMovedDialog } from './reading/FileMovedDialog'
+import { RenameDialog } from './reading/RenameDialog'
+import { RemoveDialog } from './reading/RemoveDialog'
 
 function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
@@ -16,18 +22,30 @@ function App(): React.JSX.Element {
   // The reading whose open has been stamped; a selected-but-missing reading is not in it yet.
   const stampedId = useRef<ReadingId | null>(null)
 
+  // The reading whose File moved / rename / remove dialog is showing.
+  const [dialog, setDialog] = useState<{
+    kind: 'moved' | 'rename' | 'remove'
+    id: ReadingId
+  } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
-  // Stamp once per selection, never for a missing file (Task 9's Find-it flow owns that); a selected
-  // reading that stops being missing is stamped on its next click.
-  const open = (id: ReadingId): void => {
-    if (id === stampedId.current) return
+  // Stamp once per selection. A missing file is never stamped: it asks "Where did this one go?" instead,
+  // and stamps when Find the file succeeds (`opened`).
+  const stamp = (id: ReadingId): void => {
     setSelectedId(id)
-    if (library?.readings.find((r) => r.id === id)?.missing) {
-      stampedId.current = null
-      return
-    }
     stampedId.current = id
     void tide().library.update(id, { opened: true })
+  }
+  const open = (id: ReadingId): void => {
+    if (library?.readings.find((r) => r.id === id)?.missing) {
+      setSelectedId(id)
+      stampedId.current = null
+      setDialog({ kind: 'moved', id })
+      return
+    }
+    if (id === stampedId.current) return
+    stamp(id)
   }
 
   const adding = useAddReading(open)
@@ -54,6 +72,54 @@ function App(): React.JSX.Element {
 
   const selected = library?.readings.find((r) => r.id === selectedId) ?? null
 
+  const target = dialog ? library?.readings.find((r) => r.id === dialog.id) : undefined
+  const closeDialog = (): void => setDialog(null)
+  const removeReading = async (id: ReadingId): Promise<void> => {
+    closeDialog()
+    try {
+      await tide().library.remove(id)
+      if (selectedId === id) setSelectedId(null)
+    } catch {
+      setNotice("Tide couldn't remove that reading.")
+    }
+  }
+  let dialogUi: React.JSX.Element | null = null
+  if (dialog && target) {
+    if (dialog.kind === 'moved')
+      dialogUi = (
+        <FileMovedDialog
+          key={dialog.id}
+          reading={target}
+          onDone={(opened) => {
+            closeDialog()
+            if (opened) stamp(dialog.id)
+            else if (!library?.readings.some((r) => r.id === dialog.id)) setSelectedId(null)
+          }}
+        />
+      )
+    else if (dialog.kind === 'rename')
+      dialogUi = (
+        <RenameDialog
+          title={target.title}
+          onCancel={closeDialog}
+          onSave={(title) => {
+            closeDialog()
+            tide()
+              .library.update(dialog.id, { title })
+              .catch(() => setNotice("Tide couldn't rename that reading."))
+          }}
+        />
+      )
+    else
+      dialogUi = (
+        <RemoveDialog
+          title={target.title}
+          onKeep={closeDialog}
+          onRemove={() => void removeReading(dialog.id)}
+        />
+      )
+  }
+
   let stage: React.JSX.Element
   if (!library && loadFailed)
     stage = (
@@ -74,10 +140,21 @@ function App(): React.JSX.Element {
       </main>
     )
   else if (selected)
-    // Until Task 9 the stage shows the selected reading's title.
+    // Until M3 the stage shows the selected reading's header only.
     stage = (
-      <main className="flex h-full items-center justify-center p-8">
-        <h2 className="m-0 font-display text-2xl font-bold text-ink">{selected.title}</h2>
+      <main className="flex h-full flex-col">
+        <ReaderHeader
+          reading={selected}
+          courseName={library.courses.find((c) => c.id === selected.courseId)?.name ?? null}
+          page={selected.position?.page ?? null}
+          menu={
+            <ReadingMenu
+              reading={selected}
+              onRename={() => setDialog({ kind: 'rename', id: selected.id })}
+              onRemove={() => setDialog({ kind: 'remove', id: selected.id })}
+            />
+          }
+        />
       </main>
     )
   else
@@ -107,6 +184,8 @@ function App(): React.JSX.Element {
         player={<PlayerBarPlaceholder />}
       />
       {adding.ui}
+      {dialogUi}
+      {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
     </>
   )
 }

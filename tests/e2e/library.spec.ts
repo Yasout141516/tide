@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from 'fs'
+import { copyFileSync, mkdirSync, renameSync } from 'fs'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
@@ -100,5 +100,47 @@ test('a second launch with a PDF hands it to the running Tide', async () => {
   expect(code).toBe(0)
   const picker = win.getByRole('dialog', { name: 'Which course is this for?' })
   await expect(picker.getByText('second launch.pdf')).toBeVisible()
+  await app.close()
+})
+
+test('a moved file shows "File moved · Find it" and Find the file re-links it', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'tide-e2e-'))
+  const pdf = await copyTo('single-column.pdf', 'before.pdf')
+  const stubDialog = (app: Awaited<ReturnType<typeof launchTide>>, p: string): Promise<void> =>
+    app.evaluate(({ dialog }, p) => {
+      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as never
+    }, p)
+
+  let app = await launchTide({ TIDE_USER_DATA: userData })
+  await stubDialog(app, pdf)
+  let win = await app.firstWindow()
+  await win.getByRole('button', { name: 'Add reading' }).first().click()
+  await win
+    .getByRole('dialog', { name: 'Which course is this for?' })
+    .getByRole('button', { name: 'Skip' })
+    .click()
+  await expect(
+    win.getByRole('navigation', { name: 'Readings' }).getByRole('button', { name: /Week 4/ })
+  ).toBeVisible()
+  await app.close()
+
+  // She renames the file in Explorer / Finder while Tide is closed.
+  const moved = join(pdf, '..', 'after renaming.pdf')
+  renameSync(pdf, moved)
+
+  app = await launchTide({ TIDE_USER_DATA: userData })
+  win = await app.firstWindow()
+  const row = win
+    .getByRole('navigation', { name: 'Readings' })
+    .getByRole('button', { name: /Week 4/ })
+  await expect(row).toContainText('File moved · Find it')
+  await row.click()
+  const dialog = win.getByRole('dialog', { name: 'Where did this one go?' })
+  await expect(dialog).toBeVisible()
+  await stubDialog(app, moved)
+  await dialog.getByRole('button', { name: 'Find the file' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(row).not.toContainText('File moved · Find it')
+  await expect(win.getByRole('heading', { level: 2, name: /Week 4/ })).toBeVisible()
   await app.close()
 })

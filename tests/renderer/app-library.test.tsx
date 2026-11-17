@@ -38,7 +38,7 @@ describe('App library wiring', () => {
     render(<App />)
     expect(await screen.findByText('Pick a reading from your shelf to carry on.')).toBeTruthy()
     expect(t.calls['library.update']).toBeUndefined()
-    await userEvent.click(screen.getByRole('button', { name: /Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
     expect(t.calls['library.update']).toEqual([['r1', { opened: true }]])
     expect(screen.getByRole('heading', { level: 2, name: 'Memory and Attention' })).toBeTruthy()
   })
@@ -48,9 +48,9 @@ describe('App library wiring', () => {
     setTide(t)
     render(<App />)
     await screen.findByText('Pick a reading from your shelf to carry on.')
-    await userEvent.click(screen.getByRole('button', { name: /Memory and Attention/ }))
-    await userEvent.click(screen.getByRole('button', { name: /Memory and Attention/ }))
-    await userEvent.click(screen.getByRole('button', { name: /Other one/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Other one/ }))
     expect(t.calls['library.get']).toHaveLength(1)
     expect(t.calls['library.update']).toEqual([
       ['r1', { opened: true }],
@@ -62,7 +62,7 @@ describe('App library wiring', () => {
     const t = fakeTide({ snapshot: { readings: [{ ...r1, missing: true }] } })
     setTide(t)
     render(<App />)
-    await userEvent.click(await screen.findByRole('button', { name: /Memory and Attention/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     expect(t.calls['library.update']).toBeUndefined()
   })
 
@@ -71,8 +71,11 @@ describe('App library wiring', () => {
     setTide(t)
     render(<App />)
     const pick = async (): Promise<void> =>
-      userEvent.click(await screen.findByRole('button', { name: /Memory and Attention/ }))
+      userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     await pick()
+    // A missing reading asks "Where did this one go?" and is not stamped; dismiss it.
+    expect(await screen.findByRole('dialog', { name: 'Where did this one go?' })).toBeTruthy()
+    await userEvent.keyboard('{Escape}')
     expect(t.calls['library.update']).toBeUndefined()
     // Relinked (Task 9's flow): the fake's update merges raw fields, so it can clear `missing`.
     await act(async () => {
