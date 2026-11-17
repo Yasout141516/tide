@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../../src/renderer/src/App'
+import { useAddReading } from '../../src/renderer/src/add/useAddReading'
 import { ReaderDepsProvider } from '../../src/renderer/src/reader/deps'
 import type { OpenPdfResult } from '../../src/renderer/src/reader/pdf'
 import { setTide } from '../../src/renderer/src/lib/tide'
@@ -160,5 +161,68 @@ describe('Add reading', () => {
     await screen.findByRole('heading', { name: 'Your shelf is empty' })
     t.emit({ type: 'add-reading' })
     expect(await screen.findByText('Which course is this for?')).toBeTruthy()
+  })
+
+  it.each([
+    ['missing', DAMAGED],
+    ['unreadable', "Tide can't read that file."]
+  ] as const)(
+    'readPdf ok:false (%s) shows its own message and adds nothing',
+    async (reason, text) => {
+      const { t } = setup(okDoc())
+      t.library.readPdf = vi.fn(() => Promise.resolve({ ok: false as const, reason }))
+      await addReading()
+      expect(await screen.findByText(text)).toBeTruthy()
+      expect(screen.queryByText('Which course is this for?')).toBeNull()
+      expect(t.calls['library.add']).toBeUndefined()
+    }
+  )
+
+  it('already-on-shelf from add shows the friendly message', async () => {
+    const { t } = setup(okDoc())
+    t.library.add = vi.fn(() => Promise.reject(new Error('tide-error:already-on-shelf')))
+    await addReading()
+    await userEvent.click(await screen.findByRole('button', { name: 'Skip' }))
+    expect(await screen.findByText('That reading is already on your shelf.')).toBeTruthy()
+    expect(screen.queryByText(/tide-error/)).toBeNull()
+  })
+
+  it('a pick that arrives while the picker is open waits, then runs after it closes', async () => {
+    const t = fakeTide()
+    t.library.pickPdf = vi.fn(() => Promise.resolve(newPick))
+    t.library.readPdf = vi.fn(() =>
+      Promise.resolve({ ok: true as const, data: new Uint8Array([1]) })
+    )
+    setTide(t)
+    let handlePick: (p: PickResult) => void = () => {}
+    function Harness(): React.JSX.Element {
+      const add = useAddReading(() => {})
+      handlePick = add.handlePick
+      return (
+        <>
+          <button onClick={add.start}>Add reading</button>
+          {add.ui}
+        </>
+      )
+    }
+    const deps = { openPdf: vi.fn(() => Promise.resolve(okDoc())) }
+    render(
+      <ReaderDepsProvider value={deps}>
+        <Harness />
+      </ReaderDepsProvider>
+    )
+    await addReading()
+    await screen.findByText('Which course is this for?')
+    // Open With while the picker is open: only the latest waiting pick is kept.
+    act(() => {
+      handlePick({ kind: 'new', pickId: 'p2', fileName: 'Second.pdf' })
+      handlePick({ kind: 'new', pickId: 'p3', fileName: 'Third.pdf' })
+    })
+    expect(t.library.readPdf).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Week_4_Institutions.pdf')).toBeTruthy()
+    await userEvent.keyboard('{Escape}')
+    expect(await screen.findByText('Third.pdf')).toBeTruthy()
+    expect(screen.queryByText('Second.pdf')).toBeNull()
+    expect(t.library.readPdf).toHaveBeenCalledTimes(2)
   })
 })

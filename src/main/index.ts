@@ -27,8 +27,10 @@ let flushing = false
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     title: 'Tide',
-    width: 1100,
-    height: 760,
+    // Content size: the shelf needs 1100 px of content to sit beside the page, so don't count the frame.
+    useContentSize: true,
+    width: 1200,
+    height: 800,
     minWidth: 900,
     minHeight: 600,
     show: false,

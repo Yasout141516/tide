@@ -47,11 +47,18 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
     onAddedRef.current = onAdded
   })
 
+  // The latest pick that arrived (Open With) while a flow was under way; it runs when that flow ends.
+  const waiting = useRef<PickResult | null>(null)
+
   const finish = (): void => {
     busy.current = false
+    const next = waiting.current
+    waiting.current = null
+    if (next) handlePick(next)
   }
 
-  const handlePick = (p: PickResult): void => {
+  /** Runs a pick; the caller has taken the `busy` lock. */
+  const process = (p: PickResult): void => {
     if (p.kind === 'cancelled') return finish()
     if (p.kind === 'existing') {
       finish()
@@ -94,12 +101,22 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
     })()
   }
 
+  // Open With (and anything else) may call this at any time: while another add is under way, keep only the latest.
+  const handlePick = (p: PickResult): void => {
+    if (busy.current) {
+      waiting.current = p
+      return
+    }
+    busy.current = true
+    process(p)
+  }
+
   const start = (): void => {
     if (busy.current) return
     busy.current = true
     tide()
       .library.pickPdf()
-      .then(handlePick, (err) => {
+      .then(process, (err) => {
         setMessage(messageFor(err))
         finish()
       })

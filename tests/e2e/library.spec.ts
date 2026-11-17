@@ -2,17 +2,8 @@ import { copyFileSync, mkdirSync } from 'fs'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
-import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { launchTide } from './launch'
-
-// The default window is just under the 1100 px breakpoint where the shelf hides behind a button.
-async function widen(app: ElectronApplication): Promise<Page> {
-  const win = await app.firstWindow()
-  await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0].setSize(1280, 800)
-  })
-  return win
-}
 
 test('adds a reading under a new course and keeps it after a restart', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'tide-e2e-'))
@@ -27,7 +18,8 @@ test('adds a reading under a new course and keeps it after a restart', async () 
   await app.evaluate(({ dialog }, p) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as never
   }, pdf)
-  let win = await widen(app)
+  let win = await app.firstWindow()
+  // The shelf (and its button) is visible at the default window size.
   await win.getByRole('button', { name: 'Add reading' }).click()
 
   const picker = win.getByRole('dialog', { name: 'Which course is this for?' })
@@ -46,7 +38,7 @@ test('adds a reading under a new course and keeps it after a restart', async () 
   await app.close()
 
   app = await launchTide({ TIDE_USER_DATA: userData })
-  win = await widen(app)
+  win = await app.firstWindow()
   const shelf2 = win.getByRole('navigation', { name: 'Readings' })
   await expect(shelf2.getByRole('button', { name: 'PSYC 201', exact: true })).toBeVisible()
   await expect(shelf2.getByRole('button', { name: /Week 4/ })).toBeVisible()
