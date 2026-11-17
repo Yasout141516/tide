@@ -29,20 +29,20 @@ export function buildLines(page: PageText): Line[] {
   if (items.length === 0) return []
   const rows = groupRows(items)
   const gutter = findGutter(items, page)
-  if (gutter === null) return rows.map((r) => toLine(page.page, r))
+  if (gutter === null) return rows.map((r) => lineFromItems(page.page, r))
 
   const left: Line[] = []
   const right: Line[] = []
   const full: Line[] = []
   for (const row of rows) {
     if (row.some((i) => crosses(i, gutter))) {
-      full.push(toLine(page.page, row))
+      full.push(lineFromItems(page.page, row))
       continue
     }
     const l = row.filter((i) => i.x + i.width <= gutter + EPS)
     const r = row.filter((i) => i.x + i.width > gutter + EPS)
-    if (l.length) left.push(toLine(page.page, l))
-    if (r.length) right.push(toLine(page.page, r))
+    if (l.length) left.push(lineFromItems(page.page, l))
+    if (r.length) right.push(lineFromItems(page.page, r))
   }
   return orderColumns(left, right, full)
 }
@@ -81,7 +81,8 @@ function dominantSize(items: TextItem[]): number {
   return best
 }
 
-function toLine(page: number, rowItems: TextItem[]): Line {
+/** Builds one Line (normalized text, geometry, dominant font size) from items of a single row; items may be in any order. */
+export function lineFromItems(page: number, rowItems: TextItem[]): Line {
   const items = [...rowItems].sort((a, b) => a.x - b.x)
   const fontSize = dominantSize(items)
   const minGap = 0.15 * fontSize
