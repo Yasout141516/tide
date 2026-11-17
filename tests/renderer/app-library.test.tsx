@@ -41,4 +41,27 @@ describe('App library wiring', () => {
     expect(t.calls['library.update']).toEqual([['r1', { opened: true }]])
     expect(screen.getByRole('heading', { level: 2, name: 'Memory and Attention' })).toBeTruthy()
   })
+
+  it('asks main for the library once across re-renders, and re-picking the open reading does not re-stamp', async () => {
+    const t = fakeTide({ snapshot: { readings: [r1, { ...r1, id: 'r2', title: 'Other one' }] } })
+    setTide(t)
+    render(<App />)
+    await screen.findByText('Pick a reading from your shelf to carry on.')
+    await userEvent.click(screen.getByRole('button', { name: /Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Other one/ }))
+    expect(t.calls['library.get']).toHaveLength(1)
+    expect(t.calls['library.update']).toEqual([
+      ['r1', { opened: true }],
+      ['r2', { opened: true }]
+    ])
+  })
+
+  it('does not stamp opened for a reading whose file is missing', async () => {
+    const t = fakeTide({ snapshot: { readings: [{ ...r1, missing: true }] } })
+    setTide(t)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /Memory and Attention/ }))
+    expect(t.calls['library.update']).toBeUndefined()
+  })
 })

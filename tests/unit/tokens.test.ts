@@ -58,7 +58,10 @@ const SKY = {
   'primary-deep': '#0B5884',
   'page-meta': '#0F6FA8',
   scrim: 'rgba(10,46,69,.32)',
-  shadow: 'rgba(11,88,132,.16)'
+  shadow: 'rgba(11,88,132,.16)',
+  'logo-sun': '#9DD2F5',
+  'logo-wave-a': '#1E88C7',
+  'logo-wave-b': '#4FB0E8'
 }
 const DEEP = {
   bg: '#0B1D2C',
@@ -89,7 +92,10 @@ const DEEP = {
   'primary-deep': '#2E8FC8',
   'page-meta': '#6CC3F2',
   scrim: 'rgba(2,10,18,.55)',
-  shadow: 'rgba(0,0,0,.45)'
+  shadow: 'rgba(0,0,0,.45)',
+  'logo-sun': '#A9DAF7',
+  'logo-wave-a': '#6CC3F2',
+  'logo-wave-b': '#4FB0E8'
 }
 
 describe('design tokens', () => {

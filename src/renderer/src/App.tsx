@@ -15,8 +15,11 @@ function App(): React.JSX.Element {
   // Task 7 wires the real add flow; until then the button is present but inert.
   const add = (): void => {}
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
+  // Only a change of selection stamps it, and never for a missing file (Task 9's Find-it flow owns that).
   const open = (id: ReadingId): void => {
+    if (id === selectedId) return
     setSelectedId(id)
+    if (library?.readings.find((r) => r.id === id)?.missing) return
     void tide().library.update(id, { opened: true })
   }
 

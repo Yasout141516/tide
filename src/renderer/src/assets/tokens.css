@@ -29,6 +29,9 @@
   --page-meta: #0f6fa8;
   --scrim: rgba(10, 46, 69, 0.32);
   --shadow: rgba(11, 88, 132, 0.16);
+  --logo-sun: #9dd2f5;
+  --logo-wave-a: #1e88c7;
+  --logo-wave-b: #4fb0e8;
 }
 
 :root[data-theme='deep-sea'] {
@@ -61,6 +64,9 @@
   --page-meta: #6cc3f2;
   --scrim: rgba(2, 10, 18, 0.55);
   --shadow: rgba(0, 0, 0, 0.45);
+  --logo-sun: #a9daf7;
+  --logo-wave-a: #6cc3f2;
+  --logo-wave-b: #4fb0e8;
 }
 
 body {
