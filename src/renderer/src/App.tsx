@@ -39,8 +39,7 @@ function App(): React.JSX.Element {
   }
   const open = (id: ReadingId): void => {
     if (library?.readings.find((r) => r.id === id)?.missing) {
-      setSelectedId(id)
-      stampedId.current = null
+      // The selection stays where it is; only a successful Find it selects (and stamps) this reading.
       setDialog({ kind: 'moved', id })
       return
     }
@@ -70,6 +69,7 @@ function App(): React.JSX.Element {
     []
   )
 
+  // Derived from the library, so a removed reading is never selected (ids are never reused).
   const selected = library?.readings.find((r) => r.id === selectedId) ?? null
 
   const target = dialog ? library?.readings.find((r) => r.id === dialog.id) : undefined
@@ -78,7 +78,6 @@ function App(): React.JSX.Element {
     closeDialog()
     try {
       await tide().library.remove(id)
-      if (selectedId === id) setSelectedId(null)
     } catch {
       setNotice("Tide couldn't remove that reading.")
     }
@@ -93,7 +92,6 @@ function App(): React.JSX.Element {
           onDone={(opened) => {
             closeDialog()
             if (opened) stamp(dialog.id)
-            else if (!library?.readings.some((r) => r.id === dialog.id)) setSelectedId(null)
           }}
         />
       )

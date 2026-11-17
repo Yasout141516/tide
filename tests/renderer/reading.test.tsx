@@ -153,4 +153,71 @@ describe('File moved flow and the More menu', () => {
     expect(t.calls['library.remove']).toEqual([['r1']])
     expect(await screen.findByRole('heading', { name: 'Your shelf is empty' })).toBeTruthy()
   })
+
+  const second: ReadingView = { ...base, id: 'r2', title: 'Other one', position: null }
+  const rowOf = (name: RegExp): HTMLElement => screen.getByRole('button', { name })
+
+  it('dismissing File moved leaves the open reading shown and stamped once', async () => {
+    const t = fakeTide({
+      snapshot: { readings: [base, { ...moved, id: 'r3', title: 'Gone one' }] }
+    })
+    setTide(t)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+    await userEvent.click(rowOf(/^Gone one/))
+    await screen.findByRole('dialog', { name: 'Where did this one go?' })
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Memory and Attention' })).toBeTruthy()
+    await userEvent.click(rowOf(/^Memory and Attention/))
+    expect(t.calls['library.update']).toEqual([['r1', { opened: true }]])
+  })
+
+  it('removing the selected reading clears the selection', async () => {
+    const t = fakeTide({ snapshot: { readings: [base, second] } })
+    setTide(t)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+    await userEvent.click(screen.getByRole('button', { name: /More options for/ }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from shelf…' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText('Pick a reading from your shelf to carry on.')).toBeTruthy()
+  })
+
+  it('Remove from File moved closes the dialog, removes once on a double click', async () => {
+    const t = await setup(moved, (t) => {
+      const real = t.library.remove
+      t.library.remove = (id) => new Promise((r) => setTimeout(r, 30)).then(() => real(id))
+    })
+    await clickRow()
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove from shelf' }))
+    await userEvent.dblClick(await screen.findByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('heading', { name: 'Your shelf is empty' })).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(t.calls['library.remove']).toHaveLength(1)
+  })
+
+  it('Cancel and Esc on the different-file view return to the ask view', async () => {
+    await setup(moved, (t) => {
+      t.library.findFile = async () => ({ kind: 'different', pickId: 'p1', fileName: 'x.pdf' })
+    })
+    await clickRow()
+    for (const dismiss of ['cancel', 'esc']) {
+      await userEvent.click(await screen.findByRole('button', { name: 'Find the file' }))
+      await screen.findByRole('dialog', { name: /different file/ })
+      if (dismiss === 'cancel')
+        await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      else await userEvent.keyboard('{Escape}')
+      expect(await screen.findByRole('dialog', { name: 'Where did this one go?' })).toBeTruthy()
+    }
+  })
+
+  it('a blank Rename disables Save', async () => {
+    await setup(base)
+    await clickRow()
+    await userEvent.click(screen.getByRole('button', { name: /More options for/ }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename…' }))
+    await userEvent.clear(await screen.findByRole('textbox', { name: 'Reading title' }))
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+  })
 })

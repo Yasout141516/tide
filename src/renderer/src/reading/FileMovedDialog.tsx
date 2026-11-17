@@ -25,6 +25,12 @@ const FAILED: View = {
   body: 'Please try again.'
 }
 
+const REMOVE_FAILED: View = {
+  kind: 'message',
+  title: "Tide couldn't remove that reading.",
+  body: 'Please try again.'
+}
+
 /** Shown when she picks a reading whose PDF can't be found; Find the file points the reading at it again. */
 export function FileMovedDialog({ reading, onDone }: Props): React.JSX.Element {
   const [view, setView] = useState<View>({ kind: 'ask' })
@@ -59,11 +65,15 @@ export function FileMovedDialog({ reading, onDone }: Props): React.JSX.Element {
   }
 
   const remove = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
     try {
       await tide().library.remove(reading.id)
       onDone(false)
     } catch {
-      setView(FAILED)
+      setView(REMOVE_FAILED)
+    } finally {
+      setBusy(false)
     }
   }
 
