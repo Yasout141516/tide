@@ -5,14 +5,23 @@ import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
 import { resourcePath } from './paths'
+import { Library } from './library/library'
+import { registerLibraryIpc } from './library/ipc'
 
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
 const e2e = process.env.TIDE_E2E === '1'
+// Same gate: e2e tests give each launch its own userData dir so they never touch a real shelf.
+if (e2e && process.env.TIDE_USER_DATA) app.setPath('userData', process.env.TIDE_USER_DATA)
+
+const QUIT_FLUSH_TIMEOUT_MS = 3000
 
 let quitting = false
 let mainWindow: BrowserWindow | null = null
 let ttsHost: TtsHost | null = null
+let library: Library | null = null
+let flushed = false
+let flushing = false
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -70,15 +79,35 @@ function startTtsWhenLoaded(win: BrowserWindow): void {
   })
 }
 
-app.on('before-quit', () => {
+app.on('before-quit', (e) => {
   quitting = true
+  // Hold the quit until the shelf (reading positions included) is on disk. A second instance that
+  // quits at once has no library loaded.
+  if (flushed || !library) return
+  e.preventDefault()
+  if (flushing) return
+  flushing = true
+  // flush() never rejects; the timeout keeps a stuck disk from hanging the quit.
+  let timer: NodeJS.Timeout
+  const timeout = new Promise<false>((r) => {
+    timer = setTimeout(() => r(false), QUIT_FLUSH_TIMEOUT_MS)
+  })
+  Promise.race([library.flush(), timeout])
+    .then((ok) => {
+      if (!ok) console.error('[tide] library.json could not be written before quitting')
+    })
+    .finally(() => {
+      clearTimeout(timer)
+      flushed = true
+      app.quit()
+    })
 })
 
 app.on('will-quit', () => {
   ttsHost?.dispose()
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId('com.yasout141516.tide')
 
   ttsHost = new TtsHost({
@@ -86,6 +115,10 @@ app.whenReady().then(() => {
     modelDir: resourcePath('models')
   })
   registerIpc(ttsHost, { e2e })
+
+  library = await Library.open(app.getPath('userData'))
+  registerLibraryIpc(library, { window: () => mainWindow })
+  library.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
 
   startTtsWhenLoaded(createWindow())
 

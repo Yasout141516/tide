@@ -337,7 +337,8 @@ export class Library {
     if (!same) this.emit()
   }
 
-  async flush(): Promise<void> {
-    await this.store.flush()
+  /** Resolves false when data could not be written; never rejects. */
+  flush(): Promise<boolean> {
+    return this.store.flush()
   }
 }
