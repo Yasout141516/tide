@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReadingId } from '../../shared/library/types'
 import { AppShell } from './shell/AppShell'
 import { PlayerBarPlaceholder } from './shell/PlayerBarPlaceholder'
@@ -6,6 +6,7 @@ import { Shelf } from './shelf/Shelf'
 import { EmptyState } from './shelf/EmptyState'
 import { useLibrary } from './state/useLibrary'
 import { tide } from './lib/tide'
+import { useAddReading } from './add/useAddReading'
 
 function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
@@ -14,8 +15,6 @@ function App(): React.JSX.Element {
   // The reading whose open has been stamped; a selected-but-missing reading is not in it yet.
   const stampedId = useRef<ReadingId | null>(null)
 
-  // Task 7 wires the real add flow; until then the button is present but inert.
-  const add = (): void => {}
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
   // Stamp once per selection, never for a missing file (Task 9's Find-it flow owns that); a selected
   // reading that stops being missing is stamped on its next click.
@@ -29,6 +28,21 @@ function App(): React.JSX.Element {
     stampedId.current = id
     void tide().library.update(id, { opened: true })
   }
+
+  const adding = useAddReading(open)
+  const add = adding.start
+  // Menu commands. `start` is read through a ref so the subscription is made once.
+  const startRef = useRef(adding.start)
+  useEffect(() => {
+    startRef.current = adding.start
+  })
+  useEffect(
+    () =>
+      tide().onCommand((c) => {
+        if (c.type === 'add-reading') startRef.current()
+      }),
+    []
+  )
 
   const selected = library?.readings.find((r) => r.id === selectedId) ?? null
 
@@ -55,23 +69,26 @@ function App(): React.JSX.Element {
     )
 
   return (
-    <AppShell
-      renderShelf={(closeOverlay) =>
-        library ? (
-          <Shelf
-            snapshot={library}
-            selectedId={selectedId}
-            onOpen={open}
-            onAdd={add}
-            onPicked={closeOverlay}
-          />
-        ) : (
-          <nav aria-label="Readings" className="flex-1" />
-        )
-      }
-      stage={stage}
-      player={<PlayerBarPlaceholder />}
-    />
+    <>
+      <AppShell
+        renderShelf={(closeOverlay) =>
+          library ? (
+            <Shelf
+              snapshot={library}
+              selectedId={selectedId}
+              onOpen={open}
+              onAdd={add}
+              onPicked={closeOverlay}
+            />
+          ) : (
+            <nav aria-label="Readings" className="flex-1" />
+          )
+        }
+        stage={stage}
+        player={<PlayerBarPlaceholder />}
+      />
+      {adding.ui}
+    </>
   )
 }
 

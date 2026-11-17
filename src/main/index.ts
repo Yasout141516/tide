@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
@@ -7,6 +7,7 @@ import { registerIpc } from './ipc'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
 import { registerLibraryIpc } from './library/ipc'
+import { buildMenu } from './menu'
 
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
@@ -117,7 +118,8 @@ app.whenReady().then(async () => {
   registerIpc(ttsHost, { e2e })
 
   library = await Library.open(app.getPath('userData'))
-  registerLibraryIpc(library, { window: () => mainWindow })
+  const { send } = registerLibraryIpc(library, { window: () => mainWindow })
+  Menu.setApplicationMenu(buildMenu(send))
   library.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
 
   startTtsWhenLoaded(createWindow())

@@ -1,5 +1,5 @@
 // Pure shelf grouping and row labels (renderer shelf and tests). No DOM, no IPC.
-import { OTHER, type LibrarySnapshot, type ReadingView } from './types'
+import { OTHER, type Course, type LibrarySnapshot, type ReadingView } from './types'
 
 export interface ShelfGroup {
   key: string
@@ -7,6 +7,13 @@ export interface ShelfGroup {
   collapsed: boolean
   active: ReadingView[]
   finished: ReadingView[]
+}
+
+/** Courses alphabetical, case-insensitive: the order of the shelf and of the course picker. */
+export function sortCourses(courses: Course[]): Course[] {
+  return [...courses].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  )
 }
 
 const recency = (r: ReadingView): number => r.lastOpenedAt ?? r.addedAt
@@ -34,10 +41,7 @@ export function groupShelf(s: LibrarySnapshot): ShelfGroup[] {
       finished: sorted.filter((r) => r.finished)
     }
   }
-  const courses = [...s.courses].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-  )
-  const groups = courses.map((c) => make(c.id, c.name))
+  const groups = sortCourses(s.courses).map((c) => make(c.id, c.name))
   groups.push(make(OTHER, 'Other'))
   return groups.filter((g): g is ShelfGroup => g !== null)
 }
