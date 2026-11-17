@@ -124,6 +124,7 @@ export class Library {
     }
     try {
       const buf = await readFile(path)
+      if (readingId && this.missing.delete(readingId)) this.emit()
       return { ok: true, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -140,6 +141,20 @@ export class Library {
   add(input: AddReadingInput): ReadingId {
     const pick = this.picks.get(input.pickId)
     if (!pick) throw new Error('unknown pick')
+    // The same file picked twice before either add: heal the reading that already has it.
+    const dupe = this.store.data().readings.find((r) => r.fingerprint === pick.fingerprint)
+    if (dupe) {
+      this.store.update(
+        () => {
+          dupe.path = pick.path
+        },
+        { urgent: true }
+      )
+      this.picks.delete(input.pickId)
+      this.missing.delete(dupe.id)
+      this.emit()
+      return dupe.id
+    }
     const id = this.newId()
     const title = this.cleanTitle(input.title) ?? basename(pick.path).replace(/\.pdf$/i, '')
     this.store.update(
@@ -190,6 +205,14 @@ export class Library {
     const reading = this.find(id)
     if (!reading) return
     const title = patch.title === undefined ? null : this.cleanTitle(patch.title)
+    const changes =
+      title !== null ||
+      patch.position !== undefined ||
+      patch.readEverything !== undefined ||
+      patch.opened !== undefined ||
+      patch.pageCount !== undefined ||
+      patch.finished !== undefined
+    if (!changes) return
     const urgent =
       title !== null ||
       patch.readEverything !== undefined ||
@@ -253,6 +276,10 @@ export class Library {
     if (!pick) throw new Error('unknown pick')
     const reading = this.find(id)
     if (!reading) return
+    // Never create a second reading for a file another reading already owns, and never reset that one.
+    if (this.store.data().readings.some((r) => r.id !== id && r.fingerprint === pick.fingerprint)) {
+      throw new Error('file already on shelf')
+    }
     this.store.update(
       () => {
         reading.path = pick.path
