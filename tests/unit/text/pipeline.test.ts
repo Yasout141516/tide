@@ -58,6 +58,28 @@ describe('citations', () => {
     expect(s.blocks()[0].text).toBe('In the study (2019) we and smith (2020) found [a] effect.')
   })
 
+  it('keeps a parenthetical whose capitalised word before the year is a month or season', () => {
+    const spoken = (text: string): string => {
+      const s = new SpokenText()
+      s.appendLine(line(text))
+      removeCitations(s)
+      return s.blocks()[0].text
+    }
+    expect(spoken('Sales rose (since March 2020) in every shop.')).toBe(
+      'Sales rose (since March 2020) in every shop.'
+    )
+    expect(spoken('The club met (in Autumn 2019 and Spring 2021) twice.')).toBe(
+      'The club met (in Autumn 2019 and Spring 2021) twice.'
+    )
+    expect(spoken('It opened (December, 2018) downtown.')).toBe(
+      'It opened (December, 2018) downtown.'
+    )
+    // Real citations still go, including authors whose names start like a month.
+    expect(spoken('Memory fades (Smith, 2019).')).toBe('Memory fades.')
+    expect(spoken('It replicates (e.g., Lee et al., 2020; Kim, 2021).')).toBe('It replicates.')
+    expect(spoken('Noted before (Marchetti, 2017).')).toBe('Noted before.')
+  })
+
   it('removes "et al." narrative years and page-numbered years', () => {
     const s = new SpokenText()
     s.appendLine(line('Lee et al. (2020) and Kim (2021, p. 12) agree [1, 4–6].'))
