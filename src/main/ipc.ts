@@ -8,15 +8,21 @@ import { assembleChapters, exportM4b, ffmpegHasMp3 } from './audio-export'
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
 export function registerIpc(host: TtsHost, { e2e }: { e2e: boolean }): void {
   ipcMain.handle('tts:synthesize', (_e, text: unknown, o: unknown) => {
-    const opts = (o ?? {}) as { voice?: unknown; speed?: unknown }
+    const { voice, speed } = (o ?? {}) as { voice?: unknown; speed?: unknown }
+    // Speed steps are 0.8x-2x; 0.5 leaves room for previews. NaN, 0 or negative must not reach Kokoro.
     if (
       typeof text !== 'string' ||
-      typeof opts.voice !== 'string' ||
-      typeof opts.speed !== 'number'
+      typeof voice !== 'string' ||
+      typeof speed !== 'number' ||
+      !Number.isFinite(speed) ||
+      speed < 0.5 ||
+      speed > 2
     ) {
-      throw new Error('tts:synthesize expects (text: string, { voice: string, speed: number })')
+      throw new Error(
+        'tts:synthesize expects (text: string, { voice: string, speed: a number from 0.5 to 2 })'
+      )
     }
-    return host.synthesize(text, { voice: opts.voice, speed: opts.speed })
+    return host.synthesize(text, { voice, speed })
   })
 
   if (e2e) {
