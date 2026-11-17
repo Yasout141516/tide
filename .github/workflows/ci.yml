@@ -145,21 +145,6 @@ jobs:
             console.log(out.join("\n"))
           '
 
-      - name: 'M0d (temporary): AVFoundation on muxer variants'
-        if: runner.os == 'macOS'
-        run: |
-          node scripts/m0d-variants.mjs
-          {
-            echo '### M0d (temporary): muxer variants'
-            echo
-            echo '```'
-            for f in test-results/variants/*.m4*; do
-              echo "== $f"
-              swift scripts/check-chapters.swift "$f" 2 2>&1 || true
-            done
-            echo '```'
-          } | tee -a "$GITHUB_STEP_SUMMARY"
-
       - name: 'M0d: AVFoundation sees the m4b chapters'
         if: runner.os == 'macOS'
         run: |

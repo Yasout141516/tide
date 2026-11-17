@@ -1,7 +1,7 @@
 // Whole-reading export: .m4b audiobook (AAC-LC 64 kbps mono, one chapter per page) and .mp3.
 // Runs the bundled ffmpeg-static binary; PCM is streamed on stdin, never written to disk.
 import { execFile, spawn } from 'child_process'
-import { mkdtemp, rename, rm, writeFile } from 'fs/promises'
+import { mkdtemp, open, rename, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import ffmpegStatic from 'ffmpeg-static'
@@ -53,7 +53,8 @@ export function exportM4b(
     ffmetadata(meta, list, durationSec),
     ['-map_chapters', '1', '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', '-f', 'ipod'],
     outPath,
-    signal
+    signal,
+    (part) => setChapterTrackLanguage(part, 'eng')
   )
 }
 
@@ -110,6 +111,87 @@ function toS16le(pcm: Float32Array): Buffer {
 
 const abortError = (): Error => Object.assign(new Error('export aborted'), { name: 'AbortError' })
 
+/** Iterate the MP4 boxes in `buf[start, end)`: type plus the body's [start, end). */
+function* boxes(buf: Buffer, start: number, end: number): Generator<[string, number, number]> {
+  let pos = start
+  while (pos + 8 <= end) {
+    let size = buf.readUInt32BE(pos)
+    let header = 8
+    if (size === 1) {
+      size = Number(buf.readBigUInt64BE(pos + 8))
+      header = 16
+    } else if (size === 0) size = end - pos
+    if (size < header || pos + size > end) throw new Error('malformed mp4 box')
+    yield [buf.toString('latin1', pos + 4, pos + 8), pos + header, pos + size]
+    pos += size
+  }
+}
+
+const findBox = (
+  buf: Buffer,
+  start: number,
+  end: number,
+  type: string
+): [number, number] | null => {
+  for (const [t, s, e] of boxes(buf, start, end)) if (t === type) return [s, e]
+  return null
+}
+
+/**
+ * ffmpeg writes the chapter (text) track with language code 0, which Apple reads as "und", so
+ * AVFoundation lookups by preferred language (what Apple Books does) find no chapters (spike M0d).
+ * Rewrite that track's mdhd language in place. Returns how many tracks were patched.
+ */
+export async function setChapterTrackLanguage(file: string, lang: string): Promise<number> {
+  if (!/^[a-z]{3}$/.test(lang)) throw new Error(`not an ISO-639-2 code: ${lang}`)
+  const packed = [...lang].reduce((v, c) => (v << 5) | (c.charCodeAt(0) - 0x60), 0)
+  const fh = await open(file, 'r+')
+  try {
+    // Find moov among the top-level boxes by reading headers only (mdat can be large).
+    const fileSize = (await fh.stat()).size
+    const head = Buffer.alloc(16)
+    let pos = 0
+    let moov: { at: number; body: Buffer } | null = null
+    while (pos + 8 <= fileSize) {
+      await fh.read(head, 0, 16, pos)
+      let size = head.readUInt32BE(0)
+      let header = 8
+      if (size === 1) {
+        size = Number(head.readBigUInt64BE(8))
+        header = 16
+      } else if (size === 0) size = fileSize - pos
+      if (size < header) throw new Error('malformed mp4 box')
+      if (head.toString('latin1', 4, 8) === 'moov') {
+        const body = Buffer.alloc(size - header)
+        await fh.read(body, 0, body.length, pos + header)
+        moov = { at: pos + header, body }
+        break
+      }
+      pos += size
+    }
+    if (!moov) throw new Error('no moov box in exported file')
+
+    const { at, body } = moov
+    let patched = 0
+    for (const [type, s, e] of boxes(body, 0, body.length)) {
+      if (type !== 'trak') continue
+      const mdia = findBox(body, s, e, 'mdia')
+      const hdlr = mdia && findBox(body, mdia[0], mdia[1], 'hdlr')
+      const mdhd = mdia && findBox(body, mdia[0], mdia[1], 'mdhd')
+      if (!hdlr || !mdhd || body.toString('latin1', hdlr[0] + 8, hdlr[0] + 12) !== 'text') continue
+      // mdhd: version/flags, then 32-bit (v0) or 64-bit (v1) times, timescale, duration, language.
+      const langAt = mdhd[0] + (body[mdhd[0]] === 1 ? 32 : 20)
+      const b = Buffer.alloc(2)
+      b.writeUInt16BE(packed)
+      await fh.write(b, 0, 2, at + langAt)
+      patched++
+    }
+    return patched
+  } finally {
+    await fh.close()
+  }
+}
+
 /**
  * Encode `pcm` to `<outPath>.part` with the given output options, then rename it to `outPath`.
  * Abort or any ffmpeg failure kills ffmpeg, deletes the .part and rejects.
@@ -120,7 +202,8 @@ async function runFfmpeg(
   metadata: string,
   outputArgs: string[],
   outPath: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  finish?: (part: string) => Promise<unknown>
 ): Promise<void> {
   if (signal?.aborted) throw abortError()
   const part = outPath + '.part'
@@ -141,6 +224,7 @@ async function runFfmpeg(
       part
     ] // prettier-ignore
     await encode(args, toS16le(pcm), signal)
+    await finish?.(part)
     if (signal?.aborted) throw abortError()
     await rename(part, outPath)
   } catch (err) {

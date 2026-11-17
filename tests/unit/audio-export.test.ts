@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process'
-import { existsSync, mkdtempSync, rmSync, statSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -17,6 +17,25 @@ const readMeta = (file: string): string =>
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore']
   })
+
+/**
+ * The mdhd language of each text (chapter) track, decoded from packed ISO-639-2. ffmpeg itself
+ * can't tell: it reads code 0 as Macintosh "English", while AVFoundation reads it as "und".
+ */
+function chapterTrackLanguages(file: string): string[] {
+  const d = readFileSync(file)
+  const langs: string[] = []
+  for (let at = d.indexOf('mdhd'); at >= 0; at = d.indexOf('mdhd', at + 4)) {
+    const hdlr = d.indexOf('hdlr', at)
+    if (d.toString('latin1', hdlr + 12, hdlr + 16) !== 'text') continue
+    const offset = d[at + 4] === 1 ? 32 : 20 // mdhd v1 has 64-bit times
+    const v = d.readUInt16BE(at + 4 + offset)
+    langs.push(
+      String.fromCharCode(((v >> 10) & 31) + 0x60, ((v >> 5) & 31) + 0x60, (v & 31) + 0x60)
+    )
+  }
+  return langs
+}
 
 describe('audio export (real ffmpeg)', () => {
   let dir: string
@@ -45,6 +64,13 @@ describe('audio export (real ffmpeg)', () => {
     expect(meta2).toContain('title=Working Memory')
     expect(meta2).toContain('album=PSYC 201 readings')
     expect(existsSync(out + '.part')).toBe(false)
+  })
+
+  it('tags the chapter track English, so AVFoundation (Apple Books) finds the chapters', async () => {
+    // ffmpeg leaves the chapter track's language at 0, which Apple reads as "und": chapter lookups
+    // by preferred language (["en"]) then return nothing. Seen on macOS CI, spike M0d.
+    await exportM4b(sine(2), 24000, [{ title: 'Page 1', startSec: 0 }], meta, out)
+    expect(chapterTrackLanguages(out)).toEqual(['eng'])
   })
 
   it('abort deletes the .part and rejects', async () => {
