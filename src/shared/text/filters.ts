@@ -107,18 +107,26 @@ export function dropFootnotes(pages: Line[][], heights: number[], body: number):
 }
 
 const CAPTION_LOOSE = /^(figure|fig\.|table|exhibit|chart)\s*\d+[.:]?/i
-const CAPTION_STRICT = /^(figure|fig\.|table|exhibit|chart)\s*\d+[.:]/i
+/** "Figure 2." / "Table 1.1:" - the whole (possibly decimal) number, then "." or ":" and a space. */
+const CAPTION_STRICT = /^(figure|fig\.|table|exhibit|chart)\s*\d+(?:\.\d+)*[.:](?=\s|$)/i
 const CAPTION_NUMBER_ONLY = /^(figure|fig\.|table|exhibit|chart)\s*\d+\s*$/i
+/** "Figure 6.4 " - a decimal number then a space; a caption only when a capital letter follows. */
+const CAPTION_DECIMAL = /^(figure|fig\.|table|exhibit|chart)\s*\d+\.\d+\s+/i
 const SENTENCE_END = /[.!?]["')\]]*$/
 
 /**
- * Punctuation after the number is required, unless the number is alone on the line or the line is
- * smaller than body text: a wrapped body line starting "Table 1 lists the mean..." is not a caption.
+ * Punctuation after the number is required, unless the number is alone on the line, the line is
+ * smaller than body text, or a decimal number is followed by a capitalised title ("Table 1.1 Mean
+ * Scores"): a wrapped body line starting "Table 1 lists the mean...", "Table 1.1 shows..." or
+ * "Figure 6.4). In..." is not a caption. (The capital is checked case-sensitively, outside the
+ * case-insensitive regex.)
  */
 function isCaption(l: Line, body: number): boolean {
+  const decimal = CAPTION_DECIMAL.exec(l.text)
   return (
     CAPTION_STRICT.test(l.text) ||
     CAPTION_NUMBER_ONLY.test(l.text) ||
+    (decimal !== null && /^[A-Z]/.test(l.text.slice(decimal[0].length))) ||
     (CAPTION_LOOSE.test(l.text) && l.fontSize < body)
   )
 }

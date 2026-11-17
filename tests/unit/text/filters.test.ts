@@ -111,6 +111,28 @@ describe('captions and tables', () => {
     ])
   })
 
+  it('keeps body lines that start with a decimal figure or table reference', () => {
+    const texts = [
+      'The scores rose steadily over the term for every group (see',
+      'Figure 6.4). In practice the effect was small for the youngest group and',
+      'Table 1.1 shows the mean scores for each condition and every age group',
+      'in the sample, with no exceptions at all.'
+    ]
+    const lines = texts.map((t, i) => lineOf([{ str: t, x: 72, y: 100 + 12 * i }]))
+    expect(dropCaptionsAndTables([lines], 10)[0].map((l) => l.text)).toEqual(texts)
+  })
+
+  it('drops a decimal-numbered caption', () => {
+    const body = lineOf([{ str: 'Body text before the figure.', x: 72, y: 100 }])
+    const small = lineOf([
+      { str: 'Figure 6.4 Model of the helping process', x: 72, y: 130, fontSize: 8 }
+    ])
+    const bodySize = lineOf([{ str: 'Table 2.3 Mean Scores by Group', x: 72, y: 160 }])
+    const dotted = lineOf([{ str: 'Figure 1.2. Recall by list length.', x: 72, y: 190 }])
+    const out = dropCaptionsAndTables([[body, small, bodySize, dotted]], 10)
+    expect(out[0].map((l) => l.text)).toEqual(['Body text before the figure.'])
+  })
+
   it('treats a ligature caption as a caption', () => {
     const cap = lineOf([{ str: 'ﬁgure 2. Sizes.', x: 72, y: 100 }])
     expect(dropCaptionsAndTables([[cap]], 10)).toEqual([[]])
