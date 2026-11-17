@@ -8,8 +8,10 @@ permissions:
   contents: read
 
 # A push to a branch with an open PR triggers both events; keep only the newest run per branch.
+# head_ref (PR source branch) and ref_name (pushed branch) are both the bare branch name, so the
+# push run and its PR run share one group.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
