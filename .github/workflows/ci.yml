@@ -114,6 +114,55 @@ jobs:
             echo '```'
           } | summary
 
+      - name: 'M0d: audiobook export summary'
+        if: ${{ !cancelled() }}
+        run: |
+          # The packaged e2e test writes test-results/smoke.m4b and smoke-export.json.
+          node -e '
+            const fs = require("fs")
+            const out = [`### M0d: audiobook export: ${process.env.RUNNER_OS}`, ""]
+            const f = "test-results/smoke-export.json"
+            if (!fs.existsSync(f)) {
+              out.push("No export metrics: the export test did not get that far.", "")
+            } else {
+              const m = JSON.parse(fs.readFileSync(f, "utf8"))
+              out.push(`**ffmpegHasMp3: ${m.ffmpegHasMp3}**`, "")
+              out.push("```json", JSON.stringify(m), "```", "")
+              const m4b = "test-results/smoke.m4b"
+              if (fs.existsSync(m4b)) out.push(`smoke.m4b: ${fs.statSync(m4b).size} bytes`, "")
+            }
+            const bin = process.platform === "darwin"
+              ? "release/mac-arm64/Tide.app/Contents/Resources/app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg"
+              : "release/win-unpacked/resources/app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg.exe"
+            const mib = (p) => (fs.statSync(p).size / 1048576).toFixed(1) + " MiB"
+            out.push(fs.existsSync(bin) ? `Packaged ffmpeg binary: ${mib(bin)}` : `Packaged ffmpeg binary MISSING: ${bin}`, "")
+            if (fs.existsSync("release")) {
+              for (const i of fs.readdirSync("release").filter((n) => /\.(dmg|exe)$/.test(n))) {
+                out.push(`Installer ${i}: ${mib("release/" + i)}`, "")
+              }
+            }
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n")
+            console.log(out.join("\n"))
+          '
+
+      - name: 'M0d: AVFoundation sees the m4b chapters'
+        if: runner.os == 'macOS'
+        run: |
+          # The gate for spike M0d: Apple's own media stack (what Apple Books uses) must
+          # read one chapter per page from the exported audiobook.
+          rc=0
+          swift scripts/check-chapters.swift test-results/smoke.m4b 2 > check-chapters.txt 2>&1 || rc=$?
+          cat check-chapters.txt
+          {
+            echo '### M0d: AVFoundation chapter check'
+            echo
+            echo '```'
+            echo '$ swift scripts/check-chapters.swift test-results/smoke.m4b 2'
+            cat check-chapters.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
       - name: Upload installers
         uses: actions/upload-artifact@v6
         with:

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('tide', {
 // Main passes --tide-e2e via webPreferences.additionalArguments only when TIDE_E2E=1.
 if (process.argv.includes('--tide-e2e')) {
   contextBridge.exposeInMainWorld('tideTest', {
-    ttsLoad: () => ipcRenderer.invoke('tts:test-load')
+    ttsLoad: () => ipcRenderer.invoke('tts:test-load'),
+    exportM4b: (outPath: string) => ipcRenderer.invoke('test:export-m4b', outPath)
   })
 }
