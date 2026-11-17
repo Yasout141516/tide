@@ -49,7 +49,8 @@ describe('extractPages', () => {
   it('skips empty items but keeps each item index pointing at its pdf.js text item', async () => {
     const data = read('single-column.pdf')
     const pages = await extractPages(data)
-    const doc = await getDocument({ data: data.slice(), verbosity: 0 }).promise
+    const task = getDocument({ data: data.slice(), verbosity: 0 })
+    const doc = await task.promise
     try {
       const raw = await (await doc.getPage(1)).getTextContent({ disableNormalization: true })
       const rawStrs = raw.items.map((i) => ('str' in i ? i.str : ''))
@@ -61,7 +62,7 @@ describe('extractPages', () => {
       for (let k = 1; k < items.length; k++)
         expect(items[k].index).toBeGreaterThan(items[k - 1].index)
     } finally {
-      await doc.destroy()
+      await task.destroy()
     }
   })
 
