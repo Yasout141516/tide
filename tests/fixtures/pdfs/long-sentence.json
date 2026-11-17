@@ -2,10 +2,7 @@
   "fixture": "long-sentence.pdf",
   "description": "1 page, one 11pt paragraph that is a single 130-word sentence with commas but no other terminal punctuation.",
   "pageCount": 1,
-  "pageSize": [
-    612,
-    792
-  ],
+  "pageSize": [612, 792],
   "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
   "wordCount": 130,
   "pages": [

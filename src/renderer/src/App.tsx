@@ -33,13 +33,17 @@ function App(): React.JSX.Element {
   const add = adding.start
   // Menu commands. `start` is read through a ref so the subscription is made once.
   const startRef = useRef(adding.start)
+  const pickRef = useRef(adding.handlePick)
   useEffect(() => {
     startRef.current = adding.start
+    pickRef.current = adding.handlePick
   })
   useEffect(
     () =>
       tide().onCommand((c) => {
         if (c.type === 'add-reading') startRef.current()
+        // A PDF opened from Finder / Explorer: a new file asks for a course, a known one opens.
+        else if (c.type === 'open-pick') pickRef.current(c.pick)
       }),
     []
   )

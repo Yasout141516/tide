@@ -47,10 +47,14 @@ function setup(now = (): number => 0) {
     checkMissing: vi.fn(() => Promise.resolve())
   }
   const send = vi.fn()
-  const win = { isDestroyed: () => false, webContents: { send } }
+  const wcListeners = new Map<string, () => void>()
+  const win = {
+    isDestroyed: () => false,
+    webContents: { send, on: (c: string, fn: () => void) => wcListeners.set(c, fn) }
+  }
   const api = registerLibraryIpc(lib as unknown as Library, { window: () => win as never, now })
   const call = (ch: string, ...a: unknown[]): unknown => handlers.get(ch)!({}, ...a)
-  return { lib, send, api, call, fireChange: () => onChange() }
+  return { lib, send, api, call, win, wcListeners, fireChange: () => onChange() }
 }
 
 beforeEach(() => showOpenDialog.mockReset())
@@ -210,6 +214,30 @@ describe('library IPC', () => {
     ])
     api.send({ type: 'zoom', step: -1 })
     expect(send).toHaveBeenLastCalledWith('app:command', { type: 'zoom', step: -1 })
+  })
+
+  it('queues commands again when the window is re-created, until the next app:ready', () => {
+    const { api, send, win } = setup()
+    listeners.get('app:ready')!()
+    api.send({ type: 'add-reading' })
+    expect(send).toHaveBeenCalledTimes(1)
+    send.mockClear()
+    api.attachWindow(win as never) // macOS activate after the window was destroyed
+    api.send({ type: 'zoom', step: 1 })
+    expect(send).not.toHaveBeenCalled()
+    listeners.get('app:ready')!()
+    expect(send.mock.calls).toEqual([['app:command', { type: 'zoom', step: 1 }]])
+  })
+
+  it('queues commands again while the renderer reloads', () => {
+    const { api, send, win, wcListeners } = setup()
+    api.attachWindow(win as never)
+    listeners.get('app:ready')!()
+    wcListeners.get('did-start-loading')!()
+    api.send({ type: 'add-reading' })
+    expect(send).not.toHaveBeenCalled()
+    listeners.get('app:ready')!()
+    expect(send).toHaveBeenCalledWith('app:command', { type: 'add-reading' })
   })
 
   it('re-checks missing files when the window gains focus', () => {

@@ -61,14 +61,15 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
   const process = (p: PickResult): void => {
     if (p.kind === 'cancelled') return finish()
     if (p.kind === 'existing') {
-      finish()
-      return onAddedRef.current(p.readingId)
+      // Select first: finish() may start a queued pick that would otherwise be overwritten.
+      onAddedRef.current(p.readingId)
+      return finish()
     }
     void (async () => {
       try {
         const read = await tide().library.readPdf({ pickId: p.pickId })
         if (!read.ok) {
-          setMessage(read.reason === 'unreadable' ? UNREADABLE : DAMAGED)
+          setMessage(read.reason === 'missing' ? UNREADABLE : DAMAGED)
           return finish()
         }
         const opened = await openPdf(read.data)
@@ -135,8 +136,8 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
       })
       .then(
         (id) => {
-          finish()
           onAddedRef.current(id)
+          finish()
         },
         (err) => {
           setMessage(

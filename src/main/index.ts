@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu } from 'electron'
+import { app, BrowserWindow, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
@@ -8,6 +8,8 @@ import { resourcePath } from './paths'
 import { Library } from './library/library'
 import { registerLibraryIpc } from './library/ipc'
 import { buildMenu } from './menu'
+import { filesFromArgv, OpenWithQueue } from './open-with'
+import { createQuitHandler, openLibraryOrReport } from './startup'
 
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
@@ -21,8 +23,19 @@ let quitting = false
 let mainWindow: BrowserWindow | null = null
 let ttsHost: TtsHost | null = null
 let library: Library | null = null
-let flushed = false
-let flushing = false
+let libraryIpc: ReturnType<typeof registerLibraryIpc> | null = null
+const openWith = new OpenWithQueue()
+
+// macOS delivers Open With / drop-on-Dock as `open-file`, possibly before `ready`: queue it.
+app.on('open-file', (e, path) => {
+  e.preventDefault()
+  openWith.push(path)
+})
+
+// One Tide at a time: a second launch hands its files to the running one and quits. The lock is
+// keyed by userData, so it comes after the TIDE_USER_DATA hook above.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) app.quit()
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -46,6 +59,7 @@ function createWindow(): BrowserWindow {
     }
   })
   mainWindow = win
+  libraryIpc?.attachWindow(win)
 
   win.on('ready-to-show', () => win.show())
 
@@ -84,33 +98,37 @@ function startTtsWhenLoaded(win: BrowserWindow): void {
 
 app.on('before-quit', (e) => {
   quitting = true
-  // Hold the quit until the shelf (reading positions included) is on disk. A second instance that
-  // quits at once has no library loaded.
-  if (flushed || !library) return
-  e.preventDefault()
-  if (flushing) return
-  flushing = true
-  // flush() never rejects; the timeout keeps a stuck disk from hanging the quit.
-  let timer: NodeJS.Timeout
-  const timeout = new Promise<false>((r) => {
-    timer = setTimeout(() => r(false), QUIT_FLUSH_TIMEOUT_MS)
-  })
-  Promise.race([library.flush(), timeout])
-    .then((ok) => {
-      if (!ok) console.error('[tide] library.json could not be written before quitting')
-    })
-    .finally(() => {
-      clearTimeout(timer)
-      flushed = true
-      app.quit()
-    })
+  quitHandler(e)
+})
+
+const quitHandler = createQuitHandler({
+  getLibrary: () => library,
+  quit: () => app.quit(),
+  timeoutMs: QUIT_FLUSH_TIMEOUT_MS
 })
 
 app.on('will-quit', () => {
   ttsHost?.dispose()
 })
 
+/** Brings the window forward, making a new one if it was closed (macOS keeps the app running). */
+function showWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  } else {
+    startTtsWhenLoaded(createWindow())
+  }
+}
+
+app.on('second-instance', (_e, argv, workingDirectory) => {
+  showWindow()
+  for (const p of filesFromArgv(argv, workingDirectory)) openWith.push(p)
+})
+
 app.whenReady().then(async () => {
+  if (!gotLock) return
   app.setAppUserModelId('com.yasout141516.tide')
 
   ttsHost = new TtsHost({
@@ -119,17 +137,28 @@ app.whenReady().then(async () => {
   })
   registerIpc(ttsHost, { e2e })
 
-  library = await Library.open(app.getPath('userData'))
-  const { send } = registerLibraryIpc(library, { window: () => mainWindow })
-  Menu.setApplicationMenu(buildMenu(send))
-  library.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
+  // If the store cannot open, still show a window (never a windowless app) and leave library.json alone.
+  library = await openLibraryOrReport(
+    () => Library.open(app.getPath('userData')),
+    (title, body) => dialog.showErrorBox(title, body)
+  )
+  if (library) {
+    const lib = library
+    libraryIpc = registerLibraryIpc(lib, { window: () => mainWindow })
+    const { send } = libraryIpc
+    Menu.setApplicationMenu(buildMenu(send))
+    lib.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
+    openWith.attach(async (path) => {
+      const pick = await lib.pick(path)
+      showWindow()
+      send({ type: 'open-pick', pick })
+    })
+    for (const p of filesFromArgv(process.argv, process.cwd())) openWith.push(p)
+  }
 
   startTtsWhenLoaded(createWindow())
 
-  app.on('activate', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
-    else startTtsWhenLoaded(createWindow())
-  })
+  app.on('activate', showWindow)
 })
 
 app.on('window-all-closed', () => {

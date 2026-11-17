@@ -2,10 +2,7 @@
   "fixture": "citations.pdf",
   "description": "1 page, one 11pt paragraph of seven sentences containing (Smith, 2019), (Smith & Jones, 2019, p. 4), (e.g., Lee et al., 2020; Kim, 2021), [12], [3–5] (en dash), the narrative citation \"Smith (2019) argues\" and the non-citation \"(born 1990 in Leeds)\".",
   "pageCount": 1,
-  "pageSize": [
-    612,
-    792
-  ],
+  "pageSize": [612, 792],
   "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
   "notes": [
     "Default (readCitations: false) removes the parenthetical and bracketed citations together with the space before them, and the year from the narrative citation (\"Smith (2019) argues\" -> \"Smith argues\").",

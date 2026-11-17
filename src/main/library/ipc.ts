@@ -19,7 +19,12 @@ import type { Library } from './library'
 
 const FOCUS_CHECK_MS = 5000
 /** Errors Library throws on purpose; none carries a path, so their wording may pass through. */
-const DOMAIN_ERRORS = new Set(['unknown pick', 'unknown reading', 'unknown course', 'invalid course name'])
+const DOMAIN_ERRORS = new Set([
+  'unknown pick',
+  'unknown reading',
+  'unknown course',
+  'invalid course name'
+])
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -112,12 +117,12 @@ function validRef(r: unknown): r is PdfRef {
 
 /**
  * Registers the library IPC handlers and the app:ready / app:command plumbing.
- * `send` queues commands until the renderer has announced `app:ready`.
+ * `send` queues commands until the renderer has announced `app:ready`; `attachWindow` makes it wait again.
  */
 export function registerLibraryIpc(
   lib: Library,
   o: { window: () => BrowserWindow | null; now?: () => number }
-): { send(cmd: AppCommand): void } {
+): { send(cmd: AppCommand): void; attachWindow(win: BrowserWindow): void } {
   const now = o.now ?? Date.now
   const toWindow = (channel: string, payload: unknown): void => {
     const win = o.window()
@@ -165,7 +170,10 @@ export function registerLibraryIpc(
 
   handle('library:update', (id: unknown, patch: unknown): void => {
     if (!isStr(id) || !validPatch(patch))
-      bad('library:update', '(id: string, patch of title, position, readEverything, opened, pageCount, finished)')
+      bad(
+        'library:update',
+        '(id: string, patch of title, position, readEverything, opened, pageCount, finished)'
+      )
     lib.update(id, patch)
   })
 
@@ -216,6 +224,13 @@ export function registerLibraryIpc(
   })
 
   return {
+    /** Call for every new window: its renderer has not mounted yet, and a reload unmounts it again. */
+    attachWindow(win) {
+      ready = false
+      win.webContents.on('did-start-loading', () => {
+        ready = false
+      })
+    },
     send(cmd) {
       if (ready) toWindow('app:command', cmd)
       else queue.push(cmd)

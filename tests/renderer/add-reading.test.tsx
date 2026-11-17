@@ -164,8 +164,8 @@ describe('Add reading', () => {
   })
 
   it.each([
-    ['missing', DAMAGED],
-    ['unreadable', "Tide can't read that file."]
+    ['missing', "Tide can't read that file."],
+    ['unreadable', DAMAGED]
   ] as const)(
     'readPdf ok:false (%s) shows its own message and adds nothing',
     async (reason, text) => {
@@ -177,6 +177,62 @@ describe('Add reading', () => {
       expect(t.calls['library.add']).toBeUndefined()
     }
   )
+
+  it('readPdf missing (file vanished) tells her to check where she left it', async () => {
+    const { t } = setup(okDoc())
+    t.library.readPdf = vi.fn(() =>
+      Promise.resolve({ ok: false as const, reason: 'missing' as const })
+    )
+    await addReading()
+    expect(
+      await screen.findByText('Check that it is still where you left it, then try adding it again.')
+    ).toBeTruthy()
+  })
+
+  it('an Open With pick (open-pick command) shows the picker for a new file', async () => {
+    const { t } = setup(okDoc())
+    await screen.findByRole('heading', { name: 'Your shelf is empty' })
+    t.emit({ type: 'open-pick', pick: { kind: 'new', pickId: 'p7', fileName: 'FromFinder.pdf' } })
+    expect(await screen.findByText('FromFinder.pdf')).toBeTruthy()
+  })
+
+  it('an Open With pick for a known reading opens it without a picker', async () => {
+    const { t } = setup(okDoc())
+    await t.library.add({ pickId: 'x', title: 'Already here', pageCount: 2, course: null })
+    await screen.findByRole('button', { name: /Already here/ })
+    t.emit({ type: 'open-pick', pick: { kind: 'existing', readingId: 'r1' } })
+    expect(await screen.findByRole('heading', { level: 2, name: 'Already here' })).toBeTruthy()
+    expect(screen.queryByText('Which course is this for?')).toBeNull()
+  })
+
+  it('selects the added reading before a queued pick runs, so a queued known file wins the selection', async () => {
+    const order: string[] = []
+    const t = fakeTide()
+    t.library.readPdf = vi.fn(() =>
+      Promise.resolve({ ok: true as const, data: new Uint8Array([1]) })
+    )
+    setTide(t)
+    let handlePick: (p: PickResult) => void = () => {}
+    function Harness(): React.JSX.Element {
+      const add = useAddReading((id) => order.push(`selected:${id}`))
+      handlePick = add.handlePick
+      return <>{add.ui}</>
+    }
+    render(
+      <ReaderDepsProvider value={{ openPdf: vi.fn(() => Promise.resolve(okDoc())) }}>
+        <Harness />
+      </ReaderDepsProvider>
+    )
+    act(() => handlePick(newPick))
+    await screen.findByText('Which course is this for?')
+    // While the picker is open a known file arrives; it waits.
+    act(() => handlePick({ kind: 'existing', readingId: 'known' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    await waitFor(() => expect(order).toHaveLength(2))
+    // The new reading is selected first, the queued known file last (it is the later request).
+    expect(order[1]).toBe('selected:known')
+    expect(order[0]).not.toBe('selected:known')
+  })
 
   it('already-on-shelf from add shows the friendly message', async () => {
     const { t } = setup(okDoc())

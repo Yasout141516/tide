@@ -2,10 +2,7 @@
   "fixture": "cover-refs.pdf",
   "description": "6 pages. Page 1: cover (28/16/12pt centered title lines) with the 9pt line \"© 2026 Course Pack — All rights reserved\". Page 2: table of contents (\"Contents\" 16pt, 11pt dot-leader entries including \"References ........ 6\"). Page 3: 14pt headings \"Introduction\" and a mid-document \"Notes\" (page 3 of 6, before 60% of the document). Pages 4-5: 14pt headings \"Results\", \"Discussion\" with body text. Page 6: a body paragraph, then a 14pt \"References\" heading followed by 10pt APA entries with an 18pt hanging indent. No running headers or footers.",
   "pageCount": 6,
-  "pageSize": [
-    612,
-    792
-  ],
+  "pageSize": [612, 792],
   "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
   "notes": [
     "Page 1 is skipped by default as a cover/copyright page (© / \"all rights reserved\" / \"course pack\" markers).",

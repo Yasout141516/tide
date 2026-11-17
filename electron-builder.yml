@@ -49,6 +49,13 @@ mac:
   identity: '-'
   hardenedRuntime: false
   notarize: false
+  # "Open with Tide" in Finder. Mac only: electron-builder's NSIS association can claim the default
+  # .pdf app on Windows (spec 6.6 forbids that; Windows "Open with" is deferred to M7).
+  fileAssociations:
+    - ext: pdf
+      name: PDF document
+      role: Viewer
+      rank: Alternate
   category: public.app-category.education
   # Reopening a recent PDF by path from these folders triggers a macOS privacy prompt.
   extendInfo:
