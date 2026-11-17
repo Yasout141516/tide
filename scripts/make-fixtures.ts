@@ -16,6 +16,7 @@
  * The expected strings are computed here independently of src/shared/text so that the tests check
  * the pipeline against an oracle rather than against itself.
  */
+import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -784,6 +785,103 @@ function longSentence(): Fixture {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Password and damaged fixtures (no sidecars: they are not part of the text pipeline's goldens)
+// ---------------------------------------------------------------------------------------------
+
+const md5 = (...parts: Uint8Array[]): Buffer => {
+  const h = createHash('md5')
+  for (const p of parts) h.update(p)
+  return h.digest()
+}
+
+/** RC4. Hand-rolled because OpenSSL 3 (Node 17+) no longer offers `rc4`. */
+function rc4(key: Uint8Array, data: Uint8Array): Buffer {
+  const s = Array.from({ length: 256 }, (_, i) => i)
+  for (let i = 0, j = 0; i < 256; i++) {
+    j = (j + s[i] + key[i % key.length]) & 255
+    ;[s[i], s[j]] = [s[j], s[i]]
+  }
+  const out = Buffer.alloc(data.length)
+  for (let k = 0, i = 0, j = 0; k < data.length; k++) {
+    i = (i + 1) & 255
+    j = (j + s[i]) & 255
+    ;[s[i], s[j]] = [s[j], s[i]]
+    out[k] = data[k] ^ s[(s[i] + s[j]) & 255]
+  }
+  return out
+}
+
+/** PDF 1.7 §7.6.3.3: the 32-byte password padding string. */
+const PAD = Buffer.from('28BF4E5E4E758A4164004E56FFFA01082E2E00B6D0683E802F0CA9FE6453697A', 'hex')
+const padPassword = (pw: string): Buffer =>
+  Buffer.concat([Buffer.from(pw, 'latin1'), PAD]).subarray(0, 32)
+
+/**
+ * A one-page PDF encrypted with the Standard Security Handler V1 R2 (RC4 40-bit), user password
+ * `tide`, owner password `owner`. Only the content stream is encrypted (names, /O and /U stay
+ * plain). Built by hand because pdf-lib cannot encrypt.
+ */
+function lockedPdf(): Buffer {
+  const P = -44 // all permissions of an R2 handler; its 32-bit LE bytes are D4 FF FF FF
+  const pBytes = Buffer.from([0xd4, 0xff, 0xff, 0xff])
+  const id = md5(Buffer.from('tide locked fixture'))
+  // Algorithm 3 (R2): O = RC4(first 5 bytes of MD5(padded owner password), padded user password).
+  const O = rc4(md5(padPassword('owner')).subarray(0, 5), padPassword('tide'))
+  // Algorithm 2 (R2): file key = first 5 bytes of MD5(padded user pw + O + P + ID[0]).
+  const key = md5(padPassword('tide'), O, pBytes, id).subarray(0, 5)
+  // Algorithm 4 (R2): U = RC4(file key, padding string).
+  const U = rc4(key, PAD)
+  // Algorithm 1: per-object key = first min(n + 5, 16) bytes of MD5(key + objnum[3 LE] + gen[2 LE]).
+  const objKey = (num: number): Buffer =>
+    md5(key, Buffer.from([num & 255, (num >> 8) & 255, (num >> 16) & 255, 0, 0])).subarray(
+      0,
+      Math.min(key.length + 5, 16)
+    )
+  const content = Buffer.from('BT /F1 18 Tf 72 700 Td (Locked fixture text.) Tj ET', 'latin1')
+  const enc = rc4(objKey(4), content)
+  const hex = (b: Buffer): string => `<${b.toString('hex')}>`
+
+  const objs: Array<Buffer | string> = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R ' +
+      '/Resources << /Font << /F1 5 0 R >> >> >>',
+    Buffer.concat([
+      Buffer.from(`<< /Length ${enc.length} >>\nstream\n`, 'latin1'),
+      enc,
+      Buffer.from('\nendstream', 'latin1')
+    ]),
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    `<< /Filter /Standard /V 1 /R 2 /O ${hex(O)} /U ${hex(U)} /P ${P} >>`
+  ]
+  const chunks: Buffer[] = [Buffer.from('%PDF-1.7\n', 'latin1')]
+  const offsets: number[] = []
+  let pos = chunks[0].length
+  objs.forEach((o, i) => {
+    offsets.push(pos)
+    const b = Buffer.concat([
+      Buffer.from(`${i + 1} 0 obj\n`, 'latin1'),
+      typeof o === 'string' ? Buffer.from(o, 'latin1') : o,
+      Buffer.from('\nendobj\n', 'latin1')
+    ])
+    chunks.push(b)
+    pos += b.length
+  })
+  let xref = `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`
+  for (const off of offsets) xref += `${String(off).padStart(10, '0')} 00000 n \n`
+  xref +=
+    `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Encrypt 6 0 R /ID [${hex(id)} ${hex(id)}] >>\n` +
+    `startxref\n${pos}\n%%EOF\n`
+  chunks.push(Buffer.from(xref, 'latin1'))
+  return Buffer.concat(chunks)
+}
+
+function writeOpenFailureFixtures(): void {
+  writeFileSync(join(OUT_DIR, 'not-a-pdf.pdf'), 'This file is not a PDF.')
+  writeFileSync(join(OUT_DIR, 'locked.pdf'), lockedPdf())
+}
+
+// ---------------------------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true })
@@ -801,6 +899,7 @@ async function main(): Promise<void> {
     longSentence
   ].map((f) => f())
   for (const f of fixtures) await build(f)
+  writeOpenFailureFixtures()
   console.log(`wrote ${fixtures.length} fixtures to ${OUT_DIR}`)
 }
 
