@@ -1,6 +1,6 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.*", "vitest.config.ts", "playwright.config.ts", "tests/**/*.ts", "src/main/**/*", "src/preload/**/*", "src/tts/**/*", "src/shared/**/*", "scripts/make-fixtures.ts"],
+  "include": ["electron.vite.config.*", "vitest.config.ts", "playwright.config.ts", "tests/**/*.ts", "src/main/**/*", "src/preload/**/*", "src/tts/**/*", "src/shared/**/*", "scripts/make-fixtures.ts", "scripts/spoken-text.ts"],
   "compilerOptions": {
     "composite": true,
     "types": ["electron-vite/node"]

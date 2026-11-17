@@ -124,7 +124,7 @@ function isCaption(l: Line, body: number): boolean {
 }
 
 /** The median baseline distance between consecutive lines of a page (1.2 x body below 2 lines). */
-function lineHeight(lines: Line[], body: number): number {
+export function lineHeight(lines: Line[], body: number): number {
   const gaps: number[] = []
   for (let i = 1; i < lines.length; i++) {
     const g = lines[i].y - lines[i - 1].y

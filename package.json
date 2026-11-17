@@ -18,7 +18,8 @@
     "package": "electron-vite build && electron-builder --publish never",
     "test": "vitest run",
     "e2e": "playwright test",
-    "fetch-model": "node scripts/fetch-model.mjs"
+    "fetch-model": "node scripts/fetch-model.mjs",
+    "spoken-text": "tsx scripts/spoken-text.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

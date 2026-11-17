@@ -1,0 +1,10 @@
+--- page 1 ---
+Results
+Participants studied word lists of different lengths and then recalled as many words as they could.
+As Figure 1 shows, recall fell steadily as the lists grew longer.
+The pattern held for every age group we tested.
+Table 1 lists the mean number of words recalled in each condition.
+Longer lists also produced more intrusions, which we discuss below.
+--- page 2 ---
+Recall was best for words at the start and end of each list.
+These results match the classic serial position effect.
