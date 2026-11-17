@@ -2,9 +2,14 @@
   "fixture": "two-column.pdf",
   "description": "3 pages of two 216pt columns (10pt, 13pt leading) at x=72 and x=324 (gutter 288..324). Page 1 has a full-width 18pt centered title and a 10pt centered subtitle above the columns; its left column ends with the marker line \"LEFT-END\" and its right column starts with \"RIGHT-START\". Left and right baselines are aligned. On pages 2 and 3 sentences run on from the bottom of the left column to the top of the right. No headers or footers.",
   "pageCount": 3,
-  "pageSize": [612, 792],
+  "pageSize": [
+    612,
+    792
+  ],
   "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
-  "notes": ["LEFT-END and RIGHT-START are ordinary words on page 1 and are spoken."],
+  "notes": [
+    "LEFT-END and RIGHT-START are ordinary words on page 1 and are spoken."
+  ],
   "markers": {
     "leftColumnLastLine": "LEFT-END",
     "rightColumnFirstLine": "RIGHT-START",
