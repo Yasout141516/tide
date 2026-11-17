@@ -19,7 +19,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "fetch-model": "node scripts/fetch-model.mjs",
-    "spoken-text": "tsx scripts/spoken-text.ts"
+    "spoken-text": "tsx scripts/spoken-text.ts",
+    "voice-samples": "tsx scripts/voice-samples.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
