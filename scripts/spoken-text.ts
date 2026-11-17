@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     process.exit(2)
   }
   const pages = await extractPages(new Uint8Array(readFileSync(files[0])))
-  const { sentences, textlessPages } = buildSentences(
+  const { sentences, textlessPages, skippedPages } = buildSentences(
     pages,
     everything ? READ_EVERYTHING : DEFAULT_FILTERS
   )
@@ -30,6 +30,9 @@ async function main(): Promise<void> {
   process.stderr.write(
     `${pages.length} pages, ${sentences.length} sentences` +
       (textlessPages.length ? `, no text on pages ${textlessPages.join(', ')}` : '') +
+      (skippedPages.length
+        ? `, skipped pages ${skippedPages.map((s) => `${s.page} (${s.reason})`).join(', ')}`
+        : '') +
       '\n'
   )
 }

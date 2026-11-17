@@ -157,6 +157,44 @@ describe('buildSentences', () => {
     expect(r.sentences.map((s) => s.text)).toEqual(['Only words here.'])
   })
 
+  it('reads a short handout whose every page looks like a cover page', () => {
+    // Two short pages (each under 60 words and at most 2 sentences): on their own each would count
+    // as a cover page, but skipping both would leave nothing to read.
+    const shortPage = (n: number, text: string[]): PageText => ({
+      page: n,
+      width: 612,
+      height: 792,
+      items: text.map((str, index) => ({
+        page: n,
+        index,
+        str,
+        x: 72,
+        y: 300 + 14 * index,
+        width: str.length * 5,
+        fontSize: 10
+      }))
+    })
+    const r = buildSentences([
+      shortPage(1, ['Bring a pencil and your notes to the review session.', 'It starts at noon.']),
+      shortPage(2, ['The quiz covers chapters one to three.'])
+    ])
+    expect(r.sentences.map((s) => s.text)).toEqual([
+      'Bring a pencil and your notes to the review session.',
+      'It starts at noon.',
+      'The quiz covers chapters one to three.'
+    ])
+    expect(r.skippedPages).toEqual([])
+  })
+
+  it('reports the pages skipped as cover pages and References', async () => {
+    const r = buildSentences(await pagesOf('cover-refs'))
+    expect(r.skippedPages).toEqual([
+      { page: 1, reason: 'cover' },
+      { page: 6, reason: 'references' }
+    ])
+    expect(buildSentences(await pagesOf('cover-refs'), READ_EVERYTHING).skippedPages).toEqual([])
+  })
+
   it('keeps a heading wrapped over two lines together, apart from the body', () => {
     const p: PageText = {
       page: 1,

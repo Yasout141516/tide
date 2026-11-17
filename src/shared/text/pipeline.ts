@@ -29,13 +29,26 @@ export interface BuildResult {
   sentences: Sentence[]
   /** 1-based pages with no text at all (e.g. a scanned page with no text layer). */
   textlessPages: number[]
+  /**
+   * 1-based pages the cover-page and References rules skipped, in page order, so the reader can offer
+   * "Read everything". A cover page is skipped whole. A References page is skipped from the
+   * References heading on: the heading's own page may still have body text spoken above the heading.
+   * Pages with no text are listed only in `textlessPages`.
+   */
+  skippedPages: SkippedPage[]
+}
+
+export interface SkippedPage {
+  page: number
+  reason: 'cover' | 'references'
 }
 
 /**
  * The whole text pipeline: PDF pages in, sentences to speak (each mapped back to its text items) out.
  *
- * Steps, each filter only when its `filters` flag is on: lines -> cover pages -> running headers and
- * footers -> footnotes -> captions and tables -> cut at References -> spoken text with hard breaks ->
+ * Steps, each filter only when its `filters` flag is on: lines -> cover pages (not applied when every
+ * page with text would go) -> running headers and footers -> footnotes -> captions and tables -> cut
+ * at References -> spoken text with hard breaks ->
  * citations (off when `readCitations`) -> sentences.
  *
  * Hard breaks (no sentence ever spans one) go before and after a heading (a line over 1.15 x body
@@ -51,21 +64,33 @@ export function buildSentences(
   const textlessPages = pages.filter((p) => !p.items.some((i) => i.str.trim())).map((p) => p.page)
   const heights = pages.map((p) => p.height)
 
+  const skippedPages: SkippedPage[] = []
   let lines = pages.map(buildLines)
   const body = bodyFontSize(lines)
   if (filters.skipCoverPages) {
-    const cover = new Set(coverPages(lines))
-    lines = lines.map((l, p) => (cover.has(p + 1) ? [] : l))
+    const cover = new Set(coverPages(lines).filter((p) => lines[p - 1].length > 0))
+    // A short handout (1-3 short pages) can look like cover pages from start to end: skipping them
+    // all would leave nothing to read, so then the rule is not applied.
+    const allCover = lines.every((l, p) => l.length === 0 || cover.has(p + 1))
+    if (!allCover) {
+      for (const page of cover) skippedPages.push({ page, reason: 'cover' })
+      lines = lines.map((l, p) => (cover.has(p + 1) ? [] : l))
+    }
   }
   if (filters.skipHeadersFooters) lines = dropHeadersFooters(lines, heights)
   if (filters.skipFootnotes) lines = dropFootnotes(lines, heights, body)
   if (filters.skipCaptionsTables) lines = dropCaptionsAndTables(lines, body)
   if (filters.stopAtReferences) {
     const refs = referencesStart(lines, body)
-    if (refs)
+    if (refs) {
+      lines.forEach((l, p) => {
+        if (p + 1 >= refs.page && l.length > 0)
+          skippedPages.push({ page: p + 1, reason: 'references' })
+      })
       lines = lines.map((l, p) =>
         p + 1 < refs.page ? l : p + 1 === refs.page ? l.slice(0, refs.lineIndex) : []
       )
+    }
   }
 
   const spoken = new SpokenText()
@@ -80,7 +105,7 @@ export function buildSentences(
         text: block.text.slice(start, end),
         spans: block.map(start, end)
       })
-  return { sentences, textlessPages }
+  return { sentences, textlessPages, skippedPages }
 }
 
 /** Appends one page's lines, with hard breaks at headings and at large vertical gaps. */
