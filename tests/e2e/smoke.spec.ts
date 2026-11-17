@@ -28,7 +28,7 @@ test('window opens titled Tide', async () => {
   const app = await launchTide()
   const win = await app.firstWindow()
   await expect(win).toHaveTitle('Tide')
-  await expect(win.getByText('Tide')).toBeVisible()
+  await expect(win.getByRole('heading', { level: 1, name: 'Tide' })).toBeVisible()
   await app.close()
 })
 

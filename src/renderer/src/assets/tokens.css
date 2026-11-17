@@ -1,0 +1,79 @@
+/* Design tokens: spec 5.2 (values as approved in the mockups). Components use these only. */
+:root[data-theme='sky-sea'] {
+  --bg: #f2f9ff;
+  --shelf-a: #ddeffc;
+  --shelf-b: #eaf5fe;
+  --surface: #ffffff;
+  --ink: #12324a;
+  --muted: #4f6a82;
+  --primary: #0f6fa8;
+  --on-primary: #ffffff;
+  --soft: #e3f2fd;
+  --soft-ink: #0b5884;
+  --border: #c9e6fa;
+  --stage-a: #cfe8fa;
+  --stage-b: #e6f3fd;
+  --stage-c: #f2f9ff;
+  --page: #ffffff;
+  --page-ink: #1d2b36;
+  --hl: #cdebff;
+  --hl-line: #1e88c7;
+  --sel: rgba(91, 182, 236, 0.28);
+  --wave-off: #c9e6fa;
+  --wave-on: #1e88c7;
+  --warn: #b4532a;
+  --warn-soft: #fdeee6;
+  --ok: #1b7f5b;
+  --bubble: #0a2e45;
+  --primary-deep: #0b5884;
+  --page-meta: #0f6fa8;
+  --scrim: rgba(10, 46, 69, 0.32);
+  --shadow: rgba(11, 88, 132, 0.16);
+}
+
+:root[data-theme='deep-sea'] {
+  --bg: #0b1d2c;
+  --shelf-a: #0a1826;
+  --shelf-b: #0d2134;
+  --surface: #11293d;
+  --ink: #e4f1fa;
+  --muted: #8ea9bf;
+  --primary: #4fb0e8;
+  --on-primary: #06192a;
+  --soft: #163650;
+  --soft-ink: #a9daf7;
+  --border: #1c3a54;
+  --stage-a: #0e2a40;
+  --stage-b: #0c2236;
+  --stage-c: #0b1d2c;
+  --page: #132b3e;
+  --page-ink: #d7e4ee;
+  --hl: rgba(79, 176, 232, 0.3);
+  --hl-line: #6cc3f2;
+  --sel: rgba(108, 195, 242, 0.22);
+  --wave-off: #1c3a54;
+  --wave-on: #6cc3f2;
+  --warn: #f0a07a;
+  --warn-soft: #3a2620;
+  --ok: #5fd3a3;
+  --bubble: #e4f1fa;
+  --primary-deep: #2e8fc8;
+  --page-meta: #6cc3f2;
+  --scrim: rgba(2, 10, 18, 0.55);
+  --shadow: rgba(0, 0, 0, 0.45);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -1,8 +1,68 @@
 @import 'tailwindcss';
+@import './tokens.css';
+
+/* Tailwind colour utilities generated from the tokens (bg-surface, text-ink, border-border, ...). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-shelf-a: var(--shelf-a);
+  --color-shelf-b: var(--shelf-b);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-soft: var(--soft);
+  --color-soft-ink: var(--soft-ink);
+  --color-border: var(--border);
+  --color-stage-a: var(--stage-a);
+  --color-stage-b: var(--stage-b);
+  --color-stage-c: var(--stage-c);
+  --color-page: var(--page);
+  --color-page-ink: var(--page-ink);
+  --color-hl: var(--hl);
+  --color-hl-line: var(--hl-line);
+  --color-sel: var(--sel);
+  --color-wave-off: var(--wave-off);
+  --color-wave-on: var(--wave-on);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-bubble: var(--bubble);
+  --color-primary-deep: var(--primary-deep);
+  --color-page-meta: var(--page-meta);
+  --color-scrim: var(--scrim);
+  --color-shadow: var(--shadow);
+  --font-sans: 'Nunito Sans', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
 
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+/* Narrow-window shelf overlay slides in from the left (tokens.css removes motion under reduced motion). */
+@keyframes shelf-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.shelf-overlay {
+  animation: fade-in 250ms ease-out;
+}
+.shelf-panel {
+  animation: shelf-in 250ms ease-out;
 }

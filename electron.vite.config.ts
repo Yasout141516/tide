@@ -32,6 +32,8 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    // Never inline @fontsource files as data: URIs; the CSP font-src then falls back to self.
+    build: { assetsInlineLimit: 0 },
     plugins: [react(), tailwindcss()]
   }
 })

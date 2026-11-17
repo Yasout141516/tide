@@ -1,8 +1,13 @@
+import { AppShell } from './shell/AppShell'
+import { PlayerBarPlaceholder } from './shell/PlayerBarPlaceholder'
+
 function App(): React.JSX.Element {
   return (
-    <main className="flex h-full items-center justify-center">
-      <h1 className="text-4xl font-semibold">Tide</h1>
-    </main>
+    <AppShell
+      renderShelf={() => <nav aria-label="Readings" className="flex-1" />}
+      stage={<main className="h-full" />}
+      player={<PlayerBarPlaceholder />}
+    />
   )
 }
 

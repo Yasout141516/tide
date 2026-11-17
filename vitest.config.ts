@@ -1,5 +1,9 @@
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  test: { include: ['tests/unit/**/*.test.ts'] }
+  test: {
+    include: ['tests/unit/**/*.test.ts', 'tests/renderer/**/*.test.tsx'],
+    // Renderer tests opt in to jsdom with a `// @vitest-environment jsdom` docblock.
+    setupFiles: ['tests/renderer/setup.ts']
+  }
 })
