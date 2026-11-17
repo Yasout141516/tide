@@ -84,6 +84,14 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 - **Pending: Yasin to choose 6-8 voices and a default** from `local-fixtures/voice-samples/index.html`. Until then the default stays **Heart (af_heart)** per spec 6.7.
 - Speed: on the dev x86 CPU, q8 RTF is about 1.2-1.4 (a different run from the M0a laptop figure of 1.31-1.59; CPU load varies) and **fp32 about 0.5**, so fp32 is about 2.5x faster (q8 pays for dequantization). The model file is about 325 MB vs about 92 MB, so **fp32 adds about 233 MB** to the installer. fp32 would fix the Windows RTF > 1. Whether q8 is good enough is **undecided**: the quality comparison waits for the listening test.
 
+## Final review fixes (packaging, pdf.js, text)
+
+- **Installer contents trimmed.** onnxruntime-node binaries for other OSes and arches, onnxruntime-web, pdf.js (now a dev dependency) with its optional `@napi-rs/canvas`, and the fp32 `model.onnx` no longer ship. sharp and its `@img/sharp-*` native binary stay: transformers.js imports sharp at load time and sharp throws without its binary (kokoro-js then fails to load).
+- Installer sizes (CI): dmg 323.3 MiB to **246.3 MiB**, exe 312.4 MiB to **241.2 MiB** (run 44031220120 before, run 44036153231 after). In the Windows app, `app.asar` fell from 132 to 9 MiB and the unpacked modules from 420 to 209 MiB.
+- **pdf.js 6.5.438** (exact pin; 5.7.x was affected by GHSA-hq66-cqwq-w95j, fixed in 6.2.108). Spoken text of the fixtures and of the five readings is unchanged by the upgrade.
+- Text fixes: compound hyphens at line breaks are kept ("self-concept"; 38 lines changed across the five readings, sentence counts unchanged), and a short handout is no longer filtered to nothing by the cover-page rule. `BuildResult.skippedPages` lists cover and References pages for a future "Read everything" offer. `PIPELINE_VERSION` is 2.
+- **Accepted risk:** the test-only IPC hooks are reachable in a packaged build, but only when it is launched with `TIDE_E2E=1`; this is required so CI smoke-tests the real installer artifact.
+
 ## Decisions recorded (also in spec section 12)
 
 - Gate passed; M0/M1 done.
@@ -103,18 +111,21 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 - Run-in bold headings (needs `fontName`/weight from pdf.js).
 - Citation patterns: multiple years, possessive "et al.", bracketed group authors, "personal communication", page-only locators.
 - Abbreviations (country names, multi-letter initials); narrow the initials rule; "No." merge; TOC dot leaders; outline numerals; item-spacing artifacts.
-- From earlier reviews: roman-numeral page-number rule drops single-word zone titles, U+2010 de-hyphenation, footnote overlap and two-column footnotes, rotated pages, compound hyphen rule, batch `remove()` patterns. Bump `PIPELINE_VERSION` whenever output changes.
+- From earlier reviews: roman-numeral page-number rule drops single-word zone titles, U+2010 de-hyphenation, footnote overlap and two-column footnotes, rotated pages, batch `remove()` patterns. Bump `PIPELINE_VERSION` whenever output changes.
+- Two-column pages with a full-width line mid-page collapse to one column: split the page into bands (M3).
 
 **TTS and performance**
+- TTS protocol: cancel/generation ids, timeout from job start, recycle the worker on a hang (first task of M4).
 - Decide q8 vs fp32 (above); consider per-OS defaults.
 - Short first chunk and model warm-up at start for first-audio latency; re-measure on the M5 Air at hand-off.
-- Deferred minors: tts-host error/exit handling, phonemizer re-count per chunk, missing edge-case tests (very long token, whitespace-only input), `npm audit` unreviewed, fetch timeout and error-path tests, NODE_EXTRA_CA_CERTS note for intercepting proxies.
+- Deferred minors: tts-host error/exit handling, phonemizer re-count per chunk, missing edge-case tests (very long token, whitespace-only input), `npm audit` unreviewed, fetch error-path tests (the per-file fetch timeout is in), NODE_EXTRA_CA_CERTS note for intercepting proxies.
 
 **Export**
 - Verify `.m4b` chapters in Apple Books on a real iPhone.
 - Keep the `eng` chapter-language patch covered by tests when changing the muxer.
 
 **Packaging and CI**
-- GPL ffmpeg: publish a source offer and licence notice before public release.
+- GPL ffmpeg: `NOTICE.md` now names the licences and links the FFmpeg sources; confirm the source-offer route before public release.
 - Onboarding page for Open Anyway on macOS 15+.
-- Unused `@electron-toolkit/preload`, formatting cleanups, `will-redirect` guard and navigation-guard tests, package metadata.
+- `will-redirect` guard and navigation-guard tests, package metadata.
+- Optional further trim: transformers.js ships its web builds, `.wasm` and source maps unpacked (about 46 MiB in all).
