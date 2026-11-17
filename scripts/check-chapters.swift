@@ -1,6 +1,7 @@
 // Spike M0d: does Apple's AVFoundation (what Apple Books uses) see the chapters in a Tide .m4b?
 // Usage: swift scripts/check-chapters.swift <file.m4b> <expected chapter count>
-// Prints the chapter count and titles; exits 1 if the count differs. Needs macOS 12+.
+// Prints the chapter count and titles (plus the tracks and chapter locales AVFoundation found);
+// exits 1 if the count differs. Needs macOS 12+.
 import AVFoundation
 import Foundation
 
@@ -12,6 +13,14 @@ guard args.count == 3, let expected = Int(args[2]) else {
 
 let asset = AVURLAsset(url: URL(fileURLWithPath: args[1]))
 do {
+  for track in try await asset.load(.tracks) {
+    let (enabled, lang) = try await track.load(.isEnabled, .languageCode)
+    let assoc = try await track.load(.availableTrackAssociationTypes).map(\.rawValue)
+    print("track \(track.trackID): \(track.mediaType.rawValue) enabled=\(enabled) lang=\(lang ?? "nil") assoc=\(assoc)")
+  }
+  let locales = try await asset.load(.availableChapterLocales)
+  print("chapter locales: \(locales.map(\.identifier))")
+
   let groups = try await asset.loadChapterMetadataGroups(bestMatchingPreferredLanguages: ["en"])
   print("AVFoundation chapters: \(groups.count)")
   for (i, group) in groups.enumerated() {
