@@ -144,15 +144,19 @@ export class SpokenText {
 
   /**
    * Whether "left-" + "right" split by a line break is a hyphenated compound, checked in order:
+   * 0. the left part is "self": keep the hyphen, whatever the document's words (hyphenation
+   *    virtually never breaks an ordinary word right after "self", and "self-" compounds are common
+   *    in psychology readings: "self-" + "regulation");
    * 1. the document writes "left-right" unbroken somewhere: keep the hyphen;
    * 2. the document writes "leftright" as one word somewhere ("experience"): drop it;
-   * 3. otherwise keep it only when the left part is a compound prefix ("self", "well", "long"...) AND
+   * 3. otherwise keep it only when the left part is a compound prefix ("well", "long", "non"...) AND
    *    the right part is a word of the document ("concept"); "ex-" + "perience" or "inter-" + "est"
    *    are hyphenated words, not compounds.
    */
   private keepsHyphen(left: string, right: string): boolean {
     const l = left.toLowerCase()
     const r = right.toLowerCase()
+    if (l === 'self') return true
     if (this.hyphenatedWords.has(`${l}-${r}`)) return true
     if (this.documentWords.has(l + r)) return false
     return COMPOUND_PREFIXES.has(l) && this.documentWords.has(r)

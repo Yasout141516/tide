@@ -101,6 +101,13 @@ describe('SpokenText', () => {
       expect(joinedIn(doc, 'the mid-', 'dle lane')).toBe('the middle lane')
     })
 
+    it('always keeps the hyphen after "self", whatever the document words', () => {
+      // "regulation" appears nowhere else in the document.
+      const doc = ['Plain words fill the rest of this made-up page.']
+      expect(joinedIn(doc, 'emotional self-', 'regulation')).toBe('emotional self-regulation')
+      expect(joinedIn(doc, 'Self-', 'regulation grows')).toBe('Self-regulation grows')
+    })
+
     it('keeps a prefix compound whose right part the document uses as a word', () => {
       const doc = ['A clear concept helps here.']
       expect(joinedIn(doc, 'a stable self-', 'concept')).toBe('a stable self-concept')
