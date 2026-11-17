@@ -1,16 +1,33 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const faults = vi.hoisted(() => ({ copyFile: 0, writeFile: 0 }))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:fs/promises')>()
+  const fail = (): Error => Object.assign(new Error('injected'), { code: 'EIO' })
+  return {
+    ...real,
+    copyFile: (...a: Parameters<typeof real.copyFile>) =>
+      faults.copyFile > 0 ? (faults.copyFile--, Promise.reject(fail())) : real.copyFile(...a),
+    writeFile: (...a: Parameters<typeof real.writeFile>) =>
+      faults.writeFile > 0 ? (faults.writeFile--, Promise.reject(fail())) : real.writeFile(...a)
+  }
+})
 import { emptyLibrary, parseLibrary } from '../../../src/main/library/schema'
 import { LibraryStore } from '../../../src/main/library/store'
 import type { LibraryFile, Reading } from '../../../src/shared/library/types'
 
 let dir: string
 beforeEach(async () => {
+  faults.copyFile = 0
+  faults.writeFile = 0
+  vi.spyOn(console, 'error').mockImplementation(() => {})
   dir = await mkdtemp(join(tmpdir(), 'tide-store-'))
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(dir, { recursive: true, force: true })
 })
 
@@ -107,6 +124,35 @@ describe('LibraryStore', () => {
     store.update((d) => d.readings.push(reading('y')), { urgent: true })
     await store.flush()
     expect(ids(await readJson('library.backup.json'))).toEqual(['old'])
+    const aside = (await readdir(dir)).filter((f) => /^library\.corrupt-\d+\.json$/.test(f))
+    expect(aside).toHaveLength(1)
+    expect(JSON.parse(await readFile(join(dir, aside[0]), 'utf8')).schemaVersion).toBe(2)
+  })
+
+  it('still updates library.json when the backup copy fails', async () => {
+    const store = await open()
+    store.update((d) => d.readings.push(reading('r1')), { urgent: true })
+    await store.flush()
+    faults.copyFile = 100
+    store.update((d) => d.readings.push(reading('r2')), { urgent: true })
+    expect(await store.flush()).toBe(true)
+    expect(ids(await readJson('library.json'))).toEqual(['r1', 'r2'])
+  })
+
+  it('flush resolves false when the write fails, and one retry later writes it', async () => {
+    const store = await open()
+    faults.writeFile = 1
+    store.update((d) => d.readings.push(reading('r1')))
+    expect(await store.flush()).toBe(false)
+    expect(await readdir(dir)).toEqual([])
+    await sleep(200)
+    expect(ids(await readJson('library.json'))).toEqual(['r1'])
+    expect(await store.flush()).toBe(true)
+  })
+
+  it('flush resolves true when nothing is pending', async () => {
+    const store = await open()
+    expect(await store.flush()).toBe(true)
   })
 
   it('fills defaults for fields missing in a v1 file', async () => {

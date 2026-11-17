@@ -28,11 +28,11 @@ async function readParsed(path: string): Promise<{ present: boolean; data: Libra
   }
 }
 
-/** Renames, retrying the errors Windows antivirus and indexers cause. */
-async function renameWithRetry(from: string, to: string): Promise<void> {
+/** Runs a file operation, retrying the errors Windows antivirus and indexers cause. */
+async function withRetry(op: () => Promise<void>): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
-      await rename(from, to)
+      await op()
       return
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
@@ -53,6 +53,7 @@ export class LibraryStore {
   private chain: Promise<void> = Promise.resolve()
   private timer: NodeJS.Timeout | null = null
   private dirty = false
+  private retried = false
 
   private constructor(
     dir: string,
@@ -74,7 +75,7 @@ export class LibraryStore {
     const primary = await readParsed(file)
     if (primary.data) return new LibraryStore(dir, debounceMs, primary.data, 'library', true)
     if (primary.present)
-      await renameWithRetry(file, join(dir, `library.corrupt-${Date.now()}.json`))
+      await withRetry(() => rename(file, join(dir, `library.corrupt-${Date.now()}.json`)))
     const fallback = await readParsed(join(dir, 'library.backup.json'))
     if (fallback.data) return new LibraryStore(dir, debounceMs, fallback.data, 'backup', false)
     // Nothing present at all is a fresh install, so the backup rolls normally from the first write.
@@ -98,10 +99,11 @@ export class LibraryStore {
     this.timer = setTimeout(() => this.enqueue(), this.debounceMs)
   }
 
-  /** Writes any pending change now and resolves when everything queued has reached disk. */
-  async flush(): Promise<void> {
+  /** Writes any pending change now. Resolves true when everything is on disk, false when a write failed. */
+  async flush(): Promise<boolean> {
     this.enqueue()
     await this.chain
+    return !this.dirty
   }
 
   private enqueue(): void {
@@ -113,16 +115,31 @@ export class LibraryStore {
     this.dirty = false
     const json = JSON.stringify(this.current, null, 2)
     this.chain = this.chain
-      .then(() => this.write(json))
+      .then(async () => {
+        await this.write(json)
+        this.retried = false
+      })
       .catch((err) => {
         this.dirty = true
         console.error('library.json write failed', err)
+        // One retry after the debounce interval; a later update or flush starts over.
+        if (!this.retried && !this.timer) {
+          this.retried = true
+          this.timer = setTimeout(() => this.enqueue(), this.debounceMs)
+        }
       })
   }
 
   private async write(json: string): Promise<void> {
     await writeFile(this.tmp, json, { encoding: 'utf8', flush: true })
-    if (this.backupAllowed && (await exists(this.file))) await copyFile(this.file, this.backup)
-    await renameWithRetry(this.tmp, this.file)
+    if (this.backupAllowed && (await exists(this.file))) {
+      // Best effort: a locked backup must not stop the primary from being updated.
+      try {
+        await withRetry(() => copyFile(this.file, this.backup))
+      } catch (err) {
+        console.error('library.backup.json copy failed', err)
+      }
+    }
+    await withRetry(() => rename(this.tmp, this.file))
   }
 }
