@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReadingId } from '../../shared/library/types'
 import { AppShell } from './shell/AppShell'
 import { PlayerBarPlaceholder } from './shell/PlayerBarPlaceholder'
@@ -11,15 +11,22 @@ function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
   const library = useLibrary()
   const [selectedId, setSelectedId] = useState<ReadingId | null>(null)
+  // The reading whose open has been stamped; a selected-but-missing reading is not in it yet.
+  const stampedId = useRef<ReadingId | null>(null)
 
   // Task 7 wires the real add flow; until then the button is present but inert.
   const add = (): void => {}
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
-  // Only a change of selection stamps it, and never for a missing file (Task 9's Find-it flow owns that).
+  // Stamp once per selection, never for a missing file (Task 9's Find-it flow owns that); a selected
+  // reading that stops being missing is stamped on its next click.
   const open = (id: ReadingId): void => {
-    if (id === selectedId) return
+    if (id === stampedId.current) return
     setSelectedId(id)
-    if (library?.readings.find((r) => r.id === id)?.missing) return
+    if (library?.readings.find((r) => r.id === id)?.missing) {
+      stampedId.current = null
+      return
+    }
+    stampedId.current = id
     void tide().library.update(id, { opened: true })
   }
 
