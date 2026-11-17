@@ -159,7 +159,7 @@ export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
 
 const STRONG_MARKERS = /©|copyright|all rights reserved|isbn/i
 /** Phrases that also occur in running prose ("this course pack ..."), so they count only on a short line. */
-const WEAK_MARKERS = /courses*pack|reproduced (with|by) permission/i
+const WEAK_MARKERS = /course\s*pack|reproduced (with|by) permission/i
 const WEAK_MARKER_MAX_WORDS = 8
 
 /** The 1-based pages among the first three that are cover/copyright pages and should be skipped. */
@@ -172,7 +172,7 @@ export function coverPages(pages: Line[][]): number[] {
     const marked =
       STRONG_MARKERS.test(text) ||
       lines.some(
-        (l) => WEAK_MARKERS.test(l.text) && l.text.split(/s+/).length <= WEAK_MARKER_MAX_WORDS
+        (l) => WEAK_MARKERS.test(l.text) && l.text.split(/\s+/).length <= WEAK_MARKER_MAX_WORDS
       )
     if (marked || (words < 60 && sentences <= 2)) out.push(p + 1)
   })
