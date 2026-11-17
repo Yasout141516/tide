@@ -7,7 +7,7 @@ import { buildSentences, renderSentences } from '../../../src/shared/text/pipeli
 import { segmentSentences } from '../../../src/shared/text/sentences'
 import { SpokenText } from '../../../src/shared/text/spoken'
 import { READ_EVERYTHING, type PageText } from '../../../src/shared/text/types'
-import { FIXTURES, line, readFixture } from './helpers'
+import { line, loadSidecars, readFixture, type Sidecar } from './helpers'
 
 const SPOKEN = join(__dirname, '..', '..', 'fixtures', 'spoken')
 const GOLDEN = [
@@ -20,8 +20,8 @@ const GOLDEN = [
   'long-sentence'
 ]
 
-const sidecar = (name: string): { pages: Array<Record<string, string>> } =>
-  JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), 'utf8'))
+const SIDECARS = new Map(loadSidecars().map((s) => [s.fixture, s]))
+const sidecar = (name: string): Sidecar => SIDECARS.get(`${name}.pdf`)!
 const pagesOf = (name: string): Promise<PageText[]> => extractPages(readFixture(`${name}.pdf`))
 
 describe('golden spoken text', () => {

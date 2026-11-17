@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+# A push to a branch with an open PR triggers both events; keep only the newest run per branch.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   package-and-smoke:
     name: package + packaged smoke (${{ matrix.os }})

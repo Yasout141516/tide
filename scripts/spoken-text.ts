@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     process.stderr.write('usage: npm run spoken-text -- <file.pdf> [--everything]\n')
     process.exit(2)
   }
-  const pages = await extractPages(new Uint8Array(readFileSync(files[0])))
+  const pages = await extractPages(readFileSync(files[0]))
   const { sentences, textlessPages, skippedPages } = buildSentences(
     pages,
     everything ? READ_EVERYTHING : DEFAULT_FILTERS

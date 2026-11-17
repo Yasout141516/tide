@@ -1,46 +1,15 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { extractPages } from '../../../src/shared/text/extract'
 import { buildLines } from '../../../src/shared/text/lines'
-import type { PageText, TextItem } from '../../../src/shared/text/types'
+import { loadSidecars, page, readFixture, type ItemSpec } from './helpers'
 
-const FIXTURES = join(__dirname, '..', '..', 'fixtures', 'pdfs')
-const read = (name: string): Uint8Array => new Uint8Array(readFileSync(join(FIXTURES, name)))
-
-interface Sidecar {
-  fixture: string
-  pageCount: number
-  pages: Array<{ page: number; lines: string[] }>
-}
-
-const sidecars = readdirSync(FIXTURES)
-  .filter((f) => f.endsWith('.json'))
-  .map((f) => JSON.parse(readFileSync(join(FIXTURES, f), 'utf8')) as Sidecar)
-
-/** Builds a synthetic page; `w` defaults to 5pt per character. */
-function page(
-  items: Array<Partial<TextItem> & { str: string; x: number; y: number }>,
-  width = 612,
-  height = 792
-): PageText {
-  return {
-    page: 1,
-    width,
-    height,
-    items: items.map((i, index) => ({
-      page: 1,
-      index,
-      fontSize: 10,
-      width: i.str.length * 5,
-      ...i
-    }))
-  }
-}
+const sidecars = loadSidecars()
 
 describe('buildLines', () => {
   it('orders two-column text left column first', async () => {
-    const lines = buildLines((await extractPages(read('two-column.pdf')))[0]).map((l) => l.text)
+    const lines = buildLines((await extractPages(readFixture('two-column.pdf')))[0]).map(
+      (l) => l.text
+    )
     expect(lines.indexOf('LEFT-END')).toBeLessThan(lines.indexOf('RIGHT-START')) // markers placed by the generator
   })
 
@@ -48,7 +17,7 @@ describe('buildLines', () => {
 
   describe.each(sidecars.map((s) => [s.fixture, s] as const))('%s', (fixture, sidecar) => {
     it('produces the sidecar lines, in reading order, on every page', async () => {
-      const pages = await extractPages(read(fixture))
+      const pages = await extractPages(readFixture(fixture))
       expect(pages).toHaveLength(sidecar.pageCount)
       expect(pages.map((p) => buildLines(p).map((l) => l.text))).toEqual(
         sidecar.pages.map((p) => p.lines)
@@ -57,7 +26,7 @@ describe('buildLines', () => {
   })
 
   it('puts a full-width title before both columns and keeps column lines out of each other', async () => {
-    const lines = buildLines((await extractPages(read('two-column.pdf')))[0])
+    const lines = buildLines((await extractPages(readFixture('two-column.pdf')))[0])
     expect(lines[0].text).toBe('Attention and Working Memory: A Review')
     expect(lines[1].text).toBe('Department of Psychology, Course Reader')
     const leftEnd = lines.findIndex((l) => l.text === 'LEFT-END')
@@ -66,7 +35,7 @@ describe('buildLines', () => {
   })
 
   it('gives each line its dominant font size, top-origin baseline and horizontal extent', async () => {
-    const [p1] = await extractPages(read('single-column.pdf'))
+    const [p1] = await extractPages(readFixture('single-column.pdf'))
     const lines = buildLines(p1)
     const withMarker = lines.find((l) => l.text.startsWith('Working memory capacity¹'))!
     expect(withMarker.fontSize).toBe(11)
@@ -106,7 +75,7 @@ describe('buildLines', () => {
   })
 
   it('ignores whitespace-only items, which pdf.js emits across column gutters', () => {
-    const items: Array<Partial<TextItem> & { str: string; x: number; y: number }> = []
+    const items: ItemSpec[] = []
     for (let k = 0; k < 10; k++) {
       items.push({ str: `left ${k}`, x: 72, y: 100 + k * 13, width: 200 })
       items.push({ str: ' ', x: 272, y: 100 + k * 13, width: 52 })
@@ -122,7 +91,7 @@ describe('buildLines', () => {
   })
 
   it('detects two columns whose baselines are not aligned', () => {
-    const items: Array<Partial<TextItem> & { str: string; x: number; y: number }> = []
+    const items: ItemSpec[] = []
     for (let k = 0; k < 12; k++) items.push({ str: `L${k}`, x: 72, y: 100 + k * 13, width: 200 })
     for (let k = 0; k < 11; k++) items.push({ str: `R${k}`, x: 324, y: 106 + k * 13, width: 200 })
     const text = buildLines(page(items)).map((l) => l.text)
@@ -131,11 +100,7 @@ describe('buildLines', () => {
     )
   })
 
-  const col = (
-    side: 'L' | 'R',
-    n: number,
-    top = 100
-  ): Array<Partial<TextItem> & { str: string; x: number; y: number }> =>
+  const col = (side: 'L' | 'R', n: number, top = 100): ItemSpec[] =>
     [...Array(n).keys()].map((k) => ({
       str: `${side}${k}`,
       x: side === 'L' ? 72 : 324,

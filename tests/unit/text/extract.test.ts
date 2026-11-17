@@ -1,12 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { extractPages } from '../../../src/shared/text/extract'
 import { normalizeText } from '../../../src/shared/text/normalize'
-
-const FIXTURES = join(__dirname, '..', '..', 'fixtures', 'pdfs')
-const read = (name: string): Uint8Array => new Uint8Array(readFileSync(join(FIXTURES, name)))
+import { readFixture } from './helpers'
 
 describe('normalizeText', () => {
   it('normalizes ligatures', () =>
@@ -25,7 +21,7 @@ describe('normalizeText', () => {
 
 describe('extractPages', () => {
   it('extracts items with top-origin y and page numbers', async () => {
-    const pages = await extractPages(read('single-column.pdf'))
+    const pages = await extractPages(readFixture('single-column.pdf'))
     expect(pages).toHaveLength(4)
     expect(pages[0].items[0].page).toBe(1)
     const header = pages[0].items.find((i) => i.str.includes('PSYC 201'))!
@@ -33,7 +29,7 @@ describe('extractPages', () => {
   })
 
   it('reports page size, page numbers and item geometry in PDF points', async () => {
-    const pages = await extractPages(read('single-column.pdf'))
+    const pages = await extractPages(readFixture('single-column.pdf'))
     pages.forEach((p, i) => {
       expect(p).toMatchObject({ page: i + 1, width: 612, height: 792 })
       for (const item of p.items) expect(item.page).toBe(i + 1)
@@ -47,9 +43,9 @@ describe('extractPages', () => {
   })
 
   it('skips empty items but keeps each item index pointing at its pdf.js text item', async () => {
-    const data = read('single-column.pdf')
+    const data = readFixture('single-column.pdf')
     const pages = await extractPages(data)
-    const task = getDocument({ data: data.slice(), verbosity: 0 })
+    const task = getDocument({ data: new Uint8Array(data), verbosity: 0 })
     const doc = await task.promise
     try {
       const raw = await (await doc.getPage(1)).getTextContent({ disableNormalization: true })
@@ -67,7 +63,7 @@ describe('extractPages', () => {
   })
 
   it('keeps original typographic characters in item str', async () => {
-    const [page] = await extractPages(read('ligatures.pdf'))
+    const [page] = await extractPages(readFixture('ligatures.pdf'))
     const text = page.items.map((i) => i.str).join(' ')
     expect(text).toContain('\uFB01gure')
     expect(text).toContain('bene\uFB01t')
@@ -77,7 +73,7 @@ describe('extractPages', () => {
   })
 
   it('returns pages with no items for a PDF without a text layer', async () => {
-    const pages = await extractPages(read('no-text.pdf'))
+    const pages = await extractPages(readFixture('no-text.pdf'))
     expect(pages.map((p) => p.items.length)).toEqual([0, 0])
     expect(pages.map((p) => p.page)).toEqual([1, 2])
   })
@@ -87,8 +83,8 @@ describe('extractPages', () => {
   })
 
   it('does not detach or modify the caller’s buffer', async () => {
-    const data = read('citations.pdf')
-    const copy = data.slice()
+    const data = readFixture('citations.pdf')
+    const copy = new Uint8Array(data)
     await extractPages(data)
     expect(data.byteLength).toBe(copy.byteLength)
     expect(Buffer.compare(data, copy)).toBe(0)

@@ -24,7 +24,7 @@ describe.skipIf(!existsSync(DIR) || pdfs.length === 0)('local readings', () => {
   for (const file of pdfs)
     it(file, { timeout: 120_000 }, async () => {
       const name = file.replace(/\.pdf$/i, '')
-      const pages = await extractPages(new Uint8Array(readFileSync(join(DIR, file))))
+      const pages = await extractPages(readFileSync(join(DIR, file)))
       const got = renderSentences(buildSentences(pages).sentences)
       const approved = join(OUT, `${name}.txt`)
       const want = existsSync(approved) ? readFileSync(approved, 'utf8') : null

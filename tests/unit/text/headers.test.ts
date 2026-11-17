@@ -1,9 +1,7 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { dropHeadersFooters } from '../../../src/shared/text/filters'
 import { buildLines } from '../../../src/shared/text/lines'
-import { FIXTURES, linesOf, page, spokenOf, type ItemSpec } from './helpers'
+import { linesOf, loadSidecars, page, spokenOf, type ItemSpec } from './helpers'
 
 const HEIGHT = 792
 const body = (k: number): ItemSpec[] => [
@@ -141,17 +139,7 @@ describe('dropHeadersFooters', () => {
     expect(dropHeadersFooters([[], []], [792, 792])).toEqual([[], []])
   })
 
-  interface Sidecar {
-    fixture: string
-    pages: Array<{
-      page: number
-      lines: string[]
-      skipped: Array<{ text: string; reason: string }>
-    }>
-  }
-  const sidecars = readdirSync(FIXTURES)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(readFileSync(join(FIXTURES, f), 'utf8')) as Sidecar)
+  const sidecars = loadSidecars()
 
   describe.each(sidecars.map((s) => [s.fixture, s] as const))('%s', (fixture, sidecar) => {
     it('drops exactly the header, footer and page-number lines the sidecar lists', async () => {

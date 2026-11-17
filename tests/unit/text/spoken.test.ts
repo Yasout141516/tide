@@ -1,10 +1,8 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { normalizeText } from '../../../src/shared/text/normalize'
 import { SpokenText } from '../../../src/shared/text/spoken'
 import type { Line, Span } from '../../../src/shared/text/types'
-import { FIXTURES, line, lineOf, linesOf } from './helpers'
+import { line, lineOf, linesOf, loadSidecars } from './helpers'
 
 /** The original characters a list of spans covers, normalized and joined. */
 function spanText(lines: Line[], spans: Span[]): string {
@@ -291,13 +289,7 @@ describe('SpokenText', () => {
     ])
   })
 
-  interface Sidecar {
-    fixture: string
-    pages: Array<{ page: number; spokenReadEverything: string }>
-  }
-  const sidecars = readdirSync(FIXTURES)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(readFileSync(join(FIXTURES, f), 'utf8')) as Sidecar)
+  const sidecars = loadSidecars()
 
   describe.each(sidecars.map((s) => [s.fixture, s] as const))('%s', (fixture, sidecar) => {
     it('speaks every line as the sidecar says (read everything) and maps every word back', async () => {

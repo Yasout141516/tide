@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { extractPages } from '../../../src/shared/text/extract'
 import { dropHeadersFooters } from '../../../src/shared/text/filters'
@@ -7,8 +7,29 @@ import { SpokenText } from '../../../src/shared/text/spoken'
 import type { Line, PageText, TextItem } from '../../../src/shared/text/types'
 
 export const FIXTURES = join(__dirname, '..', '..', 'fixtures', 'pdfs')
-export const readFixture = (name: string): Uint8Array =>
-  new Uint8Array(readFileSync(join(FIXTURES, name)))
+/** A fixture's bytes. `extractPages` copies its input, so the same buffer can be passed again. */
+export const readFixture = (name: string): Buffer => readFileSync(join(FIXTURES, name))
+
+/** A fixture's JSON sidecar: what the pipeline should produce for it (see each file's `format`). */
+export interface Sidecar {
+  fixture: string
+  pageCount: number
+  pages: Array<{
+    page: number
+    lines: string[]
+    spoken: string
+    spokenReadEverything: string
+    /** Only in citations.json: the spoken text with readCitations on. */
+    spokenWithCitations?: string
+    skipped: Array<{ text: string; reason: string }>
+  }>
+}
+
+/** Every fixture's sidecar, in file-name order. */
+export const loadSidecars = (): Sidecar[] =>
+  readdirSync(FIXTURES)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => JSON.parse(readFileSync(join(FIXTURES, f), 'utf8')) as Sidecar)
 
 export type ItemSpec = Partial<TextItem> & { str: string; x: number; y: number }
 
