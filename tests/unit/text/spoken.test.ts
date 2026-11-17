@@ -57,7 +57,53 @@ describe('SpokenText', () => {
     expect(joined('a well-', 'Known fact')).toBe('a well- Known fact')
     expect(joined('pages 12-', 'to 14')).toBe('pages 12- to 14')
     expect(joined('a dash -', 'then more')).toBe('a dash - then more')
-    expect(joined('self-', 'report')).toBe('selfreport')
+    expect(joined('cog-', 'nitive')).toBe('cognitive')
+  })
+
+  describe('compound hyphens at a line break', () => {
+    const joined = (a: string, b: string, hyphenatedWords?: Set<string>): string => {
+      const s = new SpokenText({ hyphenatedWords })
+      s.appendLine(line(a, 1, 0))
+      s.appendLine(line(b, 1, 1, 114))
+      return s.blocks()[0].text
+    }
+
+    it('keeps the hyphen after a compound prefix', () => {
+      expect(joined('a stable self-', 'concept')).toBe('a stable self-concept')
+      expect(joined('self-', 'report')).toBe('self-report')
+      expect(joined('their Well-', 'being')).toBe('their Well-being')
+      expect(joined('a long-', 'term goal')).toBe('a long-term goal')
+      expect(joined('a non-', 'directive stance')).toBe('a non-directive stance')
+    })
+
+    it('still drops a hyphen that only splits a word', () => {
+      expect(joined('selective atten-', 'tion')).toBe('selective attention')
+      expect(joined('behav-', 'ioral change')).toBe('behavioral change')
+      // "pre", "re" and "co" are not on the prefix list: they start too many unhyphenated words.
+      expect(joined('to pre-', 'vent it')).toBe('to prevent it')
+      expect(joined('to re-', 'call it')).toBe('to recall it')
+      expect(joined('a co-', 'herent view')).toBe('a coherent view')
+    })
+
+    it('keeps the hyphen when the document writes the word with one elsewhere', () => {
+      const words = new Set(['decision-making'])
+      expect(joined('shared decision-', 'making', words)).toBe('shared decision-making')
+      expect(joined('shared Decision-', 'making', words)).toBe('shared Decision-making')
+      expect(joined('shared decision-', 'making')).toBe('shared decisionmaking')
+    })
+
+    it('maps a kept hyphen to the original hyphen character', () => {
+      const s = new SpokenText()
+      s.appendLine(line('a self-', 1, 0))
+      s.appendLine(line('concept', 1, 1, 114))
+      const [b] = s.blocks()
+      expect(b.text).toBe('a self-concept')
+      expect(b.map(2, 14)).toEqual([
+        { page: 1, itemIndex: 0, start: 2, end: 7 },
+        { page: 1, itemIndex: 1, start: 0, end: 7 }
+      ])
+      expect(b.map(6, 7)).toEqual([{ page: 1, itemIndex: 0, start: 6, end: 7 }])
+    })
   })
 
   it('remove keeps mapping consistent', () => {
@@ -215,13 +261,13 @@ describe('SpokenText', () => {
 
   it('returns blocks that later edits do not change', () => {
     const s = new SpokenText()
-    s.appendLine(line('a well-', 1, 0))
+    s.appendLine(line('a dis-', 1, 0))
     const [before] = s.blocks()
-    s.appendLine(line('known fact', 1, 1, 114))
-    s.remove(/well/)
-    expect(before.text).toBe('a well-')
-    expect(before.map(0, 7)).toEqual([{ page: 1, itemIndex: 0, start: 0, end: 7 }])
-    expect(s.blocks()[0].text).toBe('a known fact')
+    s.appendLine(line('tinct fact', 1, 1, 114))
+    s.remove(/dis/)
+    expect(before.text).toBe('a dis-')
+    expect(before.map(0, 6)).toEqual([{ page: 1, itemIndex: 0, start: 0, end: 6 }])
+    expect(s.blocks()[0].text).toBe('a tinct fact')
   })
 
   it('still speaks a line whose text does not match its items, without spans for the mismatch', () => {

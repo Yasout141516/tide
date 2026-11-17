@@ -29,6 +29,41 @@ export interface SpokenBlock {
 }
 
 /**
+ * Word parts that start hyphenated compounds ("self-concept", "well-being", "long-term"): a line break
+ * right after one of them keeps the hyphen. Prefixes that also start many unhyphenated words ("pre",
+ * "re", "co") are left out.
+ */
+const COMPOUND_PREFIXES: ReadonlySet<string> = new Set([
+  'self',
+  'well',
+  'long',
+  'short',
+  'high',
+  'low',
+  'non',
+  'cross',
+  'multi',
+  'full',
+  'half',
+  'mid',
+  'semi',
+  'ex',
+  'counter',
+  'anti',
+  'inter',
+  'intra',
+  'post'
+])
+
+/** The lowercased hyphenated words ("decision-making") written within a line of `lines`. */
+export function hyphenatedWordsIn(lines: Iterable<Line>): Set<string> {
+  const out = new Set<string>()
+  for (const l of lines)
+    for (const m of l.text.matchAll(/\b[a-z]+-[a-z]+\b/gi)) out.add(m[0].toLowerCase())
+  return out
+}
+
+/**
  * Builds the text to speak from lines, remembering for every character which text item (and which
  * characters of its `str`) it came from, so a sentence can later be highlighted on the page.
  *
@@ -38,20 +73,43 @@ export interface SpokenBlock {
 export class SpokenText {
   private readonly done: Segment[][] = []
   private current: Segment[] = []
+  private readonly hyphenatedWords: ReadonlySet<string>
+
+  /**
+   * @param options.hyphenatedWords lowercased hyphenated words ("decision-making") that the document
+   *   writes unbroken somewhere (see `hyphenatedWordsIn`): such a word split at its hyphen by a line
+   *   break keeps the hyphen.
+   */
+  constructor(options: { hyphenatedWords?: ReadonlySet<string> } = {}) {
+    this.hyphenatedWords = options.hyphenatedWords ?? new Set()
+  }
 
   /**
    * Appends a line to the current block, joined with a space - or, when the block ends with a letter
-   * + "-" and the line starts with a lowercase letter, with the hyphen dropped and no space.
+   * + "-" and the line starts with a lowercase letter, with no space: the hyphen is kept for a
+   * compound ("self-" + "concept", see `keepsHyphen`) and dropped otherwise ("atten-" + "tion").
    */
   appendLine(line: Line): void {
     const segs = lineSegments(line)
     if (segs.length === 0) return
     if (this.current.length > 0) {
       const tail = lastChars(this.current, 2)
-      if (/[A-Za-z]-$/.test(tail) && /^[a-z]/.test(segs[0].text)) dropLastChar(this.current)
-      else if (!/\s$/.test(tail)) this.current.push({ text: ' ', src: null, linear: false })
+      if (/[A-Za-z]-$/.test(tail) && /^[a-z]/.test(segs[0].text)) {
+        const left = /([A-Za-z]+)-$/.exec(lastChars(this.current, 64))![1]
+        const right = /^[A-Za-z]+/.exec(line.text)?.[0] ?? ''
+        if (!this.keepsHyphen(left, right)) dropLastChar(this.current)
+      } else if (!/\s$/.test(tail)) this.current.push({ text: ' ', src: null, linear: false })
     }
     for (const s of segs) this.current.push(s)
+  }
+
+  /**
+   * Whether "left-" + "right" split by a line break is a hyphenated compound: the left part is a
+   * compound prefix ("self", "well", "long"...), or the document writes "left-right" unbroken.
+   */
+  private keepsHyphen(left: string, right: string): boolean {
+    const l = left.toLowerCase()
+    return COMPOUND_PREFIXES.has(l) || this.hyphenatedWords.has(`${l}-${right.toLowerCase()}`)
   }
 
   /** Ends the current block: text after this never joins (or de-hyphenates with) text before it. */

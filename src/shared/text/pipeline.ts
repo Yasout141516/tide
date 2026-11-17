@@ -10,7 +10,7 @@ import {
 } from './filters'
 import { buildLines } from './lines'
 import { segmentSentences } from './sentences'
-import { SpokenText } from './spoken'
+import { hyphenatedWordsIn, SpokenText } from './spoken'
 import {
   DEFAULT_FILTERS,
   type Line,
@@ -65,7 +65,8 @@ export function buildSentences(
   const heights = pages.map((p) => p.height)
 
   const skippedPages: SkippedPage[] = []
-  let lines = pages.map(buildLines)
+  const allLines = pages.map(buildLines)
+  let lines = allLines
   const body = bodyFontSize(lines)
   if (filters.skipCoverPages) {
     const cover = new Set(coverPages(lines).filter((p) => lines[p - 1].length > 0))
@@ -93,7 +94,8 @@ export function buildSentences(
     }
   }
 
-  const spoken = new SpokenText()
+  // A compound split by a line break keeps its hyphen if the document writes it whole anywhere.
+  const spoken = new SpokenText({ hyphenatedWords: hyphenatedWordsIn(allLines.flat()) })
   for (const pageLines of lines) appendPage(spoken, pageLines, body)
   if (!filters.readCitations) removeCitations(spoken)
 

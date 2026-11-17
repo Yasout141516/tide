@@ -195,6 +195,30 @@ describe('buildSentences', () => {
     expect(buildSentences(await pagesOf('cover-refs'), READ_EVERYTHING).skippedPages).toEqual([])
   })
 
+  it('keeps a compound hyphen at a line break when the document uses the hyphenated word', () => {
+    const items = [
+      'Shared decision-making takes time to learn.',
+      'Teams that practise shared decision-',
+      'making report fewer conflicts and more trust.',
+      'Selective atten-',
+      'tion to the speaker helps.'
+    ].map((str, index) => ({
+      page: 1,
+      index,
+      str,
+      x: 72,
+      y: 100 + 14 * index,
+      width: str.length * 5,
+      fontSize: 10
+    }))
+    const { sentences } = buildSentences([{ page: 1, width: 612, height: 792, items }])
+    expect(sentences.map((s) => s.text)).toEqual([
+      'Shared decision-making takes time to learn.',
+      'Teams that practise shared decision-making report fewer conflicts and more trust.',
+      'Selective attention to the speaker helps.'
+    ])
+  })
+
   it('keeps a heading wrapped over two lines together, apart from the body', () => {
     const p: PageText = {
       page: 1,
