@@ -10,7 +10,7 @@ import {
 } from './filters'
 import { buildLines } from './lines'
 import { segmentSentences } from './sentences'
-import { hyphenatedWordsIn, SpokenText } from './spoken'
+import { documentWordsIn, hyphenatedWordsIn, SpokenText } from './spoken'
 import {
   DEFAULT_FILTERS,
   type Line,
@@ -94,8 +94,13 @@ export function buildSentences(
     }
   }
 
-  // A compound split by a line break keeps its hyphen if the document writes it whole anywhere.
-  const spoken = new SpokenText({ hyphenatedWords: hyphenatedWordsIn(allLines.flat()) })
+  // A compound split by a line break keeps its hyphen if the document writes it whole anywhere, or
+  // starts with a compound prefix and its right part is a word of the document (see keepsHyphen).
+  const docLines = allLines.flat()
+  const spoken = new SpokenText({
+    hyphenatedWords: hyphenatedWordsIn(docLines),
+    documentWords: documentWordsIn(docLines)
+  })
   for (const pageLines of lines) appendPage(spoken, pageLines, body)
   if (!filters.readCitations) removeCitations(spoken)
 

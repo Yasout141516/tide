@@ -219,6 +219,28 @@ describe('buildSentences', () => {
     ])
   })
 
+  it('drops a hyphen that splits an ordinary word after a compound prefix', () => {
+    const items = [
+      'Years of ex-',
+      'perience made the guide calm.',
+      'A firm self-',
+      'concept helps, and the concept is simple.'
+    ].map((str, index) => ({
+      page: 1,
+      index,
+      str,
+      x: 72,
+      y: 100 + 14 * index,
+      width: str.length * 5,
+      fontSize: 10
+    }))
+    const { sentences } = buildSentences([{ page: 1, width: 612, height: 792, items }])
+    expect(sentences.map((s) => s.text)).toEqual([
+      'Years of experience made the guide calm.',
+      'A firm self-concept helps, and the concept is simple.'
+    ])
+  })
+
   it('keeps a heading wrapped over two lines together, apart from the body', () => {
     const p: PageText = {
       page: 1,

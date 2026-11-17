@@ -30,8 +30,8 @@ export interface SpokenBlock {
 
 /**
  * Word parts that start hyphenated compounds ("self-concept", "well-being", "long-term"): a line break
- * right after one of them keeps the hyphen. Prefixes that also start many unhyphenated words ("pre",
- * "re", "co") are left out.
+ * right after one of them may keep the hyphen (see `SpokenText.keepsHyphen`). Prefixes that also start
+ * many unhyphenated words ("pre", "re", "co") are left out.
  */
 const COMPOUND_PREFIXES: ReadonlySet<string> = new Set([
   'self',
@@ -63,6 +63,37 @@ export function hyphenatedWordsIn(lines: Iterable<Line>): Set<string> {
   return out
 }
 
+/** A word: a run of letters, keeping inner apostrophes ("don't"); a hyphen splits it. */
+const WORD = /[A-Za-z]+(?:['’][A-Za-z]+)*/g
+
+/**
+ * The lowercased words of `lines`, in the same order `hyphenatedWordsIn` takes them, not counting the
+ * two halves of a word split by a line-break hyphen ("ex-" / "perience"): they are not words.
+ *
+ * The second half is the first word of the line after one ending in letter + "-", when that line
+ * starts with a lowercase letter. On a new page the first line starting with a lowercase letter is
+ * taken instead, so a running header or page number in between does not hide it.
+ */
+export function documentWordsIn(lines: Iterable<Line>): Set<string> {
+  const out = new Set<string>()
+  let splitOnPage: number | null = null // page of the last line that ended in letter + "-"
+  for (const l of lines) {
+    let words: string[] = l.text.match(WORD) ?? []
+    if (splitOnPage !== null) {
+      if (/^[a-z]/.test(l.text)) {
+        words = words.slice(1)
+        splitOnPage = null
+      } else if (l.page === splitOnPage || l.page > splitOnPage + 1) splitOnPage = null
+    }
+    if (/[A-Za-z]-$/.test(l.text)) {
+      words = words.slice(0, -1)
+      splitOnPage = l.page
+    }
+    for (const w of words) out.add(w.toLowerCase())
+  }
+  return out
+}
+
 /**
  * Builds the text to speak from lines, remembering for every character which text item (and which
  * characters of its `str`) it came from, so a sentence can later be highlighted on the page.
@@ -74,20 +105,28 @@ export class SpokenText {
   private readonly done: Segment[][] = []
   private current: Segment[] = []
   private readonly hyphenatedWords: ReadonlySet<string>
+  private readonly documentWords: ReadonlySet<string>
 
   /**
    * @param options.hyphenatedWords lowercased hyphenated words ("decision-making") that the document
    *   writes unbroken somewhere (see `hyphenatedWordsIn`): such a word split at its hyphen by a line
    *   break keeps the hyphen.
+   * @param options.documentWords the document's lowercased words (see `documentWordsIn`), used to
+   *   tell a compound split at its hyphen ("self-" + "concept") from a word split by hyphenation
+   *   ("ex-" + "perience").
    */
-  constructor(options: { hyphenatedWords?: ReadonlySet<string> } = {}) {
+  constructor(
+    options: { hyphenatedWords?: ReadonlySet<string>; documentWords?: ReadonlySet<string> } = {}
+  ) {
     this.hyphenatedWords = options.hyphenatedWords ?? new Set()
+    this.documentWords = options.documentWords ?? new Set()
   }
 
   /**
    * Appends a line to the current block, joined with a space - or, when the block ends with a letter
    * + "-" and the line starts with a lowercase letter, with no space: the hyphen is kept for a
-   * compound ("self-" + "concept", see `keepsHyphen`) and dropped otherwise ("atten-" + "tion").
+   * compound ("self-" + "concept", see `keepsHyphen`) and dropped otherwise ("atten-" + "tion",
+   * "ex-" + "perience").
    */
   appendLine(line: Line): void {
     const segs = lineSegments(line)
@@ -104,12 +143,19 @@ export class SpokenText {
   }
 
   /**
-   * Whether "left-" + "right" split by a line break is a hyphenated compound: the left part is a
-   * compound prefix ("self", "well", "long"...), or the document writes "left-right" unbroken.
+   * Whether "left-" + "right" split by a line break is a hyphenated compound, checked in order:
+   * 1. the document writes "left-right" unbroken somewhere: keep the hyphen;
+   * 2. the document writes "leftright" as one word somewhere ("experience"): drop it;
+   * 3. otherwise keep it only when the left part is a compound prefix ("self", "well", "long"...) AND
+   *    the right part is a word of the document ("concept"); "ex-" + "perience" or "inter-" + "est"
+   *    are hyphenated words, not compounds.
    */
   private keepsHyphen(left: string, right: string): boolean {
     const l = left.toLowerCase()
-    return COMPOUND_PREFIXES.has(l) || this.hyphenatedWords.has(`${l}-${right.toLowerCase()}`)
+    const r = right.toLowerCase()
+    if (this.hyphenatedWords.has(`${l}-${r}`)) return true
+    if (this.documentWords.has(l + r)) return false
+    return COMPOUND_PREFIXES.has(l) && this.documentWords.has(r)
   }
 
   /** Ends the current block: text after this never joins (or de-hyphenates with) text before it. */

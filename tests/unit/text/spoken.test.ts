@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeText } from '../../../src/shared/text/normalize'
-import { SpokenText } from '../../../src/shared/text/spoken'
+import { documentWordsIn, SpokenText } from '../../../src/shared/text/spoken'
 import type { Line, Span } from '../../../src/shared/text/types'
 import { line, lineOf, linesOf, loadSidecars } from './helpers'
 
@@ -59,19 +59,73 @@ describe('SpokenText', () => {
   })
 
   describe('compound hyphens at a line break', () => {
-    const joined = (a: string, b: string, hyphenatedWords?: Set<string>): string => {
-      const s = new SpokenText({ hyphenatedWords })
+    const joined = (
+      a: string,
+      b: string,
+      hyphenatedWords?: Set<string>,
+      documentWords?: Set<string>
+    ): string => {
+      const s = new SpokenText({ hyphenatedWords, documentWords })
       s.appendLine(line(a, 1, 0))
       s.appendLine(line(b, 1, 1, 114))
       return s.blocks()[0].text
     }
+    /** Joins "a" + "b" as `buildSentences` would, with `others` as the rest of the document. */
+    const joinedIn = (others: string[], a: string, b: string): string => {
+      const lines = [a, b, ...others].map((str, i) => line(str, 1, i, 100 + 14 * i))
+      const s = new SpokenText({ documentWords: documentWordsIn(lines) })
+      s.appendLine(lines[0])
+      s.appendLine(lines[1])
+      return s.blocks()[0].text
+    }
 
-    it('keeps the hyphen after a compound prefix', () => {
-      expect(joined('a stable self-', 'concept')).toBe('a stable self-concept')
-      expect(joined('self-', 'report')).toBe('self-report')
-      expect(joined('their Well-', 'being')).toBe('their Well-being')
-      expect(joined('a long-', 'term goal')).toBe('a long-term goal')
-      expect(joined('a non-', 'directive stance')).toBe('a non-directive stance')
+    it('keeps the hyphen after a compound prefix when the right part is a word of the document', () => {
+      // The right parts ("concept", "report"...) appear as words elsewhere in the document.
+      const words = new Set(['concept', 'report', 'being', 'term', 'directive'])
+      expect(joined('a stable self-', 'concept', undefined, words)).toBe('a stable self-concept')
+      expect(joined('self-', 'report', undefined, words)).toBe('self-report')
+      expect(joined('their Well-', 'being', undefined, words)).toBe('their Well-being')
+      expect(joined('a long-', 'term goal', undefined, words)).toBe('a long-term goal')
+      expect(joined('a non-', 'directive stance', undefined, words)).toBe('a non-directive stance')
+    })
+
+    it('drops the hyphen after a prefix when the right part is no word of the document', () => {
+      const doc = ['Plain words fill the rest of this made-up page.']
+      expect(joinedIn(doc, 'their ex-', 'perience of it')).toBe('their experience of it')
+      expect(joinedIn(doc, 'an inter-', 'est in birds')).toBe('an interest in birds')
+      expect(joinedIn(doc, 'a weekly semi-', 'nar on rocks')).toBe('a weekly seminar on rocks')
+      expect(joinedIn(doc, 'multi-', 'ple tries')).toBe('multiple tries')
+      expect(joinedIn(doc, 'the cross-', 'ing guard')).toBe('the crossing guard')
+      expect(joinedIn(doc, 'high-', 'ly rated')).toBe('highly rated')
+      expect(joinedIn(doc, 'a low-', 'er shelf')).toBe('a lower shelf')
+      expect(joinedIn(doc, 'the mid-', 'dle lane')).toBe('the middle lane')
+    })
+
+    it('keeps a prefix compound whose right part the document uses as a word', () => {
+      const doc = ['A clear concept helps here.']
+      expect(joinedIn(doc, 'a stable self-', 'concept')).toBe('a stable self-concept')
+    })
+
+    it('drops the hyphen when the document writes the joined word unhyphenated', () => {
+      // "pert" is a word of the document too, but "expert" written whole wins.
+      const doc = ['An expert gave a pert reply.']
+      expect(joinedIn(doc, 'the ex-', 'pert said')).toBe('the expert said')
+      expect(joinedIn(['Her interest grew.', 'An est is odd.'], 'an inter-', 'est')).toBe(
+        'an interest'
+      )
+    })
+
+    it('does not count the halves of a word split by a line break as document words', () => {
+      const words = documentWordsIn([line('their ex-', 1, 0), line('perience of Rain', 1, 1, 114)])
+      expect([...words].sort()).toEqual(['of', 'rain', 'their'])
+      // Split across a page, with a running header line in between.
+      const across = documentWordsIn([
+        line('a stable self-', 1, 0, 700),
+        line('Chapter Three', 2, 0, 40),
+        line('concept grows.', 2, 1, 100)
+      ])
+      expect(across.has('concept')).toBe(false)
+      expect(across.has('chapter')).toBe(true)
     })
 
     it('still drops a hyphen that only splits a word', () => {
@@ -91,7 +145,7 @@ describe('SpokenText', () => {
     })
 
     it('maps a kept hyphen to the original hyphen character', () => {
-      const s = new SpokenText()
+      const s = new SpokenText({ documentWords: new Set(['concept']) })
       s.appendLine(line('a self-', 1, 0))
       s.appendLine(line('concept', 1, 1, 114))
       const [b] = s.blocks()
