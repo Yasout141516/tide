@@ -212,7 +212,7 @@ Every message is plain language with one clear action. No error codes on screen 
 | UI | **React** + **Tailwind CSS** + **Radix UI** primitives (Dialog, Popover, Switch, RadioGroup) | Accessible popovers and dialogs for free. Themes are CSS variables. |
 | PDF | **pdfjs-dist** | Renders pages and gives positioned text for extraction and highlighting. |
 | Voice | **kokoro-js** (Kokoro-82M ONNX, Apache-2.0) on **onnxruntime-node**, CPU | The most natural free offline voice. Runs in Node, no Python. |
-| Audio export | **ffmpeg-static** (AAC `.m4b` with chapters; MP3 via libmp3lame if present, else **lamejs**) | Only proven route to Apple-readable audiobook chapters (§6.5). |
+| Audio export | **ffmpeg-static** (AAC `.m4b` with chapters, and MP3 via libmp3lame) | Only proven route to Apple-readable audiobook chapters (§6.5). |
 | Storage | **electron-store** (JSON in `app.getPath('userData')`, atomic writes, schema + migrations), plus a rolling `library.backup.json` | Data is tiny, so no database. A corrupted file must never wipe her shelf. |
 | Fonts | Bundled locally (Literata, Nunito Sans, Fraunces, Press Start 2P via @fontsource) | Offline: no Google Fonts at runtime. |
 | Packaging | **electron-builder**: Mac `.dmg` (**arm64 only**, matching her M5; onnxruntime-node ships per-arch binaries), Windows NSIS `.exe` (x64). `onnxruntime-node` and the model go in `asarUnpack`/`extraResources` | Uses `mac.identity: "-"` (ad-hoc signature) so macOS offers Open Anyway instead of "damaged". |
@@ -335,8 +335,8 @@ Pages with no extractable text show "This page has no readable text" and playbac
     (checked in its source), and hand-writing chapter tracks is risky with no Mac to test on. **Spike M0d**
     proves chapters with an **AVFoundation check on the macOS runner** (`swift` script reading
     `AVAsset.chapterMetadataGroups`). That's the same parser family Apple Books uses, so it's verified without owning a Mac.
-  - **MP3:** if the bundled ffmpeg includes `libmp3lame` (checked in M0d), MP3 also goes through ffmpeg
-    and lamejs is dropped. Otherwise lamejs in a Web Worker, as originally planned.
+  - **MP3:** MP3 also goes through the bundled ffmpeg (libmp3lame), confirmed present on macOS and
+    Windows in M0d.
 - **Getting files to her iPhone** goes in her guide: Finder → right-click the file → Share → AirDrop →
   her iPhone. `.m4b` opens in Books and `.mp3` opens in Files.
 
@@ -433,7 +433,7 @@ transformers.js remote model loading is disabled. The smoke test runs with netwo
 
 ### 6.12 Licensing
 
-- Kokoro model and kokoro-js: Apache-2.0. pdf.js: Apache-2.0. lamejs: LGPL. Fonts: OFL.
+- Kokoro model and kokoro-js: Apache-2.0. pdf.js: Apache-2.0. Fonts: OFL. ffmpeg (ffmpeg-static builds): GPL; source offer required before public release (see §12).
 - Kokoro's phonemizer relies on **eSpeak NG (GPL-3.0)**. To stay clearly compliant while distributing,
   **the Tide repo is licensed GPL-3.0** (it's free and open anyway). Builder: confirm the actual
   dependency tree's licences during the spike.

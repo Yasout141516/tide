@@ -2,11 +2,11 @@
 
 Date: 2026-11-17. Branch `feat/m0-m1-foundation`. Sources: CI run 43896305932 (M0a/M0b), CI run 44031220120 (M0d), local runs on the developer laptop (Ryzen 3 5300U, no GPU).
 
-**Gate verdict: PASS. M0/M1 are done.** M0a RTF on the macOS runner is 0.84-0.85 (target < 1); M0d shows 2 chapters in AVFoundation (target >= 2). One voice decision (M0e) is still pending a listening session, and one new open decision (q8 vs fp32) comes out of the spikes.
+**Gate verdict: PASS. M0/M1 are done.** M0a RTF on the macOS runner is 0.84-0.85 (target < 1), but first audio < 2 s is not met on the CI runner (re-check on her M5; mitigation in M4); M0d shows 2 chapters in AVFoundation (target >= 2). One voice decision (M0e) is still pending a listening session, and one new open decision (q8 vs fp32) comes out of the spikes.
 
 | Spike | Question | Result |
 |---|---|---|
-| M0a | Is the packaged voice fast enough? | Pass on macOS runner (RTF 0.84-0.85), fail on Windows (1.25-1.40) |
+| M0a | Is the packaged voice fast enough? | RTF pass on macOS runner (0.84-0.85); first-audio < 2 s not met on the CI runner (re-check on her M5; mitigation in M4); RTF fail on Windows (1.25-1.40) |
 | M0b | Does an ad-hoc signed Mac build verify? | Pass; Open Anyway check stays at hand-off |
 | M0c | Does the text pipeline read real course readings cleanly? | Mostly; known issues listed below |
 | M0d | Does `.m4b` export give chapters Apple can read? | Pass (2 chapters), lamejs dropped |
@@ -14,7 +14,7 @@ Date: 2026-11-17. Branch `feat/m0-m1-foundation`. Sources: CI run 43896305932 (M
 
 ## M0a: voice speed and load time (packaged app, offline)
 
-Sentence of 3.825 s of audio, af_heart, q8 model. RTF = synthesis time / audio time.
+Sentence of 3.825 s of audio, af_heart, q8 model. RTF = synthesis time / audio time. Rows marked "earlier run" are earlier runs of the same CI job (run 1 vs run 2).
 
 | Machine | loadMs | cold synth ms | RTF cold | warm synth ms | RTF warm |
 |---|---|---|---|---|---|
@@ -22,7 +22,7 @@ Sentence of 3.825 s of audio, af_heart, q8 model. RTF = synthesis time / audio t
 | macOS runner, earlier run | 1927 | 4336 | 1.13 | n/a | n/a |
 | Windows runner, AMD EPYC 7763, 4 vCPU | 1220 | 4784 | 1.25 | 5350 | 1.40 |
 | Windows runner, earlier run | 1191 | 5125 | 1.34 | n/a | n/a |
-| Dev laptop, Ryzen 3 5300U | n/a | n/a | 1.31-1.59 | n/a | n/a |
+| Dev laptop, Ryzen 3 5300U | n/a | n/a | 1.31-1.59 (M0a runs; M0e samples measured 1.2-1.4 on a different run and CPU load) | n/a | n/a |
 
 Against "first audio < 2 s, RTF < 1":
 - **RTF < 1: PASS on macOS** (0.84-0.85 in the latest run). The earlier macOS run was 1.13, so runner noise is large and the pass is not by a wide margin.
@@ -52,7 +52,7 @@ release/mac-arm64/Tide.app: rejected
 
 ## M0c: text pipeline on real readings
 
-Five readings, 169 pages, about 3,350 sentences in total (3,354 before the caption fix, 3,356 after). No crashes, no pages without text. Labels are neutral; page numbers are PDF pages. No reading text is reproduced here (the readings are copyrighted and kept local).
+Five readings, 169 pages, about 3,350 sentences in total (3,354 before the caption fix, 3,356 after). No crashes, no pages without text. Labels are neutral; page numbers are PDF pages. In all five, the DOI line on page 1 is spoken. No reading text is reproduced here (the readings are copyrighted and kept local).
 
 What works in all five: the publisher watermark is removed on every page, sentences cut by page breaks are rejoined across pages, the References section is cut at the right place (an outline line reading "References" at 50% of the document is correctly not treated as the cut), figure-only pages produce nothing, and no running headers, page numbers or footnotes leaked.
 
@@ -60,7 +60,7 @@ Fixed during M0c: split initials (52 splits to 0), question-mark plus lowercase 
 
 | Reading | Pages | Sentences | Open issues (pages) |
 |---|---|---|---|
-| Reading A | 30 | 552 | DOI line spoken (p1, all five). Table with multi-word cells leaks (p7). Figure source notes leak after captions are dropped (p21-22). A country abbreviation splits a sentence. Outline numerals detach or attach to the wrong line (p14-15). Spacing artifacts in a few words (p3, p4, p15). Page locator left after a block quote (p20). Hard break where a block quote starts mid-sentence (p20). |
+| Reading A | 30 | 552 | Table with multi-word cells leaks (p7). Figure source notes leak after captions are dropped (p21-22). A country abbreviation splits a sentence. Outline numerals detach or attach to the wrong line (p14-15). Spacing artifacts in a few words (p3, p4, p15). Page locator left after a block quote (p20). Hard break where a block quote starts mid-sentence (p20). |
 | Reading B | 37 | 715 | Block-quote hard breaks split sentences (several). End-of-chapter further-reading, audiovisual and website lists spoken, with URLs split at "?" (p34-35). A non-author-year citation left. |
 | Reading C | 33 | 593 | Tables with multi-word cells leak (p1-2, p11). Multi-letter initials split. Run-in box headings merge into the next sentence. End-of-chapter lists spoken (p29-30). |
 | Reading D | 43 | 884 | Table partly leaks (p9). Run-in bold headings at body size merge into the first sentence (p8, p11); needs font weight. Some citation shapes missed (multiple years, possessive "et al.", bracketed group authors). 5 "sentences" over 600 characters from list text without punctuation (TTS chunking handles length). End-of-chapter lists spoken (p40-41). |
@@ -82,7 +82,7 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 
 - 24 samples rendered from one opening page of a reading, q8 and fp32 (local-only, in `local-fixtures/voice-samples/`; open `index.html` to listen).
 - **Pending: Yasin to choose 6-8 voices and a default** from `local-fixtures/voice-samples/index.html`. Until then the default stays **Heart (af_heart)** per spec 6.7.
-- Speed: on the dev x86 CPU, q8 RTF is about 1.2-1.4 and **fp32 about 0.5**, so fp32 is about 2.5x faster (q8 pays for dequantization). The model file is about 325 MB vs about 92 MB, so **fp32 adds about 233 MB** to the installer. fp32 would fix the Windows RTF > 1. Whether q8 is good enough is **undecided**: the quality comparison waits for the listening test.
+- Speed: on the dev x86 CPU, q8 RTF is about 1.2-1.4 (a different run from the M0a laptop figure of 1.31-1.59; CPU load varies) and **fp32 about 0.5**, so fp32 is about 2.5x faster (q8 pays for dequantization). The model file is about 325 MB vs about 92 MB, so **fp32 adds about 233 MB** to the installer. fp32 would fix the Windows RTF > 1. Whether q8 is good enough is **undecided**: the quality comparison waits for the listening test.
 
 ## Decisions recorded (also in spec section 12)
 
