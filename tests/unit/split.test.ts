@@ -20,6 +20,25 @@ describe('splitForSpeech', () => {
     expect(count).toHaveBeenCalled()
   })
 
+  it('counts a short sentence with acronyms, symbols, Greek or math characters', async () => {
+    const counted = async (t: string): Promise<boolean> => {
+      const count = vi.fn(c)
+      expect(await splitForSpeech(t, count)).toEqual([t])
+      return count.mock.calls.length > 0
+    }
+    expect(await counted('The WHO and UNESCO agreed.')).toBe(true)
+    expect(await counted('Growth was 5% higher.')).toBe(true)
+    expect(await counted('Profit & loss both rose.')).toBe(true)
+    for (const ch of '%&$#@+=<>/\\^~|€£§°')
+      expect(await counted(`A word ${ch} a word.`), `symbol ${ch}`).toBe(true)
+    expect(await counted('The alpha level α held.')).toBe(true)
+    expect(await counted('Take the ∑ of the parts.')).toBe(true)
+    // A plain sentence, curly quotes and dashes included, is not counted.
+    expect(await counted('A plain sentence about rivers.')).toBe(false)
+    expect(await counted('She said “yes” – then left — quietly.')).toBe(false)
+    expect(await counted('It’s a Big Day for Anna.')).toBe(false)
+  })
+
   it('prefers semicolons over commas', async () => {
     const t = 'a'.repeat(250) + '; ' + 'b'.repeat(250) + ', c.'
     const out = await splitForSpeech(t, c, 400)

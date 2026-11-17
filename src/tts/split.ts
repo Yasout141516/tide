@@ -51,14 +51,22 @@ async function splitLevel(
   return pack(parts, count, max, rest)
 }
 
+/**
+ * What can make short text phonemize long, so it is always counted: digits ("1984" -> "nineteen
+ * eighty-four"), runs of 2+ capitals (acronyms spelled out letter by letter), symbols read as words
+ * (% & $ # @ + = < > / \ ^ ~ | € £ § °), Greek letters (U+0370-U+03FF) and math operators
+ * (U+2200-U+22FF). Curly quotes and dashes are fine.
+ */
+const NEEDS_COUNTING = /[\d%&$#@+=<>/\\^~|€£§°Ͱ-Ͽ∀-⋿]|[A-Z]{2}/
+
 export async function splitForSpeech(
   text: string,
   countTokens: TokenCounter,
   maxTokens = 400
 ): Promise<string[]> {
-  // Phonemizing is slow. Digit-free English of at most 200 characters phonemizes to well under 400
-  // tokens, so it is not counted; digits can expand a lot ("1984" -> "nineteen eighty-four").
-  if (maxTokens >= 400 && text.length <= 200 && !/\d/.test(text)) return [text]
+  // Phonemizing is slow. Plain English of at most 200 characters phonemizes to well under 400 tokens,
+  // so it is not counted (see `NEEDS_COUNTING` for what is not plain).
+  if (maxTokens >= 400 && text.length <= 200 && !NEEDS_COUNTING.test(text)) return [text]
   if ((await countTokens(text)) <= maxTokens) return [text]
   return splitLevel(text, countTokens, maxTokens, [';:', ','])
 }
