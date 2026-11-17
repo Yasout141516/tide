@@ -17,6 +17,15 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # transformers.js only loads onnxruntime-web in a browser; its Node build never imports it.
+  - '!node_modules/onnxruntime-web/**'
+  # onnxruntime-node ships prebuilt binaries for every OS and arch; keep only the target's own
+  # (${platform} is darwin or win32, ${arch} arm64 or x64). Per-platform `files` lists are not used:
+  # electron-builder 26 then drops its default exclusions (.git, release/, local-fixtures/ shipped).
+  - '!node_modules/onnxruntime-node/bin/napi-v*/!(${platform})/**'
+  - '!node_modules/onnxruntime-node/bin/napi-v*/${platform}/!(${arch})/**'
+  # sharp and its native @img/sharp-* binary stay: transformers.js imports sharp statically at load
+  # time, and sharp throws when its native binary is missing (checked: kokoro-js then fails to load).
 # Runtime modules that read their own files from disk (kokoro-js voices) or ship native
 # binaries (onnxruntime-node, ffmpeg-static) must exist outside the asar archive.
 asarUnpack:
@@ -25,9 +34,13 @@ asarUnpack:
   - node_modules/@huggingface/transformers/**
   - node_modules/phonemizer/**
   - node_modules/ffmpeg-static/**
+# Only the default q8 model and its JSON files ship; never the fp32 model.onnx or other dtypes.
 extraResources:
   - from: resources/models
     to: models
+    filter:
+      - '**/*.json'
+      - '**/onnx/model_quantized.onnx'
 mac:
   target:
     - target: dmg
