@@ -160,6 +160,30 @@ describe('cover pages and References', () => {
     expect(coverPages([lines])).toEqual([])
   })
 
+  /** A page of `words` invented words in sentences of 10 words, 10 words per line. */
+  const pageOfWords = (words: number, title?: string): Line[] => {
+    const all = Array.from(
+      { length: words },
+      (_, i) => `lorem${i % 7}${(i + 1) % 10 === 0 ? '.' : ''}`
+    )
+    const lines: Line[] = []
+    if (title) lines.push(lineOf([{ str: title, x: 72, y: 60 }]))
+    for (let i = 0; i < all.length; i += 10)
+      lines.push(lineOf([{ str: all.slice(i, i + 10).join(' '), x: 72, y: 100 + 12 * (i / 10) }]))
+    return lines
+  }
+
+  it('keeps the first pages of a deck of short slides', () => {
+    // 10 slides of about 30 words: every slide is short, but no shorter than the others.
+    const slides = Array.from({ length: 10 }, (_, i) => pageOfWords(28 + (i % 3), `Slide ${i + 1}`))
+    expect(coverPages(slides)).toEqual([])
+  })
+
+  it('still skips a short title page before long pages', () => {
+    const doc = [pageOfWords(20), ...Array.from({ length: 5 }, () => pageOfWords(400))]
+    expect(coverPages(doc)).toEqual([1])
+  })
+
   it('stops at the late References heading', async () => {
     const { lines } = await linesOf('cover-refs.pdf')
     expect(referencesStart(lines, bodyFontSize(lines))).toEqual({

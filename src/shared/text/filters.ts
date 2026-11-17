@@ -194,19 +194,43 @@ const WEAK_MARKER_MAX_WORDS = 8
 /** A reprinted article's first page carries a (c) line too; only short pages are copyright pages. */
 const STRONG_MARKER_MAX_WORDS = 150
 
-/** The 1-based pages among the first three that are cover/copyright pages and should be skipped. */
+/** An unmarked page is sparse only below this share of the document's median page word count. */
+const SPARSE_SHARE_OF_MEDIAN = 0.25
+
+const wordCount = (text: string): number => text.split(/\s+/).filter(Boolean).length
+const pageText = (lines: Line[]): string => lines.map((l) => l.text).join(' ')
+
+/** The median word count of the pages that have any words (0 when none has). */
+function medianWords(pages: Line[][]): number {
+  const counts = pages
+    .map((lines) => wordCount(pageText(lines)))
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b)
+  if (counts.length === 0) return 0
+  const mid = counts.length >> 1
+  return counts.length % 2 ? counts[mid] : (counts[mid - 1] + counts[mid]) / 2
+}
+
+/**
+ * The 1-based pages among the first three that are cover/copyright pages and should be skipped: a
+ * page with a copyright marker (see `STRONG_MARKERS`, `WEAK_MARKERS`), or an unmarked sparse page -
+ * under 60 words, at most 2 sentences, AND under 25% of the median word count of all the document's
+ * non-empty pages (so a deck of short slides keeps its first slides).
+ */
 export function coverPages(pages: Line[][]): number[] {
   const out: number[] = []
+  const median = medianWords(pages)
   pages.slice(0, 3).forEach((lines, p) => {
-    const text = lines.map((l) => l.text).join(' ')
-    const words = text.split(/\s+/).filter(Boolean).length
+    const text = pageText(lines)
+    const words = wordCount(text)
     const sentences = (text.match(/[.!?](?=\s|$)/g) ?? []).length
     const marked =
       (STRONG_MARKERS.test(text) && words < STRONG_MARKER_MAX_WORDS) ||
       lines.some(
         (l) => WEAK_MARKERS.test(l.text) && l.text.split(/\s+/).length <= WEAK_MARKER_MAX_WORDS
       )
-    if (marked || (words < 60 && sentences <= 2)) out.push(p + 1)
+    const sparse = words < 60 && sentences <= 2 && words < SPARSE_SHARE_OF_MEDIAN * median
+    if (marked || sparse) out.push(p + 1)
   })
   return out
 }
