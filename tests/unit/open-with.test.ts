@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
-import { filesFromArgv, OpenWithQueue } from '../../src/main/open-with'
+import { filesFromArgv, openWithHandler, OpenWithQueue } from '../../src/main/open-with'
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), 'tide-ow-'))
@@ -66,6 +66,29 @@ describe('OpenWithQueue', () => {
       seen.push(p)
     })
     await vi.waitFor(() => expect(seen).toEqual(['ok']))
+    err.mockRestore()
+  })
+})
+
+describe('openWithHandler', () => {
+  it('sends open-pick for a picked file and shows the window', async () => {
+    const send = vi.fn()
+    const show = vi.fn()
+    const pick = { kind: 'new', pickId: 'p', fileName: 'a.pdf' }
+    await openWithHandler({ pick: async () => pick as never, send, show })('/x/a.pdf')
+    expect(send).toHaveBeenCalledWith({ type: 'open-pick', pick })
+    expect(show).toHaveBeenCalled()
+  })
+
+  it('tells the renderer, with no path in it, when the file cannot be picked', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const send = vi.fn()
+    const show = vi.fn()
+    const pick = async (): Promise<never> => Promise.reject(new Error('ENOENT /secret/a.pdf'))
+    await openWithHandler({ pick, send, show })('/secret/a.pdf')
+    expect(send).toHaveBeenCalledWith({ type: 'open-failed' })
+    expect(JSON.stringify(send.mock.calls)).not.toMatch(/secret/)
+    expect(show).toHaveBeenCalled()
     err.mockRestore()
   })
 })

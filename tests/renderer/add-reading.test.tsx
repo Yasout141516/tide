@@ -234,6 +234,56 @@ describe('Add reading', () => {
     expect(order[0]).not.toBe('selected:known')
   })
 
+  it('three picks handed off while one flow is open each go through the add flow in turn', async () => {
+    const t = fakeTide()
+    t.library.readPdf = vi.fn(() =>
+      Promise.resolve({ ok: true as const, data: new Uint8Array([1]) })
+    )
+    setTide(t)
+    let handlePick: (p: PickResult) => void = () => {}
+    function Harness(): React.JSX.Element {
+      const add = useAddReading(() => {})
+      handlePick = add.handlePick
+      return <>{add.ui}</>
+    }
+    render(
+      <ReaderDepsProvider value={{ openPdf: vi.fn(() => Promise.resolve(okDoc())) }}>
+        <Harness />
+      </ReaderDepsProvider>
+    )
+    act(() => {
+      handlePick({ kind: 'new', pickId: 'p1', fileName: 'One.pdf' })
+      handlePick({ kind: 'new', pickId: 'p2', fileName: 'Two.pdf' })
+      handlePick({ kind: 'new', pickId: 'p3', fileName: 'Three.pdf' })
+    })
+    for (const name of ['One.pdf', 'Two.pdf', 'Three.pdf']) {
+      expect(await screen.findByText(name)).toBeTruthy()
+      await userEvent.keyboard('{Escape}')
+    }
+    expect(t.library.readPdf).toHaveBeenCalledTimes(3)
+  })
+
+  it('an open-failed command (Open With file that could not be read) shows the friendly message', async () => {
+    const { t } = setup(okDoc())
+    await screen.findByRole('heading', { name: 'Your shelf is empty' })
+    t.emit({ type: 'open-failed' })
+    expect(
+      await screen.findByText('Check that it is still where you left it, then try adding it again.')
+    ).toBeTruthy()
+  })
+
+  it('shows a calm message, not a blank page, when the shelf could not be loaded', async () => {
+    const t = fakeTide()
+    t.library.get = vi.fn(() => Promise.reject(new Error('tide-error:failed')))
+    setTide(t)
+    render(
+      <ReaderDepsProvider value={{ openPdf: vi.fn() }}>
+        <App />
+      </ReaderDepsProvider>
+    )
+    expect(await screen.findByText(/couldn't open your shelf/i)).toBeTruthy()
+  })
+
   it('already-on-shelf from add shows the friendly message', async () => {
     const { t } = setup(okDoc())
     t.library.add = vi.fn(() => Promise.reject(new Error('tide-error:already-on-shelf')))
@@ -269,7 +319,7 @@ describe('Add reading', () => {
     )
     await addReading()
     await screen.findByText('Which course is this for?')
-    // Open With while the picker is open: only the latest waiting pick is kept.
+    // Open With while the picker is open: each waiting pick keeps its turn.
     act(() => {
       handlePick({ kind: 'new', pickId: 'p2', fileName: 'Second.pdf' })
       handlePick({ kind: 'new', pickId: 'p3', fileName: 'Third.pdf' })
@@ -277,8 +327,9 @@ describe('Add reading', () => {
     expect(t.library.readPdf).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Week_4_Institutions.pdf')).toBeTruthy()
     await userEvent.keyboard('{Escape}')
-    expect(await screen.findByText('Third.pdf')).toBeTruthy()
-    expect(screen.queryByText('Second.pdf')).toBeNull()
+    expect(await screen.findByText('Second.pdf')).toBeTruthy()
     expect(t.library.readPdf).toHaveBeenCalledTimes(2)
+    await userEvent.keyboard('{Escape}')
+    expect(await screen.findByText('Third.pdf')).toBeTruthy()
   })
 })

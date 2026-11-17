@@ -20,20 +20,22 @@ interface Message {
   body?: string
 }
 
-const DAMAGED: Message = { title: "Tide can't open this PDF. It may be damaged." }
-const UNREADABLE: Message = {
+const UNREADABLE: Message = { title: "Tide can't open this PDF. It may be damaged." }
+const MISSING: Message = {
   title: "Tide can't read that file.",
   body: 'Check that it is still where you left it, then try adding it again.'
 }
 const FAILED: Message = { title: "Tide couldn't add that reading.", body: 'Please try again.' }
 
 const messageFor = (err: unknown): Message =>
-  libraryErrorCode(err) === 'file-unreadable' ? UNREADABLE : FAILED
+  libraryErrorCode(err) === 'file-unreadable' ? MISSING : FAILED
 
 /** The Add reading flow: pick a PDF, check it opens, ask for a course (optional), put it on the shelf. */
 export function useAddReading(onAdded: (id: ReadingId) => void): {
   start(): void
   handlePick(p: PickResult): void
+  /** An Open With file could not be read. */
+  openFailed(): void
   ui: ReactNode
 } {
   const { openPdf } = useReaderDeps()
@@ -47,13 +49,12 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
     onAddedRef.current = onAdded
   })
 
-  // The latest pick that arrived (Open With) while a flow was under way; it runs when that flow ends.
-  const waiting = useRef<PickResult | null>(null)
+  // Picks that arrived (Open With) while a flow was under way; they run in order as each flow ends.
+  const waiting = useRef<PickResult[]>([])
 
   const finish = (): void => {
     busy.current = false
-    const next = waiting.current
-    waiting.current = null
+    const next = waiting.current.shift()
     if (next) handlePick(next)
   }
 
@@ -69,7 +70,7 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
       try {
         const read = await tide().library.readPdf({ pickId: p.pickId })
         if (!read.ok) {
-          setMessage(read.reason === 'missing' ? UNREADABLE : DAMAGED)
+          setMessage(read.reason === 'missing' ? MISSING : UNREADABLE)
           return finish()
         }
         const opened = await openPdf(read.data)
@@ -92,7 +93,7 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
             pageCount: null
           })
         } else {
-          setMessage(DAMAGED)
+          setMessage(UNREADABLE)
           finish()
         }
       } catch (err) {
@@ -102,10 +103,10 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
     })()
   }
 
-  // Open With (and anything else) may call this at any time: while another add is under way, keep only the latest.
+  // Open With (and anything else) may call this at any time: while another add is under way, each waits its turn.
   const handlePick = (p: PickResult): void => {
     if (busy.current) {
-      waiting.current = p
+      waiting.current.push(p)
       return
     }
     busy.current = true
@@ -172,5 +173,7 @@ export function useAddReading(onAdded: (id: ReadingId) => void): {
     </>
   )
 
-  return { start, handlePick, ui }
+  const openFailed = (): void => setMessage(MISSING)
+
+  return { start, handlePick, openFailed, ui }
 }

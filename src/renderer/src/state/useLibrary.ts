@@ -8,6 +8,7 @@ interface Store {
   listeners: Set<() => void>
   stop: (() => void) | null
   ready: boolean
+  failed: boolean
   // Stable identities: React resubscribes whenever `subscribe` changes.
   subscribe: (cb: () => void) => () => void
   getSnapshot: () => LibrarySnapshot | null
@@ -38,7 +39,12 @@ function start(api: TideApi, s: Store): void {
       if (!stopped && !pushed) publish(first)
     })
     .catch(() => {
-      // Stay on the current state; the next library change will fill it in.
+      // Stay on the current state; the next library change will fill it in. With no shelf at all,
+      // say so (main could not open the store) instead of leaving a blank page.
+      if (!stopped && !pushed && !s.snapshot) {
+        s.failed = true
+        for (const l of [...s.listeners]) l()
+      }
     })
     .finally(() => {
       // The library state has mounted: main may now send queued commands (once).
@@ -57,6 +63,7 @@ function storeFor(api: TideApi): Store {
       listeners: new Set(),
       stop: null,
       ready: false,
+      failed: false,
       subscribe: (cb) => {
         store.listeners.add(cb)
         if (!store.stop) start(api, store)
@@ -80,4 +87,10 @@ function storeFor(api: TideApi): Store {
 export function useLibrary(): LibrarySnapshot | null {
   const s = storeFor(tide())
   return useSyncExternalStore(s.subscribe, s.getSnapshot)
+}
+
+/** True when the first load of the library failed and nothing has arrived since. */
+export function useLibraryLoadFailed(): boolean {
+  const s = storeFor(tide())
+  return useSyncExternalStore(s.subscribe, () => s.failed && !s.snapshot)
 }

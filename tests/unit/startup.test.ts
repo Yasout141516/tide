@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createQuitHandler, openLibraryOrReport } from '../../src/main/startup'
+import { createQuitHandler, createShowWindow, openLibraryOrReport } from '../../src/main/startup'
 
 describe('openLibraryOrReport', () => {
   it('returns the library when it opens', async () => {
@@ -63,5 +63,34 @@ describe('createQuitHandler', () => {
     })
     handler(ev())
     await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('createShowWindow', () => {
+  it('does nothing until the first window has been created by whenReady', () => {
+    let ready = false
+    const create = vi.fn()
+    const show = createShowWindow({ isReady: () => ready, getWindow: () => null, create })
+    show() // second-instance before ready, or during the library open
+    expect(create).not.toHaveBeenCalled()
+    ready = true
+    show()
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows and focuses the existing window instead of creating another', () => {
+    const win = {
+      isDestroyed: () => false,
+      isMinimized: () => true,
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn()
+    }
+    const create = vi.fn()
+    createShowWindow({ isReady: () => true, getWindow: () => win, create })()
+    expect(win.restore).toHaveBeenCalled()
+    expect(win.show).toHaveBeenCalled()
+    expect(win.focus).toHaveBeenCalled()
+    expect(create).not.toHaveBeenCalled()
   })
 })

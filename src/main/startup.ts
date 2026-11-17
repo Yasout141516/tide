@@ -48,3 +48,34 @@ export function createQuitHandler(o: {
       })
   }
 }
+
+interface Showable {
+  isDestroyed(): boolean
+  isMinimized(): boolean
+  restore(): void
+  show(): void
+  focus(): void
+}
+
+/**
+ * Brings the window forward, making a new one if it was closed (macOS keeps the app running).
+ * Does nothing until whenReady has made the first window: a second launch can arrive before `ready`
+ * (a BrowserWindow would throw) or while the library is still opening (it would make a second window).
+ */
+export function createShowWindow(o: {
+  isReady: () => boolean
+  getWindow: () => Showable | null
+  create: () => void
+}): () => void {
+  return () => {
+    if (!o.isReady()) return
+    const win = o.getWindow()
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    } else {
+      o.create()
+    }
+  }
+}

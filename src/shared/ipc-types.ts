@@ -30,6 +30,7 @@ export interface ExportM4bResult {
 export type AppCommand =
   | { type: 'add-reading' }
   | { type: 'zoom'; step: 1 | -1 }
+  | { type: 'open-failed' }
   | { type: 'open-pick'; pick: Exclude<PickResult, { kind: 'cancelled' }> }
 
 /**

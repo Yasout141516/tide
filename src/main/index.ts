@@ -8,8 +8,8 @@ import { resourcePath } from './paths'
 import { Library } from './library/library'
 import { registerLibraryIpc } from './library/ipc'
 import { buildMenu } from './menu'
-import { filesFromArgv, OpenWithQueue } from './open-with'
-import { createQuitHandler, openLibraryOrReport } from './startup'
+import { filesFromArgv, openWithHandler, OpenWithQueue } from './open-with'
+import { createQuitHandler, createShowWindow, openLibraryOrReport } from './startup'
 
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
@@ -111,16 +111,12 @@ app.on('will-quit', () => {
   ttsHost?.dispose()
 })
 
-/** Brings the window forward, making a new one if it was closed (macOS keeps the app running). */
-function showWindow(): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
-  } else {
-    startTtsWhenLoaded(createWindow())
-  }
-}
+let windowsReady = false
+const showWindow = createShowWindow({
+  isReady: () => windowsReady,
+  getWindow: () => mainWindow,
+  create: () => startTtsWhenLoaded(createWindow())
+})
 
 app.on('second-instance', (_e, argv, workingDirectory) => {
   showWindow()
@@ -148,14 +144,11 @@ app.whenReady().then(async () => {
     const { send } = libraryIpc
     Menu.setApplicationMenu(buildMenu(send))
     lib.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
-    openWith.attach(async (path) => {
-      const pick = await lib.pick(path)
-      showWindow()
-      send({ type: 'open-pick', pick })
-    })
+    openWith.attach(openWithHandler({ pick: (p) => lib.pick(p), send, show: showWindow }))
     for (const p of filesFromArgv(process.argv, process.cwd())) openWith.push(p)
   }
 
+  windowsReady = true
   startTtsWhenLoaded(createWindow())
 
   app.on('activate', showWindow)

@@ -74,7 +74,13 @@ test('Open With on a new file shows the course picker; on a known file opens it'
   const row = shelf.getByRole('button', { name: /Week 4/ })
   await expect(row).toBeVisible()
 
-  // The same file under a new path is recognised: no picker, still one row, and it is selected.
+  // Add a second reading, which becomes the selection, so the hand-off below must change it back.
+  const other = await copyTo('two-column.pdf', 'other.pdf')
+  await openFile(other)
+  await picker.getByRole('button', { name: 'Skip' }).click()
+  await expect(win.getByRole('heading', { level: 2 })).not.toContainText('Week 4')
+
+  // The first file under a new path is recognised: no picker, still one row, and it is selected.
   const copy = await copyTo('single-column.pdf', 'copy of first.pdf')
   await openFile(copy)
   await expect(win.getByRole('heading', { level: 2, name: /Week 4/ })).toBeVisible()
