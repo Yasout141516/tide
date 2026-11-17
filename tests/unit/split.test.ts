@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { splitForSpeech } from '../../src/tts/split'
 import { countTokens } from '../../src/tts/tokens'
 
@@ -7,6 +7,18 @@ const c = (s: string): Promise<number> => Promise.resolve(s.length)
 describe('splitForSpeech', () => {
   it('keeps short text whole', async () =>
     expect(await splitForSpeech('Hi there.', c, 400)).toEqual(['Hi there.']))
+
+  it('does not phonemize a short digit-free sentence, but counts one with digits', async () => {
+    const count = vi.fn(c)
+    expect(await splitForSpeech('Most adults keep about four items in mind.', count)).toEqual([
+      'Most adults keep about four items in mind.'
+    ])
+    expect(count).not.toHaveBeenCalled()
+    expect(await splitForSpeech('Seven of 12 adults recalled 4 items.', count)).toEqual([
+      'Seven of 12 adults recalled 4 items.'
+    ])
+    expect(count).toHaveBeenCalled()
+  })
 
   it('prefers semicolons over commas', async () => {
     const t = 'a'.repeat(250) + '; ' + 'b'.repeat(250) + ', c.'

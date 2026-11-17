@@ -170,6 +170,13 @@ export class SpokenText {
  * If the items and the text ever disagree otherwise (a line whose text was edited), the rest of the
  * text is kept with no source: it is still spoken, it just cannot be highlighted.
  */
+/**
+ * The single characters `normalizeText` changes: the ff/fi/fl/ffi/ffl ligatures, the soft hyphen and
+ * the no-break and thin spaces (collapsing runs of spaces never applies to one character). Every
+ * other character normalizes to itself.
+ */
+const CHANGED_BY_NORMALIZE = /[\uFB00-\uFB04\u00AD\u00A0\u2009]/
+
 function lineSegments(line: Line): Segment[] {
   const text = line.text
   const segs: Segment[] = []
@@ -179,7 +186,8 @@ function lineSegments(line: Line): Segment[] {
     let prev: Segment | null = null // the item's last emitted segment
     let skippedTo = -1 // end of the characters skipped since `prev`
     for (let k = 0; k < item.str.length; k++) {
-      const piece = normalizeText(item.str[k])
+      const ch = item.str[k]
+      const piece = CHANGED_BY_NORMALIZE.test(ch) ? normalizeText(ch) : ch
       if (piece !== '' && piece !== ' ' && text[t] === ' ') {
         segs.push({ text: ' ', src: null, linear: false })
         t++
@@ -276,14 +284,24 @@ function slice(segs: Segment[], start: number, end: number): Segment[] {
   return out
 }
 
-/** The segments with the sorted, non-overlapping [start, end) ranges taken out. */
+/** The segments with the sorted, non-overlapping [start, end) ranges taken out (one forward pass). */
 function cut(segs: Segment[], ranges: Array<[number, number]>): Segment[] {
-  const total = segs.reduce((n, s) => n + s.text.length, 0)
   const out: Segment[] = []
-  let from = 0
-  for (const [a, b] of [...ranges, [total, total] as [number, number]]) {
-    if (a > from) out.push(...slice(segs, from, a))
-    from = b
+  let r = 0 // first range that may still overlap the cursor
+  let off = 0 // text offset of the current segment
+  for (const s of segs) {
+    const next = off + s.text.length
+    let pos = off
+    while (pos < next) {
+      while (r < ranges.length && ranges[r][1] <= pos) r++
+      const [a, b] = r < ranges.length ? ranges[r] : [Infinity, Infinity]
+      if (pos < a) {
+        const keepTo = Math.min(a, next)
+        out.push(sub(s, pos - off, keepTo - off))
+        pos = keepTo
+      } else pos = Math.min(b, next)
+    }
+    off = next
   }
   return out
 }

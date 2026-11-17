@@ -133,6 +133,14 @@ function findGutter(items: TextItem[], page: PageText): number | null {
   if (body.length < 2) return null
   const sizes = body.map((i) => i.fontSize).sort((a, b) => a - b)
   const maxGap = 2.5 * sizes[Math.floor(sizes.length / 2)]
+  // An x left of every item's right edge has nothing wholly on its left, and one right of every
+  // item's left edge has nothing on its right: no two sides, so no need to look closer.
+  const minRight = body.reduce((m, i) => Math.min(m, i.x + i.width), Infinity)
+  const maxLeft = body.reduce((m, i) => Math.max(m, i.x), -Infinity)
+  const twoSided = (x: number): boolean =>
+    minRight <= x + EPS &&
+    maxLeft >= x - EPS &&
+    twoSidedShare(body, x, maxGap) >= MIN_COLUMN_COVERAGE
 
   let bestStart = -1
   let bestLen = 0
@@ -140,7 +148,7 @@ function findGutter(items: TextItem[], page: PageText): number | null {
   const lo = Math.ceil(page.width * 0.33)
   const hi = Math.floor(page.width * 0.67)
   for (let x = lo; x <= hi + 1; x++) {
-    const ok = x <= hi && twoSidedShare(body, x, maxGap) >= MIN_COLUMN_COVERAGE
+    const ok = x <= hi && twoSided(x)
     if (ok && runStart < 0) runStart = x
     if (!ok && runStart >= 0) {
       if (x - runStart > bestLen) {

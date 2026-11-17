@@ -11,7 +11,7 @@ import type { SpokenText } from './spoken'
  *    "Lee et al. (2020)", "Kim (2021, p. 12)";
  * 3. numeric brackets with the space before them: "[12]", "[3–5]", "[1, 4–6]".
  */
-export const CITATION_PATTERNS: RegExp[] = [
+const CITATION_PATTERNS: RegExp[] = [
   /\s?\((?:[^()]*?(?:[A-Z][A-Za-z'’-]+(?:\s(?:&|and)\s[A-Z][A-Za-z'’-]+)?(?:\set al\.)?,?\s(?:19|20)\d{2}[a-z]?)[^()]*)\)/g,
   /(?<=[A-Z][a-z'’-]+(?: et al\.)?)\s\((?:19|20)\d{2}[a-z]?(?:,\s*pp?\.\s*\d+(?:[–-]\d+)?)?\)/g,
   /\s?\[\d+(?:[–-]\d+)?(?:,\s*\d+(?:[–-]\d+)?)*\]/g

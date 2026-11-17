@@ -56,6 +56,9 @@ export async function splitForSpeech(
   countTokens: TokenCounter,
   maxTokens = 400
 ): Promise<string[]> {
+  // Phonemizing is slow. Digit-free English of at most 200 characters phonemizes to well under 400
+  // tokens, so it is not counted; digits can expand a lot ("1984" -> "nineteen eighty-four").
+  if (maxTokens >= 400 && text.length <= 200 && !/\d/.test(text)) return [text]
   if ((await countTokens(text)) <= maxTokens) return [text]
   return splitLevel(text, countTokens, maxTokens, [';:', ','])
 }
