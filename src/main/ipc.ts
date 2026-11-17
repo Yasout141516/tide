@@ -1,15 +1,9 @@
 import { isAbsolute } from 'path'
 import { ipcMain } from 'electron'
-import type { TtsAudio, TtsHost } from './tts-host'
-import { exportM4b, ffmpegHasMp3, type Chapter } from './audio-export'
-
-/** Result of the e2e-only `test:export-m4b` hook (spike M0d). */
-export interface ExportM4bResult {
-  audioSec: number
-  chapters: number
-  exportMs: number
-  ffmpegHasMp3: boolean
-}
+import type { ExportM4bResult, TtsAudio } from '../shared/ipc-types'
+import { SAMPLE_RATE } from '../shared/pcm'
+import type { TtsHost } from './tts-host'
+import { assembleChapters, exportM4b, ffmpegHasMp3 } from './audio-export'
 
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
 export function registerIpc(host: TtsHost, { e2e }: { e2e: boolean }): void {
@@ -41,25 +35,20 @@ async function exportTwoPageM4b(host: TtsHost, outPath: string): Promise<ExportM
   const pages = ['This is the first page.', 'And this is the second page.']
   const audio: TtsAudio[] = []
   for (const text of pages) audio.push(await host.synthesize(text, { voice: 'af_heart', speed: 1 }))
-  const sampleRate = 24000
-  const pcm = new Float32Array(audio.reduce((n, a) => n + a.pcm.length, 0))
-  const chapters: Chapter[] = []
-  let offset = 0
-  audio.forEach((a, i) => {
-    chapters.push({ title: `Page ${i + 1}`, startSec: offset / sampleRate })
-    pcm.set(a.pcm, offset)
-    offset += a.pcm.length
-  })
+  const { pcm, chapters } = assembleChapters(
+    audio,
+    pages.map((_, i) => `Page ${i + 1}`)
+  )
   const t0 = performance.now()
   await exportM4b(
     pcm,
-    sampleRate,
+    SAMPLE_RATE,
     chapters,
     { title: 'Tide smoke', album: 'Tide smoke', artist: 'Tide' },
     outPath
   )
   return {
-    audioSec: pcm.length / sampleRate,
+    audioSec: pcm.length / SAMPLE_RATE,
     chapters: chapters.length,
     exportMs: Math.round(performance.now() - t0),
     ffmpegHasMp3: await ffmpegHasMp3()

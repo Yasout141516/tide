@@ -12,10 +12,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { extractPages } from '../src/shared/text/extract'
 import { buildSentences } from '../src/shared/text/pipeline'
-import { splitForSpeech } from '../src/tts/split'
-import { countTokens } from '../src/tts/tokens'
+import { concatPcm, SAMPLE_RATE, toS16le } from '../src/shared/pcm'
+import { blockNetwork, configureOffline, MODEL_ID, speechChunks } from '../src/tts/engine'
 
-const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX'
 const VOICES = [
   'af_heart',
   'af_bella',
@@ -32,25 +31,17 @@ const VOICES = [
 ]
 const DTYPES = ['q8', 'fp32'] as const
 type Dtype = (typeof DTYPES)[number]
-const SAMPLE_RATE = 24000
 const SENTENCES = 3
 const GAP_SECONDS = 0.25
 const ROOT = resolve(__dirname, '..')
 const OUT_DIR = join(ROOT, 'local-fixtures', 'voice-samples')
 
 // Same as the worker: any hidden download fails loudly.
-globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  throw new Error(`network access attempted: ${url}`)
-}
+blockNetwork()
 
 /** Writes 16-bit PCM mono WAV. */
 function writeWav(path: string, pcm: Float32Array, sampleRate: number): void {
-  const data = Buffer.alloc(pcm.length * 2)
-  for (let i = 0; i < pcm.length; i++) {
-    const s = Math.max(-1, Math.min(1, pcm[i]))
-    data.writeInt16LE(Math.round(s < 0 ? s * 0x8000 : s * 0x7fff), i * 2)
-  }
+  const data = toS16le(pcm)
   const h = Buffer.alloc(44)
   h.write('RIFF', 0)
   h.writeUInt32LE(36 + data.length, 4)
@@ -66,16 +57,6 @@ function writeWav(path: string, pcm: Float32Array, sampleRate: number): void {
   h.write('data', 36)
   h.writeUInt32LE(data.length, 40)
   writeFileSync(path, Buffer.concat([h, data]))
-}
-
-function concat(parts: Float32Array[]): Float32Array {
-  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0))
-  let off = 0
-  for (const p of parts) {
-    out.set(p, off)
-    off += p.length
-  }
-  return out
 }
 
 function esc(s: string): string {
@@ -135,7 +116,7 @@ async function main(): Promise<void> {
     process.exit(2)
   }
 
-  const pages = await extractPages(new Uint8Array(readFileSync(files[0])))
+  const pages = await extractPages(readFileSync(files[0]))
   const { sentences } = buildSentences(pages)
   const byPage = new Map<number, string[]>()
   for (const s of sentences) {
@@ -157,12 +138,7 @@ async function main(): Promise<void> {
   process.stderr.write(`using ${files[0]} page ${page}, ${sample.length} sentences\n`)
 
   mkdirSync(OUT_DIR, { recursive: true })
-  const { env } = await import('@huggingface/transformers')
-  env.allowRemoteModels = false
-  env.allowLocalModels = true
-  env.localModelPath = join(ROOT, 'resources', 'models')
-  env.useFSCache = false
-  env.useBrowserCache = false
+  await configureOffline(join(ROOT, 'resources', 'models'))
   const { KokoroTTS } = await import('kokoro-js')
 
   const pdfName = files[0].split(/[\\/]/).pop() ?? files[0]
@@ -178,16 +154,13 @@ async function main(): Promise<void> {
       const t0 = performance.now()
       const parts: Float32Array[] = []
       for (const sentence of sample) {
-        const chunks = (await splitForSpeech(sentence, countTokens, 400))
-          .map((c) => c.trim())
-          .filter((c) => c.length > 0)
-        for (const chunk of chunks) {
+        for (const chunk of await speechChunks(sentence)) {
           parts.push((await tts.generate(chunk, { voice, speed: 1 })).audio)
         }
         parts.push(gap)
       }
       parts.pop() // no trailing silence
-      const pcm = concat(parts)
+      const pcm = concatPcm(parts)
       const synthSeconds = (performance.now() - t0) / 1000
       const file = `${v}-${dtype}.wav`
       writeWav(join(OUT_DIR, file), pcm, SAMPLE_RATE)

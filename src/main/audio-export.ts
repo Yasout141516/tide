@@ -5,6 +5,7 @@ import { mkdtemp, open, rename, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import ffmpegStatic from 'ffmpeg-static'
+import { concatPcm, SAMPLE_RATE, toS16le } from '../shared/pcm'
 import { unpackedPath } from './paths'
 
 export interface Chapter {
@@ -16,6 +17,23 @@ export interface AudioMeta {
   title: string
   album: string
   artist: string
+}
+
+/**
+ * Joins per-page audio (at SAMPLE_RATE) into one buffer with one chapter per page, titled by
+ * `titles[i]` and starting where page i's audio starts.
+ */
+export function assembleChapters(
+  audios: { pcm: Float32Array }[],
+  titles: string[]
+): { pcm: Float32Array; chapters: Chapter[] } {
+  const chapters: Chapter[] = []
+  let offset = 0
+  audios.forEach((a, i) => {
+    chapters.push({ title: titles[i], startSec: offset / SAMPLE_RATE })
+    offset += a.pcm.length
+  })
+  return { pcm: concatPcm(audios.map((a) => a.pcm)), chapters }
 }
 
 /** The ffmpeg binary. Packaged, ffmpeg-static resolves inside app.asar; the real file is unpacked. */
@@ -99,30 +117,35 @@ function ffmetadata(meta: AudioMeta, chapters: Chapter[], durationSec: number): 
   return lines.join('\n') + '\n'
 }
 
-/** Float32 [-1, 1] → signed 16-bit little-endian (every supported target is little-endian). */
-function toS16le(pcm: Float32Array): Buffer {
-  const out = new Int16Array(pcm.length)
-  for (let i = 0; i < pcm.length; i++) {
-    const s = Math.max(-1, Math.min(1, pcm[i]))
-    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff
-  }
-  return Buffer.from(out.buffer, out.byteOffset, out.byteLength)
-}
-
 const abortError = (): Error => Object.assign(new Error('export aborted'), { name: 'AbortError' })
+
+/**
+ * Decodes the MP4 box header at `buf[at]`: type, total size and header length. A size of 1 means a
+ * 64-bit size follows the type; 0 means the box runs to the end of its container, `remaining` bytes
+ * from `at`.
+ */
+function boxHeader(
+  buf: Buffer,
+  at: number,
+  remaining: number
+): { type: string; size: number; header: number } {
+  let size = buf.readUInt32BE(at)
+  let header = 8
+  if (size === 1) {
+    size = Number(buf.readBigUInt64BE(at + 8))
+    header = 16
+  } else if (size === 0) size = remaining
+  if (size < header) throw new Error('malformed mp4 box')
+  return { type: buf.toString('latin1', at + 4, at + 8), size, header }
+}
 
 /** Iterate the MP4 boxes in `buf[start, end)`: type plus the body's [start, end). */
 function* boxes(buf: Buffer, start: number, end: number): Generator<[string, number, number]> {
   let pos = start
   while (pos + 8 <= end) {
-    let size = buf.readUInt32BE(pos)
-    let header = 8
-    if (size === 1) {
-      size = Number(buf.readBigUInt64BE(pos + 8))
-      header = 16
-    } else if (size === 0) size = end - pos
-    if (size < header || pos + size > end) throw new Error('malformed mp4 box')
-    yield [buf.toString('latin1', pos + 4, pos + 8), pos + header, pos + size]
+    const { type, size, header } = boxHeader(buf, pos, end - pos)
+    if (pos + size > end) throw new Error('malformed mp4 box')
+    yield [type, pos + header, pos + size]
     pos += size
   }
 }
@@ -154,14 +177,8 @@ export async function setChapterTrackLanguage(file: string, lang: string): Promi
     let moov: { at: number; body: Buffer } | null = null
     while (pos + 8 <= fileSize) {
       await fh.read(head, 0, 16, pos)
-      let size = head.readUInt32BE(0)
-      let header = 8
-      if (size === 1) {
-        size = Number(head.readBigUInt64BE(8))
-        header = 16
-      } else if (size === 0) size = fileSize - pos
-      if (size < header) throw new Error('malformed mp4 box')
-      if (head.toString('latin1', 4, 8) === 'moov') {
+      const { type, size, header } = boxHeader(head, 0, fileSize - pos)
+      if (type === 'moov') {
         const body = Buffer.alloc(size - header)
         await fh.read(body, 0, body.length, pos + header)
         moov = { at: pos + header, body }

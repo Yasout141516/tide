@@ -3,23 +3,20 @@ import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs
 import { resolve } from 'path'
 import { test, expect } from '@playwright/test'
 import { ffmpegPath } from '../../src/main/audio-export'
+import type {
+  ExportM4bResult,
+  SynthesizeOptions,
+  TtsAudio,
+  TtsLoadResult
+} from '../../src/shared/ipc-types'
 import { launchTide } from './launch'
 
 // The preload bridge as seen from the page (see src/preload/index.d.ts).
 type TideWindow = {
-  tide: {
-    tts: {
-      synthesize(
-        text: string,
-        o: { voice: string; speed: number }
-      ): Promise<{ pcm: Float32Array; sampleRate: number; synthMs: number }>
-    }
-  }
+  tide: { tts: { synthesize(text: string, o: SynthesizeOptions): Promise<TtsAudio> } }
   tideTest: {
-    ttsLoad(): Promise<{ loadMs: number }>
-    exportM4b(
-      outPath: string
-    ): Promise<{ audioSec: number; chapters: number; exportMs: number; ffmpegHasMp3: boolean }>
+    ttsLoad(): Promise<TtsLoadResult>
+    exportM4b(outPath: string): Promise<ExportM4bResult>
   }
 }
 
@@ -39,7 +36,7 @@ test('speaks one sentence offline', async () => {
   const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
   const win = await app.firstWindow()
   const { loadMs } = await win.evaluate(() => (window as unknown as TideWindow).tideTest.ttsLoad())
-  const speak = (): Promise<{ pcm: Float32Array; sampleRate: number; synthMs: number }> =>
+  const speak = (): Promise<TtsAudio> =>
     win.evaluate(() =>
       (window as unknown as TideWindow).tide.tts.synthesize(
         'Most adults can keep about four items in mind at once.',

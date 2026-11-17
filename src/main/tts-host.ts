@@ -1,5 +1,6 @@
 import { utilityProcess, type ForkOptions } from 'electron'
-import type { TtsRequest, TtsResponse, VoiceId } from '../tts/protocol'
+import type { SynthesizeOptions, TtsAudio, TtsLoadResult } from '../shared/ipc-types'
+import type { TtsRequest, TtsResponse } from '../tts/protocol'
 
 /** The part of Electron's UtilityProcess the host uses (a fake implements it in unit tests). */
 export interface TtsChild {
@@ -12,13 +13,6 @@ export interface TtsChild {
 }
 
 export type ForkFn = (modulePath: string, args?: string[], options?: ForkOptions) => TtsChild
-
-export interface TtsAudio {
-  pcm: Float32Array
-  sampleRate: 24000
-  synthMs: number
-  chunks: number
-}
 
 export interface TtsHostOptions {
   workerPath: string
@@ -50,7 +44,7 @@ export class TtsHost {
   private readonly opts: TtsHostOptions
   private readonly fork: ForkFn
   private child: TtsChild | null = null
-  private starting: Promise<{ loadMs: number }> | null = null
+  private starting: Promise<TtsLoadResult> | null = null
   private nextId = 1
   private readonly pending = new Map<number, Pending>()
 
@@ -61,7 +55,7 @@ export class TtsHost {
   }
 
   /** Fork the worker and load the model. Idempotent: concurrent/repeat calls share one load. */
-  start(): Promise<{ loadMs: number }> {
+  start(): Promise<TtsLoadResult> {
     if (!this.starting) {
       const p = this.load()
       this.starting = p
@@ -73,7 +67,7 @@ export class TtsHost {
     return this.starting
   }
 
-  async synthesize(text: string, o: { voice: VoiceId; speed: number }): Promise<TtsAudio> {
+  async synthesize(text: string, o: SynthesizeOptions): Promise<TtsAudio> {
     await this.start()
     const res = await this.request(
       { type: 'synthesize', text, voice: o.voice, speed: o.speed },
@@ -92,7 +86,7 @@ export class TtsHost {
     child?.kill()
   }
 
-  private async load(): Promise<{ loadMs: number }> {
+  private async load(): Promise<TtsLoadResult> {
     this.spawn()
     try {
       const res = await this.request(

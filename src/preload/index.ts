@@ -1,9 +1,10 @@
 // Sandboxed preload: only `electron` can be required. Exposes a narrow bridge (typed in index.d.ts).
 import { contextBridge, ipcRenderer } from 'electron'
+import type { SynthesizeOptions } from '../shared/ipc-types'
 
 contextBridge.exposeInMainWorld('tide', {
   tts: {
-    synthesize: (text: string, o: { voice: string; speed: number }) =>
+    synthesize: (text: string, o: SynthesizeOptions) =>
       ipcRenderer.invoke('tts:synthesize', text, o)
   }
 })

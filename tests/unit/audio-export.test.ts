@@ -3,7 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { exportM4b, exportMp3, ffmpegHasMp3, ffmpegPath } from '../../src/main/audio-export'
+import {
+  assembleChapters,
+  exportM4b,
+  exportMp3,
+  ffmpegHasMp3,
+  ffmpegPath
+} from '../../src/main/audio-export'
 
 // Runs the real ffmpeg-static binary in plain Node.
 const sine = (sec: number): Float32Array =>
@@ -110,4 +116,33 @@ describe('audio export (real ffmpeg)', () => {
     expect(meta2.match(/\[CHAPTER\]/g)).toHaveLength(1)
     expect(meta2).toMatch(/\[CHAPTER\][^[]*title=Working Memory/)
   })
+})
+
+describe('assembleChapters', () => {
+  it('joins the pages and starts each chapter where its page starts', () => {
+    const a = Float32Array.from({ length: 24000 }, () => 0.1)
+    const b = Float32Array.from({ length: 12000 }, () => 0.2)
+    const c = Float32Array.from({ length: 6000 }, () => 0.3)
+    const { pcm, chapters } = assembleChapters(
+      [{ pcm: a }, { pcm: b }, { pcm: c }],
+      ['One', 'Two', 'Three']
+    )
+    expect(pcm.length).toBe(42000)
+    expect([pcm[0], pcm[23999], pcm[24000], pcm[35999], pcm[36000], pcm[41999]]).toEqual([
+      a[0],
+      a[0],
+      b[0],
+      b[0],
+      c[0],
+      c[0]
+    ])
+    expect(chapters).toEqual([
+      { title: 'One', startSec: 0 },
+      { title: 'Two', startSec: 1 },
+      { title: 'Three', startSec: 1.5 }
+    ])
+  })
+
+  it('handles no pages', () =>
+    expect(assembleChapters([], [])).toEqual({ pcm: new Float32Array(0), chapters: [] }))
 })
