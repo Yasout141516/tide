@@ -530,8 +530,17 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - Phone: **iPhone**, so whole readings export as `.m4b` audiobooks (Apple Books), and selections and ranges as MP3.
 - Repo: **public**. Name: **Tide**. Voices: **Yasin picks** from rendered samples during M0.
 
+**Decided by the M0 spikes (2026-11-17)** (details: `docs/spikes/m0-results.md`)
+- Gate passed: macOS runner RTF 0.84-0.85, `.m4b` shows 2 chapters in AVFoundation. M0/M1 done.
+- **lamejs dropped.** The bundled ffmpeg has libmp3lame on both OSes, so ffmpeg does `.m4b` and `.mp3`.
+- Voice default stays **Heart (af_heart)** until Yasin picks.
+
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*
+- **Voices:** Yasin to choose 6-8 voices and the default from `local-fixtures/voice-samples/index.html`.
+- **Model precision, q8 vs fp32:** fp32 measured about 2.5x faster on x86 (would fix Windows RTF > 1) at +233 MB installer size. Quality comparison pending the listening test.
+- **GPL ffmpeg binaries** ship in the installers: handle the source-offer obligation before any public release.
+- **Apple Books on a real iPhone** is untested (only the AVFoundation proxy).
 
 ---
 
