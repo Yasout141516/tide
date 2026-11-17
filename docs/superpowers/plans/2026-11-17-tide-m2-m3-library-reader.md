@@ -754,7 +754,7 @@ it('golden spoken text: tables-lists')
 
 **Rules:**
 - **Block quote:** the gap break between two non-heading lines is **suppressed** when the previous line does not end in `/[.!?:;]["'”’)\]]*$/` and the next line starts with `/^["'“‘(]?[a-z]/`.
-- **TOC entry:** a line matching `/^(.*\S)\s*(?:\.\s*){4,}\s*(\d{1,4}|[ivxlc]{1,6})$/i` is a block of its own (a hard break before and after). Its leader and page number are not spoken, and its spans cover the title characters only.
+- **TOC entry:** a line matching `/^(.*\S)\s*(?:\.\s*){4,}\s*(\d{1,4}|[ivxlc]{1,6})$/i`. **Owner decision (2026-11-17): table-of-contents pages are skipped like cover pages.** With the "Skip cover and copyright pages" setting on (the default), TOC entry lines are dropped, together with a standalone `Contents` / `Table of contents` heading line on the same page; a page left with no text this way is reported in `skippedPages` with reason `'contents'`. With that setting off (or "Read everything"), each TOC entry is a block of its own (a hard break before and after), its leader and page number are not spoken, and its spans cover the title characters only.
 - **Initials:** the single-capital-initial merge in `continues()` is skipped when the next segment starts with one of `The This These That Those It Its In On At A An As However We They He She There But And For When While Although If Our Their Such Some Many Most Each One`. Abbreviation merges are unchanged.
 
 - [ ] **Step 1: Generate `sentence-edges.pdf`** (invented text; sidecar):
@@ -766,14 +766,15 @@ it('golden spoken text: tables-lists')
 ```ts
 it('a block quote that continues a sentence after a gap stays one sentence')
 it('a gap after a full stop still breaks')
-it('table-of-contents entries are spoken as their titles without leaders or page numbers')
+it('table-of-contents entries and the Contents heading are skipped by default; a page left empty is skippedPages reason "contents"')
+it('with cover skipping off, table-of-contents entries are spoken as their titles without leaders or page numbers')
   // spans of 'Introduction' map only to the title characters
 it('"vitamin C. The" is two sentences; "J. K. Rowan" and "Barlow, T. M." are not split')
 it('golden spoken text: sentence-edges')
-it('golden spoken text: cover-refs')     // re-baselined: TOC lines become 'Introduction', 'Notes', 'Results', 'Discussion', 'References'
+it('golden spoken text: cover-refs')     // re-baselined: the TOC entry lines (and its Contents heading) are no longer spoken; the "Read everything" golden render, if the test has one, shows them as 'Introduction', 'Notes', 'Results', 'Discussion', 'References'
 ```
 
-- [ ] **Step 3: Run** the tests and see them FAIL. **Step 4: Implement**, then edit `cover-refs.txt` **by hand** to the new TOC lines (the only change expected in existing goldens). **Step 5: Verify** exactly as in Task 11 Step 5. **Step 6: Commit.** `feat(text): block quotes continue across gaps, TOC leaders are dropped, initials no longer swallow sentence ends`.
+- [ ] **Step 3: Run** the tests and see them FAIL. **Step 4: Implement**, then edit `cover-refs.txt` **by hand** to drop the TOC lines (the only change expected in existing goldens). `SkippedPage.reason` gains `'contents'`. **Step 5: Verify** exactly as in Task 11 Step 5. **Step 6: Commit.** `feat(text): block quotes continue across gaps, TOC leaders are dropped, initials no longer swallow sentence ends`.
 
 **Deferred text items** (not in M3, so each keeps its golden stable until someone can review it against her readings; "Read everything" is the escape meanwhile):
 - **multi-letter initials, country abbreviations and the "No." merge:** need an abbreviation list tuned on more readings;
