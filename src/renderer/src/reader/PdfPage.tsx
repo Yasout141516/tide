@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import type { Rect } from '../../../shared/text/highlight'
+import { HighlightLayer } from './HighlightLayer'
 import type { PdfDoc } from './pdf'
 
 type Props = {
@@ -14,6 +16,10 @@ type Props = {
   textless: boolean
   /** Called when a render finished (or failed); not when it was aborted. */
   onSettled(n: number): void
+  /** The current sentence's rectangles on this page (PDF points). */
+  highlight?: { rects: Rect[]; sentenceId: number }
+  /** A click on the page, in PDF points from the page's top-left corner. */
+  onPick?(n: number, x: number, y: number): void
 }
 
 export function PdfPage({
@@ -24,7 +30,9 @@ export function PdfPage({
   scale,
   active,
   textless,
-  onSettled
+  onSettled,
+  highlight,
+  onPick
 }: Props): React.JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null)
   const settled = useRef(onSettled)
@@ -58,8 +66,15 @@ export function PdfPage({
       aria-label={`Page ${n}`}
       className="relative shrink-0 overflow-hidden rounded-[3px] bg-page shadow-[0_8px_24px_var(--shadow)]"
       style={{ width, height }}
+      onClick={(e) => {
+        const box = e.currentTarget.getBoundingClientRect()
+        onPick?.(n, (e.clientX - box.left) / scale, (e.clientY - box.top) / scale)
+      }}
     >
       <canvas ref={canvas} className="block" />
+      {highlight && highlight.rects.length > 0 ? (
+        <HighlightLayer rects={highlight.rects} scale={scale} sentenceId={highlight.sentenceId} />
+      ) : null}
       {textless ? (
         <p className="absolute inset-x-0 top-0 m-0 bg-warn-soft px-3 py-1 text-center text-[12px] font-bold text-warn">
           No readable text on this page, skipping.

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LibrarySnapshot, ReadingView } from '../../../shared/library/types'
 import type { BuildResult } from '../../../shared/text/pipeline'
+import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
+import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
 import { MessageDialog } from '../add/MessageDialog'
@@ -12,7 +14,7 @@ import { filtersFor } from './filters'
 import { PasswordDialog } from './PasswordDialog'
 import type { PdfDoc } from './pdf'
 import { PdfPage } from './PdfPage'
-import { useReportReader } from './ReaderState'
+import { useReaderState, useReportReader } from './ReaderState'
 import { renderWindow } from './renderWindow'
 
 type Props = {
@@ -46,6 +48,7 @@ const noticeCard =
 export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Element {
   const deps = useReaderDeps()
   const report = useReportReader()
+  const { current, setCurrent } = useReaderState()
   const zoom = snapshot.settings.zoom
 
   // Where she resumes: read once, so later position writes never scroll the page.
@@ -263,6 +266,104 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   }, [report, sentences, topPage, doc])
   useEffect(() => () => report({ sentences: [], topPage: 1, numPages: null }), [report])
 
+  // --- Current sentence: resume, stepping, saving her place -----------------------------------
+  const [startAnchor] = useState(() => reading.position)
+  const currentRef = useRef(current)
+  useEffect(() => {
+    currentRef.current = current
+  })
+  const prevSentences = useRef<typeof sentences>(undefined)
+  const firstBuild = useRef(true)
+  /** The index whose anchor is already stored; -1 forces a write. */
+  const saved = useRef<number | null>(null)
+  const jump = useRef(false)
+
+  useEffect(() => {
+    if (!built) return
+    const next = built.sentences
+    const old = prevSentences.current?.[currentRef.current ?? -1]
+    prevSentences.current = next
+    if (next.length === 0) return setCurrent(null)
+    let idx: number
+    if (firstBuild.current) {
+      firstBuild.current = false
+      idx = startAnchor ? resolveAnchor(next, startAnchor) : 0
+      saved.current = idx // where she already was: nothing to write
+      jump.current = true
+    } else {
+      idx = old ? resolveAnchor(next, anchorOf(old)) : 0
+      saved.current = -1
+    }
+    setCurrent(idx)
+  }, [built, setCurrent, startAnchor])
+  useEffect(() => () => setCurrent(null), [setCurrent])
+
+  // Every change is sent at once; main debounces the disk writes and flushes on quit.
+  useEffect(() => {
+    if (current === null || !sentences || saved.current === current) return
+    saved.current = current
+    void tide()
+      .library.update(reading.id, { position: anchorOf(sentences[current]) })
+      .catch(() => {})
+  }, [current, sentences, reading.id])
+
+  const itemOf = useCallback(
+    (p: number, i: number) => pages?.[p - 1]?.items.find((t) => t.index === i),
+    [pages]
+  )
+  const sizeOf = useCallback(
+    (p: number) => ({ width: pages?.[p - 1]?.width ?? 0, height: pages?.[p - 1]?.height ?? 0 }),
+    [pages]
+  )
+  const currentRects = useMemo(
+    () =>
+      sentences && pages && current !== null && sentences[current]
+        ? spanRects(sentences[current].spans, itemOf, sizeOf)
+        : [],
+    [sentences, pages, current, itemOf, sizeOf]
+  )
+
+  // Bring the highlight into view: always on opening, else only when it is off the screen.
+  useEffect(() => {
+    const root = scroller.current
+    const el = root?.querySelector('[data-testid="sentence-highlight"]')
+    if (!root || !el) return
+    const force = jump.current
+    jump.current = false
+    const r = el.getBoundingClientRect()
+    const s = root.getBoundingClientRect()
+    if (!force && r.top >= s.top && r.bottom <= s.bottom) return
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ block: 'center', behavior: force || calm ? 'auto' : 'smooth' })
+  }, [currentRects])
+
+  const pick = (n: number, x: number, y: number): void => {
+    if (!sentences) return
+    const bySentence: Rect[][] = sentences.map((s) =>
+      s.spans.some((sp) => sp.page === n) ? spanRects(s.spans, itemOf, sizeOf) : []
+    )
+    const hit = sentenceAt(bySentence, n, x, y)
+    if (hit !== null) setCurrent(hit)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      if (!sentences || sentences.length === 0) return
+      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return
+      const t = e.target as HTMLElement | null
+      if (t?.closest('input, textarea, select, [contenteditable], [role="menu"], [role="listbox"]'))
+        return
+      e.preventDefault()
+      const at = currentRef.current
+      const next = at === null ? 0 : at + (e.key === 'ArrowRight' ? 1 : -1)
+      setCurrent(Math.min(Math.max(next, 0), sentences.length - 1))
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [sentences, setCurrent])
+
   // --- Render -------------------------------------------------------------------------------
   const textless = useMemo(() => new Set(built?.textlessPages ?? []), [built])
   const active = useMemo(
@@ -385,6 +486,12 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
                 active={active.has(n)}
                 textless={textless.has(n)}
                 onSettled={settle}
+                onPick={pick}
+                highlight={
+                  current !== null && currentRects.some((r) => r.page === n)
+                    ? { rects: currentRects.filter((r) => r.page === n), sentenceId: current }
+                    : undefined
+                }
               />
             )
           })}
