@@ -348,15 +348,25 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
           const data = bytes.current
           if (!data || opening.current) return
           opening.current = true
-          void tryOpen(data, pw, () => !alive.current).finally(() => {
-            opening.current = false
-          })
+          tryOpen(data, pw, () => !alive.current)
+            .catch(() => {
+              if (alive.current) setOpen({ kind: 'damaged' })
+            })
+            .finally(() => {
+              opening.current = false
+            })
         }}
       />
     )
 
   return (
-    <div ref={scroller} onScroll={onScroll} className="relative h-full overflow-y-auto">
+    <div
+      ref={scroller}
+      onScroll={onScroll}
+      // Test-only (TIDE_E2E exposes window.tideTest): lets Playwright see that the worker built sentences.
+      data-sentence-count={window.tideTest && built ? built.sentences.length : undefined}
+      className="relative h-full overflow-y-auto"
+    >
       {message}
       {doc && sizes ? (
         <div className="flex w-max min-w-full flex-col items-center gap-4 px-7 py-4">

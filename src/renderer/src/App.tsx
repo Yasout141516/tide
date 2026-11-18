@@ -64,17 +64,28 @@ function App(): React.JSX.Element {
   const startRef = useRef(adding.start)
   const zoomRef = useRef(1)
   const libZoomRef = useRef(1)
+  /** Zoom values sent to main whose snapshot has not come back yet, oldest first. */
+  const sentZooms = useRef<number[]>([])
   const pickRef = useRef(adding.handlePick)
   const failedRef = useRef(adding.openFailed)
   useEffect(() => {
     startRef.current = adding.start
     pickRef.current = adding.handlePick
     failedRef.current = adding.openFailed
-    // Follow the library only when it changes: a held key can send steps faster than snapshots arrive.
+    // A held key sends steps faster than snapshots arrive. A snapshot that echoes a value we sent only
+    // retires it (our newer steps stay ahead); any other change is adopted.
     const libZoom = library?.settings.zoom ?? 1
     if (libZoom !== libZoomRef.current) {
       libZoomRef.current = libZoom
-      zoomRef.current = libZoom
+      const sent = sentZooms.current
+      const at = sent.indexOf(libZoom)
+      if (at >= 0) {
+        sent.splice(0, at + 1)
+        if (sent.length === 0) zoomRef.current = libZoom
+      } else {
+        sent.length = 0
+        zoomRef.current = libZoom
+      }
     }
   })
   useEffect(
@@ -90,7 +101,14 @@ function App(): React.JSX.Element {
           const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
           if (zoom !== zoomRef.current) {
             zoomRef.current = zoom
-            void tide().library.setZoom(zoom)
+            sentZooms.current.push(zoom)
+            tide()
+              .library.setZoom(zoom)
+              .catch(() => {
+                // Not saved: fall back to what the library says.
+                sentZooms.current.length = 0
+                zoomRef.current = libZoomRef.current
+              })
           }
         }
       }),

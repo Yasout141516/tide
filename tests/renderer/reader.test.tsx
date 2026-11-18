@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { ReadingView } from '../../src/shared/library/types'
 import { DEFAULT_FILTERS, READ_EVERYTHING } from '../../src/shared/text/types'
@@ -186,6 +186,32 @@ describe('Text size', () => {
     expect(width()).toBeCloseTo(820 * 2)
   })
 
+  it('three quick steps with late snapshots still end at +30%', async () => {
+    const t = fakeTide({
+      snapshot: { readings: [reading], settings: { reading: DEFAULT_FILTERS, zoom: 1 } }
+    })
+    const applied = t.library.setZoom
+    // Each snapshot arrives 50 ms after its step, so the first one lands between steps 2 and 3.
+    t.library.setZoom = vi.fn(
+      (z: number) =>
+        new Promise<void>((resolve) => setTimeout(() => void applied(z).then(resolve), 50))
+    )
+    setTide(t)
+    renderApp()
+    await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+    await waitFor(() => expect(pageBox(1)).toBeTruthy())
+    // Real time passes between key presses; waitFor lets React apply the snapshots that arrive meanwhile.
+    const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+    const pause = (ms: number): Promise<void> => waitFor(() => sleep(ms), { timeout: 2000 })
+    act(() => t.emit({ type: 'zoom', step: 1 }))
+    await pause(30)
+    act(() => t.emit({ type: 'zoom', step: 1 }))
+    await pause(40)
+    act(() => t.emit({ type: 'zoom', step: 1 }))
+    await waitFor(() => expect(width()).toBeCloseTo(820 * 1.3))
+    expect(vi.mocked(t.library.setZoom).mock.calls.map((c) => c[0])).toEqual([1.1, 1.2, 1.3])
+  })
+
   it('stops at 80% going down', async () => {
     const t = await openReading(fakeDeps(), {}, 0.9)
     await waitFor(() => expect(pageBox(1)).toBeTruthy())
@@ -197,6 +223,8 @@ describe('Text size', () => {
 })
 
 describe('Lazy canvases', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   type Entry = { target: Element; isIntersecting: boolean }
   class ControlledIO {
     static last: ControlledIO
@@ -224,7 +252,7 @@ describe('Lazy canvases', () => {
   }
 
   it('a page outside the window releases its canvas and an in-flight render is aborted', async () => {
-    globalThis.IntersectionObserver = ControlledIO as unknown as typeof IntersectionObserver
+    vi.stubGlobal('IntersectionObserver', ControlledIO)
     const doc = fakeDoc(bodyPages(8))
     const signals: Record<number, AbortSignal> = {}
     doc.render.mockImplementation(

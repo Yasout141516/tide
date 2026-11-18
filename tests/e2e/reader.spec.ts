@@ -178,3 +178,18 @@ test('at 200% the left edge of the page can be scrolled into view', async () => 
   expect(edge.left).toBeGreaterThanOrEqual(0)
   await app.close()
 })
+
+test('text-bearing PDFs are built into sentences by the pipeline worker', async () => {
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  const win = await app.firstWindow()
+  const workers: string[] = []
+  win.on('worker', (w) => workers.push(w.url()))
+  await addAndOpen(app, win, 'two-column.pdf')
+  // Only a finished build carries a sentence count; a PDF with text must give some.
+  const view = win.locator('[data-sentence-count]')
+  await expect(view).toBeVisible()
+  expect(Number(await view.getAttribute('data-sentence-count'))).toBeGreaterThan(10)
+  // And it was the pipeline worker (a module worker next to the pdf.js one) that ran it.
+  expect(workers.some((u) => u.includes('pipeline.worker'))).toBe(true)
+  await app.close()
+})
