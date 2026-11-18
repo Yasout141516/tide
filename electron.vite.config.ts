@@ -38,6 +38,8 @@ export default defineConfig({
     },
     // Never inline @fontsource files as data: URIs; the CSP font-src then falls back to self.
     build: { assetsInlineLimit: 0 },
+    // The text pipeline worker is an ES module worker (it imports shared code).
+    worker: { format: 'es' },
     plugins: [
       react(),
       tailwindcss(),

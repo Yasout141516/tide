@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { act, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import App from '../../src/renderer/src/App'
 import { useLibrary } from '../../src/renderer/src/state/useLibrary'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { ReadingView } from '../../src/shared/library/types'
 import { fakeTide } from './setup'
+import { renderApp } from './reader-fakes'
 
 const r1: ReadingView = {
   id: 'r1',
@@ -26,7 +26,7 @@ describe('App library wiring', () => {
   it('tells main it is ready once, shows the empty stage with no readings, and opens nothing', async () => {
     const t = fakeTide()
     setTide(t)
-    render(<App />)
+    renderApp()
     expect(await screen.findByRole('heading', { name: 'Your shelf is empty' })).toBeTruthy()
     expect(t.calls['ready']).toHaveLength(1)
     expect(t.calls['library.update']).toBeUndefined()
@@ -35,7 +35,7 @@ describe('App library wiring', () => {
   it('with readings but nothing open the stage invites a pick; picking stamps opened once', async () => {
     const t = fakeTide({ snapshot: { readings: [r1] } })
     setTide(t)
-    render(<App />)
+    renderApp()
     expect(await screen.findByText('Pick a reading from your shelf to carry on.')).toBeTruthy()
     expect(t.calls['library.update']).toBeUndefined()
     await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
@@ -46,7 +46,7 @@ describe('App library wiring', () => {
   it('asks main for the library once across re-renders, and re-picking the open reading does not re-stamp', async () => {
     const t = fakeTide({ snapshot: { readings: [r1, { ...r1, id: 'r2', title: 'Other one' }] } })
     setTide(t)
-    render(<App />)
+    renderApp()
     await screen.findByText('Pick a reading from your shelf to carry on.')
     await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
     await userEvent.click(screen.getByRole('button', { name: /^Memory and Attention/ }))
@@ -61,7 +61,7 @@ describe('App library wiring', () => {
   it('does not stamp opened for a reading whose file is missing', async () => {
     const t = fakeTide({ snapshot: { readings: [{ ...r1, missing: true }] } })
     setTide(t)
-    render(<App />)
+    renderApp()
     await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     expect(t.calls['library.update']).toBeUndefined()
   })
@@ -69,7 +69,7 @@ describe('App library wiring', () => {
   it('a selected reading that stops being missing is stamped on its next click', async () => {
     const t = fakeTide({ snapshot: { readings: [{ ...r1, missing: true }] } })
     setTide(t)
-    render(<App />)
+    renderApp()
     const pick = async (): Promise<void> =>
       userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     await pick()

@@ -8,10 +8,10 @@ import './assets/main.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { installPdfProbe } from './reader/probe'
 
 // Test-only (TIDE_E2E=1 exposes window.tideTest): lets Playwright prove pdf.js works under the CSP.
-if (window.tideTest) installPdfProbe()
+// Loaded on demand, so pdf.js stays out of the first chunk.
+if (window.tideTest) void import('./reader/probe').then((m) => m.installPdfProbe())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

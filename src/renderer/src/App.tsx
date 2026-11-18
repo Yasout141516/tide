@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReadingId } from '../../shared/library/types'
+import type { ReadingId, ReadingView } from '../../shared/library/types'
 import { AppShell } from './shell/AppShell'
 import { PlayerBarPlaceholder } from './shell/PlayerBarPlaceholder'
 import { Shelf } from './shelf/Shelf'
@@ -9,10 +9,21 @@ import { tide } from './lib/tide'
 import { useAddReading } from './add/useAddReading'
 import { MessageDialog } from './add/MessageDialog'
 import { ReaderHeader } from './reading/ReaderHeader'
-import { ReadingMenu } from './reading/ReadingMenu'
+import { ReadingMenu, ReadEverythingItem } from './reading/ReadingMenu'
+import { ReaderView } from './reader/ReaderView'
+import { ReaderStateProvider, useReaderState } from './reader/ReaderState'
 import { FileMovedDialog } from './reading/FileMovedDialog'
 import { RenameDialog } from './reading/RenameDialog'
 import { RemoveDialog } from './reading/RemoveDialog'
+
+const ZOOM_MIN = 0.8
+const ZOOM_MAX = 2.0
+
+/** The player's label: the page of the current sentence, else the top visible page. */
+function ReaderPlayer(): React.JSX.Element {
+  const { page, numPages } = useReaderState()
+  return <PlayerBarPlaceholder label={numPages ? `Page ${page} of ${numPages}` : undefined} />
+}
 
 function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
@@ -51,12 +62,14 @@ function App(): React.JSX.Element {
   const add = adding.start
   // Menu commands. `start` is read through a ref so the subscription is made once.
   const startRef = useRef(adding.start)
+  const zoomRef = useRef(1)
   const pickRef = useRef(adding.handlePick)
   const failedRef = useRef(adding.openFailed)
   useEffect(() => {
     startRef.current = adding.start
     pickRef.current = adding.handlePick
     failedRef.current = adding.openFailed
+    zoomRef.current = library?.settings.zoom ?? 1
   })
   useEffect(
     () =>
@@ -65,6 +78,15 @@ function App(): React.JSX.Element {
         // A PDF opened from Finder / Explorer: a new file asks for a course, a known one opens.
         else if (c.type === 'open-pick') pickRef.current(c.pick)
         else if (c.type === 'open-failed') failedRef.current()
+        else if (c.type === 'zoom') {
+          // Text size: 80-200% in 10% steps, one decimal so repeated steps never drift.
+          const next = Math.round((zoomRef.current + c.step * 0.1) * 10) / 10
+          const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
+          if (zoom !== zoomRef.current) {
+            zoomRef.current = zoom
+            void tide().library.setZoom(zoom)
+          }
+        }
       }),
     []
   )
@@ -138,21 +160,26 @@ function App(): React.JSX.Element {
       </main>
     )
   else if (selected)
-    // Until M3 the stage shows the selected reading's header only.
     stage = (
       <main className="flex h-full flex-col">
-        <ReaderHeader
+        <ReadingHeader
           reading={selected}
           courseName={library.courses.find((c) => c.id === selected.courseId)?.name ?? null}
-          page={selected.position?.page ?? null}
-          menu={
-            <ReadingMenu
-              reading={selected}
-              onRename={() => setDialog({ kind: 'rename', id: selected.id })}
-              onRemove={() => setDialog({ kind: 'remove', id: selected.id })}
-            />
-          }
+          onRename={() => setDialog({ kind: 'rename', id: selected.id })}
+          onRemove={() => setDialog({ kind: 'remove', id: selected.id })}
+          onReadEverything={(on) => void tide().library.update(selected.id, { readEverything: on })}
         />
+        <div className="min-h-0 flex-1">
+          <ReaderView
+            key={selected.id}
+            reading={selected}
+            snapshot={library}
+            onClose={() => {
+              setSelectedId(null)
+              stampedId.current = null
+            }}
+          />
+        </div>
       </main>
     )
   else
@@ -163,7 +190,7 @@ function App(): React.JSX.Element {
     )
 
   return (
-    <>
+    <ReaderStateProvider>
       <AppShell
         renderShelf={(closeOverlay) =>
           library ? (
@@ -179,12 +206,48 @@ function App(): React.JSX.Element {
           )
         }
         stage={stage}
-        player={<PlayerBarPlaceholder />}
+        player={<ReaderPlayer />}
       />
       {adding.ui}
       {dialogUi}
       {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
-    </>
+    </ReaderStateProvider>
+  )
+}
+
+type HeaderProps = {
+  reading: ReadingView
+  courseName: string | null
+  onRename(): void
+  onRemove(): void
+  onReadEverything(on: boolean): void
+}
+
+function ReadingHeader({
+  reading,
+  courseName,
+  onRename,
+  onRemove,
+  onReadEverything
+}: HeaderProps): React.JSX.Element {
+  const { page, numPages } = useReaderState()
+  return (
+    <ReaderHeader
+      reading={reading}
+      courseName={courseName}
+      // Until the PDF is open the header shows her saved place.
+      page={numPages === null ? (reading.position?.page ?? null) : page}
+      menu={
+        <ReadingMenu
+          reading={reading}
+          onRename={onRename}
+          onRemove={onRemove}
+          extraItems={
+            <ReadEverythingItem checked={reading.readEverything} onChange={onReadEverything} />
+          }
+        />
+      }
+    />
   )
 }
 

@@ -1,0 +1,195 @@
+// @vitest-environment jsdom
+import { act, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import { setTide } from '../../src/renderer/src/lib/tide'
+import type { ReadingView } from '../../src/shared/library/types'
+import { DEFAULT_FILTERS, READ_EVERYTHING } from '../../src/shared/text/types'
+import { bodyPages, emptyPage, fakeDeps, fakeDoc, renderApp, textPage } from './reader-fakes'
+import { fakeTide } from './setup'
+
+const reading: ReadingView = {
+  id: 'r1',
+  title: 'Memory and Attention',
+  courseId: null,
+  pageCount: 5,
+  position: null,
+  addedAt: 5,
+  lastOpenedAt: null,
+  finished: false,
+  readEverything: false,
+  fileName: 'r1.pdf',
+  missing: false
+}
+
+async function openReading(
+  deps: ReturnType<typeof fakeDeps>,
+  over: Partial<ReadingView> = {},
+  zoom = 1
+): Promise<ReturnType<typeof fakeTide>> {
+  const t = fakeTide({
+    snapshot: {
+      readings: [{ ...reading, ...over }],
+      settings: { reading: DEFAULT_FILTERS, zoom }
+    }
+  })
+  setTide(t)
+  renderApp(deps)
+  await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+  return t
+}
+
+const pageBox = (n: number): HTMLElement =>
+  document.querySelector<HTMLElement>(`[data-page="${n}"]`) as HTMLElement
+
+const DAMAGED = "Tide can't open this PDF. It may be damaged."
+
+describe('Reader open states', () => {
+  it('a damaged PDF shows the message with Remove from shelf and Keep', async () => {
+    const t = await openReading(fakeDeps({ kind: 'damaged' }))
+    const d = await screen.findByRole('dialog', { name: DAMAGED })
+    expect(within(d).getByRole('button', { name: 'Remove from shelf' })).toBeTruthy()
+    await userEvent.click(within(d).getByRole('button', { name: 'Keep' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText('Pick a reading from your shelf to carry on.')).toBeTruthy()
+    expect(t.calls['library.remove']).toBeUndefined()
+  })
+
+  it('Remove from shelf on a damaged PDF confirms, then removes the reading', async () => {
+    const t = await openReading(fakeDeps({ kind: 'damaged' }))
+    const d = await screen.findByRole('dialog', { name: DAMAGED })
+    await userEvent.click(within(d).getByRole('button', { name: 'Remove from shelf' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(t.calls['library.remove']).toEqual([['r1']]))
+  })
+
+  it('a locked PDF asks for the password; a wrong one says so, the right one opens', async () => {
+    const seen: Array<string | undefined> = []
+    const deps = fakeDeps((_data, password) => {
+      seen.push(password)
+      if (password === undefined) return { kind: 'needs-password' }
+      if (password !== 'tide') return { kind: 'wrong-password' }
+      return { kind: 'ok', doc: fakeDoc(bodyPages(5)) }
+    })
+    const t = await openReading(deps)
+    const d = await screen.findByRole('dialog', { name: 'This PDF is locked with a password.' })
+    await userEvent.type(within(d).getByLabelText('Password'), 'nope')
+    await userEvent.click(within(d).getByRole('button', { name: 'Open' }))
+    expect(await screen.findByText("That password didn't work. Try again.")).toBeTruthy()
+    await userEvent.type(screen.getByLabelText('Password'), 'tide')
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(seen).toEqual([undefined, 'nope', 'tide'])
+    // The file was read once; the password never reached main.
+    expect(t.calls['library.readPdf']).toHaveLength(1)
+    expect(JSON.stringify(t.calls)).not.toContain('"tide"')
+    expect(pageBox(1)).toBeTruthy()
+  })
+
+  it('Cancel on the password dialog returns to the empty stage', async () => {
+    await openReading(fakeDeps({ kind: 'needs-password' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('Pick a reading from your shelf to carry on.')).toBeTruthy()
+  })
+
+  it('a missing file at open time shows File moved', async () => {
+    const t = fakeTide({ snapshot: { readings: [reading] } })
+    t.library.readPdf = vi.fn(() =>
+      Promise.resolve({ ok: false as const, reason: 'missing' as const })
+    )
+    setTide(t)
+    renderApp(fakeDeps())
+    await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+    expect(await screen.findByRole('dialog', { name: 'Where did this one go?' })).toBeTruthy()
+  })
+})
+
+describe('Reader pages and text', () => {
+  it('draws her page first, then extracts the text, and labels the player', async () => {
+    const doc = fakeDoc(bodyPages(5))
+    await openReading(fakeDeps({ kind: 'ok', doc }), {
+      position: { page: 4, textItemIndex: 0, charOffset: 0 }
+    })
+    const player = await screen.findByRole('contentinfo', { name: 'Player' })
+    await waitFor(() => expect(within(player).getByText('Page 4 of 5')).toBeTruthy())
+    await waitFor(() => expect(doc.pageText).toHaveBeenCalledTimes(5))
+    expect(doc.log.indexOf('render:4')).toBeGreaterThanOrEqual(0)
+    expect(doc.log.indexOf('render:4')).toBeLessThan(doc.log.indexOf('text:1'))
+  })
+
+  it('sends the page count when the file disagrees with the shelf', async () => {
+    const t = await openReading(fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(7)) }))
+    await waitFor(() => expect(t.calls['library.update']).toContainEqual(['r1', { pageCount: 7 }]))
+  })
+
+  it('a reading with no text at all shows the scanned-copy message', async () => {
+    const doc = fakeDoc([emptyPage(1), emptyPage(2)])
+    await openReading(fakeDeps({ kind: 'ok', doc }), { pageCount: 2 })
+    expect(
+      await screen.findByText("Tide couldn't find any text in this PDF. It may be a scanned copy.")
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remove from shelf' })).toBeTruthy()
+  })
+
+  it('a textless page shows "No readable text on this page, skipping."', async () => {
+    const doc = fakeDoc([textPage(1, ['Memory is shaped by attention.']), emptyPage(2)])
+    await openReading(fakeDeps({ kind: 'ok', doc }), { pageCount: 2 })
+    const banner = await screen.findByText('No readable text on this page, skipping.')
+    expect(pageBox(2).contains(banner)).toBe(true)
+    expect(screen.getAllByText('No readable text on this page, skipping.')).toHaveLength(1)
+  })
+
+  it('when filters skip everything, "Read everything" turns it on for this reading', async () => {
+    const deps = fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(5)) })
+    deps.buildSentences = vi.fn(() =>
+      Promise.resolve({ sentences: [], textlessPages: [], skippedPages: [] })
+    )
+    const t = await openReading(deps)
+    expect(await screen.findByText('Tide skipped everything in this reading.')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Read everything' }))
+    expect(t.calls['library.update']).toContainEqual(['r1', { readEverything: true }])
+  })
+
+  it('the More menu toggles Read everything and only the sentences are rebuilt', async () => {
+    const doc = fakeDoc(bodyPages(5))
+    const deps = fakeDeps({ kind: 'ok', doc })
+    const t = await openReading(deps)
+    await waitFor(() => expect(deps.buildSentences).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(deps.buildSentences).mock.calls[0][1]).toEqual(DEFAULT_FILTERS)
+
+    await userEvent.click(screen.getByRole('button', { name: /^More options/ }))
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: /Read everything/ }))
+    expect(t.calls['library.update']).toContainEqual(['r1', { readEverything: true }])
+
+    await waitFor(() => expect(deps.buildSentences).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(deps.buildSentences).mock.calls[1][1]).toEqual(READ_EVERYTHING)
+    // The pages' text was extracted once.
+    expect(doc.pageText).toHaveBeenCalledTimes(5)
+  })
+})
+
+describe('Text size', () => {
+  const width = (): number => parseFloat(pageBox(1).style.width)
+
+  it('a zoom command changes the page scale within 80-200%', async () => {
+    const t = await openReading(fakeDeps(), {}, 1.9)
+    await waitFor(() => expect(pageBox(1)).toBeTruthy())
+    // 820 px column x zoom.
+    expect(width()).toBeCloseTo(820 * 1.9)
+    act(() => t.emit({ type: 'zoom', step: 1 }))
+    await waitFor(() => expect(width()).toBeCloseTo(820 * 2))
+    expect(t.calls['library.setZoom']).toEqual([[2]])
+    act(() => t.emit({ type: 'zoom', step: 1 }))
+    expect(t.calls['library.setZoom']).toHaveLength(1)
+    expect(width()).toBeCloseTo(820 * 2)
+  })
+
+  it('stops at 80% going down', async () => {
+    const t = await openReading(fakeDeps(), {}, 0.9)
+    await waitFor(() => expect(pageBox(1)).toBeTruthy())
+    act(() => t.emit({ type: 'zoom', step: -1 }))
+    await waitFor(() => expect(width()).toBeCloseTo(820 * 0.8))
+    act(() => t.emit({ type: 'zoom', step: -1 }))
+    expect(t.calls['library.setZoom']).toEqual([[0.8]])
+  })
+})

@@ -9,6 +9,7 @@ import type { OpenPdfResult } from '../../src/renderer/src/reader/pdf'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { PickResult } from '../../src/shared/library/types'
 import { fakeTide } from './setup'
+import { bodyPages, fakeDoc } from './reader-fakes'
 
 const newPick: PickResult = { kind: 'new', pickId: 'p1', fileName: 'Week_4_Institutions.pdf' }
 const DAMAGED = "Tide can't open this PDF. It may be damaged."
@@ -36,7 +37,7 @@ function setup(
 
 const okDoc = (numPages = 22, metaTitle?: string): OpenPdfResult => ({
   kind: 'ok',
-  doc: { numPages, metaTitle, destroy: () => Promise.resolve() } as never
+  doc: { ...fakeDoc(bodyPages(numPages)), metaTitle }
 })
 
 // The shelf's button is always there (the empty state adds a second one).
@@ -103,7 +104,8 @@ describe('Add reading', () => {
     await addReading()
     expect(await screen.findByRole('heading', { level: 2, name: 'Already here' })).toBeTruthy()
     expect(screen.queryByText('Which course is this for?')).toBeNull()
-    expect(openPdf).not.toHaveBeenCalled()
+    // Only the reader opens it (to show it); adding never reads the file again.
+    expect(openPdf).toHaveBeenCalledTimes(1)
     expect(t.calls['library.add']).toHaveLength(1)
   })
 

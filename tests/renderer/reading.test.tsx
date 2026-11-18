@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import App from '../../src/renderer/src/App'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { ReadingView } from '../../src/shared/library/types'
 import { fakeTide } from './setup'
+import { renderApp } from './reader-fakes'
 
 const base: ReadingView = {
   id: 'r1',
@@ -29,7 +29,7 @@ async function setup(
   const t = fakeTide({ snapshot: { readings: [reading] } })
   tweak?.(t)
   setTide(t)
-  render(<App />)
+  renderApp()
   await screen.findByRole('button', { name: /^Memory and Attention/ })
   return t
 }
@@ -162,7 +162,7 @@ describe('File moved flow and the More menu', () => {
       snapshot: { readings: [base, { ...moved, id: 'r3', title: 'Gone one' }] }
     })
     setTide(t)
-    render(<App />)
+    renderApp()
     await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     await userEvent.click(rowOf(/^Gone one/))
     await screen.findByRole('dialog', { name: 'Where did this one go?' })
@@ -176,7 +176,7 @@ describe('File moved flow and the More menu', () => {
   it('removing the selected reading clears the selection', async () => {
     const t = fakeTide({ snapshot: { readings: [base, second] } })
     setTide(t)
-    render(<App />)
+    renderApp()
     await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     await userEvent.click(screen.getByRole('button', { name: /More options for/ }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from shelf…' }))

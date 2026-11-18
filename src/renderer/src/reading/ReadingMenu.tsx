@@ -40,3 +40,21 @@ export function ReadingMenu({ reading, onRename, onRemove, extraItems }: Props):
     </Menu.Root>
   )
 }
+
+/** "Read everything" for this reading: nothing is skipped (headers, footnotes, references, citations are spoken). */
+export function ReadEverythingItem({
+  checked,
+  onChange
+}: {
+  checked: boolean
+  onChange(on: boolean): void
+}): React.JSX.Element {
+  return (
+    <Menu.CheckboxItem checked={checked} onCheckedChange={onChange} className={`${item} gap-2`}>
+      <span aria-hidden="true" className="w-4 text-primary">
+        <Menu.ItemIndicator>✓</Menu.ItemIndicator>
+      </span>
+      Read everything
+    </Menu.CheckboxItem>
+  )
+}

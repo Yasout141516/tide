@@ -28,8 +28,23 @@ class ResizeObserverStub {
   }
 }
 
+class IntersectionObserverStub {
+  observe(): void {
+    // no-op: the render window starts around the anchor page, which is all the tests need
+  }
+  unobserve(): void {
+    // no-op
+  }
+  disconnect(): void {
+    // no-op
+  }
+}
+
 beforeEach(() => {
   if (typeof window === 'undefined') return
+  globalThis.IntersectionObserver =
+    IntersectionObserverStub as unknown as typeof IntersectionObserver
+  Element.prototype.scrollIntoView = () => {}
   narrow = false
   listeners.clear()
   window.matchMedia = ((query: string) => ({
@@ -116,7 +131,7 @@ export function fakeTide(
       },
       pickPdf: fn('library.pickPdf', () => Promise.resolve({ kind: 'cancelled' as const })),
       readPdf: fn('library.readPdf', () =>
-        Promise.resolve({ ok: false as const, reason: 'unreadable' as const })
+        Promise.resolve({ ok: true as const, data: new Uint8Array([1]) })
       ),
       add: fn('library.add', (i) => {
         const id = `r${snap.readings.length + 1}`
