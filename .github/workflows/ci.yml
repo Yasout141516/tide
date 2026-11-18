@@ -147,7 +147,12 @@ jobs:
             out.push(fs.existsSync(bin) ? `Packaged ffmpeg binary: ${mib(bin)}` : `Packaged ffmpeg binary MISSING: ${bin}`, "")
             if (fs.existsSync("release")) {
               for (const i of fs.readdirSync("release").filter((n) => /\.(dmg|exe)$/.test(n))) {
-                out.push(`Installer ${i}: ${mib("release/" + i)}`, "")
+                // Budget: M1 baselines (MiB); warn when an installer grows by more than 15 MiB.
+                const base = i.endsWith(".dmg") ? 246.3 : 241.2
+                const size = fs.statSync("release/" + i).size / 1048576
+                const delta = size - base
+                out.push(`Installer ${i}: ${size.toFixed(1)} MiB (Δ vs M1 baseline: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} MiB)`, "")
+                if (delta > 15) console.log("::warning::Installer grew by more than 15 MiB")
               }
             }
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n")

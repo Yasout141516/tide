@@ -1,5 +1,5 @@
 import { copyFileSync } from 'fs'
-import { mkdtemp, readdir } from 'fs/promises'
+import { mkdtemp, readFile, readdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { test, expect, type Page } from '@playwright/test'
@@ -191,5 +191,125 @@ test('text-bearing PDFs are built into sentences by the pipeline worker', async 
   expect(Number(await view.getAttribute('data-sentence-count'))).toBeGreaterThan(10)
   // And it was the pipeline worker (a module worker next to the pdf.js one) that ran it.
   expect(workers.some((u) => u.includes('pipeline.worker'))).toBe(true)
+  await app.close()
+})
+
+// --- M3 end to end -------------------------------------------------------------------------
+
+/** What library.json on disk says about each reading (the file the main process writes). */
+async function savedLibrary(
+  userData: string
+): Promise<{ readings: { title: string; position: unknown; readEverything: boolean }[] }> {
+  return JSON.parse(await readFile(join(userData, 'library.json'), 'utf8'))
+}
+
+const highlightIds = (win: Page): Promise<string[]> =>
+  win.evaluate(() => [
+    ...new Set(
+      [...document.querySelectorAll('[data-testid="sentence-highlight"]')].map(
+        (e) => (e as HTMLElement).dataset.sentenceId!
+      )
+    )
+  ])
+
+/** Every highlight box of the current sentence lies inside its page canvas. */
+const boxesInsideCanvas = (win: Page): Promise<boolean> =>
+  win.evaluate(() => {
+    const boxes = [...document.querySelectorAll('[data-testid="sentence-highlight"]')]
+    if (boxes.length === 0) return false
+    return boxes.every((b) => {
+      const canvas = b.closest('[data-page]')!.querySelector('canvas')!.getBoundingClientRect()
+      const r = b.getBoundingClientRect()
+      const e = 1
+      return (
+        r.left >= canvas.left - e &&
+        r.top >= canvas.top - e &&
+        r.right <= canvas.right + e &&
+        r.bottom <= canvas.bottom + e
+      )
+    })
+  })
+
+test('opens a reading, shows a rendered page and a highlight, and restores the place after a restart', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'tide-e2e-'))
+  let app = await launchTide({ TIDE_USER_DATA: userData })
+  let win = await app.firstWindow()
+  await addAndOpen(app, win, 'single-column.pdf')
+
+  await expect.poll(() => drawn(win, 1)).toBe(true)
+  const lit = (id: number): ReturnType<Page['locator']> =>
+    win.locator(`[data-testid="sentence-highlight"][data-sentence-id="${id}"]`)
+  await expect(lit(0).first()).toBeVisible()
+  expect(await boxesInsideCanvas(win)).toBe(true)
+
+  await win.keyboard.press('ArrowRight')
+  await win.keyboard.press('ArrowRight')
+  await expect(lit(2).first()).toBeVisible()
+  expect(await highlightIds(win)).toEqual(['2'])
+  expect(await boxesInsideCanvas(win)).toBe(true)
+  // The page label for the current sentence's page (the player bar; the header has no label of its own).
+  await expect(win.getByRole('contentinfo', { name: 'Player' })).toContainText(/Page 1 of 4/)
+
+  // The place must reach disk before the app is gone: the quit flush.
+  await app.close()
+  const saved = await savedLibrary(userData)
+  expect(saved.readings).toHaveLength(1)
+  const anchor = saved.readings[0].position as { page: number; textItemIndex: number }
+  expect(anchor).toMatchObject({ page: expect.any(Number), textItemIndex: expect.any(Number) })
+  expect(anchor).toHaveProperty('charOffset')
+
+  app = await launchTide({ TIDE_USER_DATA: userData })
+  win = await app.firstWindow()
+  await win
+    .getByRole('navigation', { name: 'Readings' })
+    .getByRole('button', { name: /Week 4/ })
+    .click()
+  await expect(lit(2).first()).toBeVisible()
+  expect(await highlightIds(win)).toEqual(['2'])
+  await app.close()
+})
+
+test('Read everything is remembered per reading', async () => {
+  const userData = await mkdtemp(join(tmpdir(), 'tide-e2e-'))
+  let app = await launchTide({ TIDE_USER_DATA: userData })
+  let win = await app.firstWindow()
+  await addAndOpen(app, win, 'single-column.pdf')
+  await addAndOpen(app, win, 'two-column.pdf')
+  const shelf = (): ReturnType<Page['getByRole']> =>
+    win.getByRole('navigation', { name: 'Readings' })
+  await expect(shelf().getByRole('button', { name: /Week 4/ })).toBeVisible()
+
+  const item = (): ReturnType<Page['getByRole']> =>
+    win.getByRole('menuitemcheckbox', { name: 'Read everything' })
+  const openMenu = async (): Promise<void> => {
+    await win.getByRole('button', { name: /^More options for/ }).click()
+  }
+  // two-column.pdf is the open reading: turn it on.
+  await expect(win.locator('[data-sentence-count]')).toBeVisible()
+  await openMenu()
+  await expect(item()).toHaveAttribute('aria-checked', 'false')
+  await item().click()
+  await expect
+    .poll(
+      async () => (await savedLibrary(userData)).readings.filter((r) => r.readEverything).length
+    )
+    .toBe(1)
+  await app.close()
+
+  app = await launchTide({ TIDE_USER_DATA: userData })
+  win = await app.firstWindow()
+  const on = (await savedLibrary(userData)).readings.find((r) => r.readEverything)!
+  const off = (await savedLibrary(userData)).readings.find((r) => !r.readEverything)!
+  expect(on.title).not.toBe(off.title)
+  const rows = win.getByRole('navigation', { name: 'Readings' })
+  await rows.getByRole('button', { name: on.title }).first().click()
+  await expect(win.locator('[data-sentence-count]')).toBeVisible()
+  await openMenu()
+  await expect(item()).toHaveAttribute('aria-checked', 'true')
+  await win.keyboard.press('Escape')
+  await rows.getByRole('button', { name: off.title }).first().click()
+  await expect(win.locator('[data-sentence-count]')).toBeVisible()
+  await openMenu()
+  await expect(item()).toHaveAttribute('aria-checked', 'false')
   await app.close()
 })

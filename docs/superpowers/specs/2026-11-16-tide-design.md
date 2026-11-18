@@ -535,6 +535,17 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - **lamejs dropped.** The bundled ffmpeg has libmp3lame on both OSes, so ffmpeg does `.m4b` and `.mp3`.
 - Voice default stays **Heart (af_heart)** until Yasin picks.
 
+**Decided in M2/M3 planning (2026-11-17)**
+- The library store is hand-rolled (atomic write, rolling backup, schema version) instead of electron-store.
+- pdf.js runs in the renderer; `pdfjs-dist` is a bundled devDependency, and its cMaps, fonts, ICC profiles and wasm are copied into the build and served same-origin.
+- Windows file association ("Open With") is deferred to M7. The "Open With" tip is macOS only.
+- The text cache is deferred: measured text build time per reading is warm 0.23-0.35 s and cold 1.07 s (Node, 26-43 pages), well under the 2 s threshold.
+- Resource lists (further reading, websites, audiovisual) are tied to "Stop at References".
+- Courses are listed alphabetically, "Other" last.
+- Table-of-contents pages are skipped like cover pages; section headings in the body are still read.
+- Left and right arrow keys step by sentence until M4, when they become plus or minus 15 seconds.
+- Deferred text items (each keeps its golden stable until reviewed against her readings; "Read everything" is the escape meanwhile): multi-letter initials, country abbreviations and the "No." merge; run-in bold headings (needs font weight from pdf.js); citation shapes (multiple years, possessive "et al.", group authors, page-only locators); figure source notes, DOI lines and URL speech; outline numerals and item-spacing artifacts; superscript exponents; rotated pages, U+2010 de-hyphenation, compound-prefix syllable splits and roman-numeral zone titles.
+
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*
 - **Voices:** Yasin to choose 6-8 voices and the default from `local-fixtures/voice-samples/index.html`.

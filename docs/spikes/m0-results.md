@@ -112,7 +112,7 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 - Citation patterns: multiple years, possessive "et al.", bracketed group authors, "personal communication", page-only locators.
 - Abbreviations (country names, multi-letter initials); narrow the initials rule; "No." merge; TOC dot leaders; outline numerals; item-spacing artifacts.
 - From earlier reviews: roman-numeral page-number rule drops single-word zone titles, U+2010 de-hyphenation, footnote overlap and two-column footnotes, rotated pages, batch `remove()` patterns. Bump `PIPELINE_VERSION` whenever output changes.
-- Two-column pages with a full-width line mid-page collapse to one column: split the page into bands (M3).
+- ~~Two-column pages with a full-width line mid-page collapse to one column: split the page into bands (M3).~~ Done in M3 (reader e2e passes on the two-column and layout fixtures).
 
 **TTS and performance**
 - TTS protocol: cancel/generation ids, timeout from job start, recycle the worker on a hang (first task of M4).
@@ -129,3 +129,9 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 - Onboarding page for Open Anyway on macOS 15+.
 - `will-redirect` guard and navigation-guard tests, package metadata.
 - Optional further trim: transformers.js ships its web builds, `.wasm` and source maps unpacked (about 46 MiB in all).
+
+**M3 status (2026-11-18)**
+- Done in M3: shelf, library, reader view with highlight, stepping and resume; reader end-to-end tests; CI installer budget (baselines dmg 246.3 MiB, exe 241.2 MiB, warn above +15 MiB).
+- Still deferred (text): multi-letter initials, country abbreviations and the "No." merge; run-in bold headings (needs font weight); citation shapes (multiple years, possessive "et al.", group authors, page-only locators); figure source notes, DOI lines, URL speech; outline numerals and item-spacing artifacts; superscript exponents; rotated pages, U+2010 de-hyphenation, compound-prefix syllable splits, roman-numeral zone titles.
+- Text cache (`userData/cache/`, spec 6.3) deferred: warm 0.23-0.35 s per reading, cold 1.07 s (Node numbers; the renderer adds worker spawn and structured clone).
+- Owner decisions 2026-11-17: Windows Open With moves to M7; resource lists sit under Stop at References; courses alphabetical with Other last; TOC pages skipped like cover pages; Open With tip macOS only.
