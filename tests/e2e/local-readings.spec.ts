@@ -11,7 +11,13 @@ import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { test, expect } from '@playwright/test'
-import { boxesInsideCanvas as insideCanvas, highlightIds as current } from './helpers'
+import {
+  boxesInsideCanvas as insideCanvas,
+  clickAddReading,
+  closeShelf,
+  highlightIds as current,
+  openShelf
+} from './helpers'
 import { launchTide } from './launch'
 
 const DIR = resolve(__dirname, '..', '..', 'local-fixtures')
@@ -33,11 +39,12 @@ pdfs.forEach((file, i) => {
     await app.evaluate(({ dialog }, p) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as never
     }, dest)
-    await win.getByRole('button', { name: 'Add reading' }).first().click()
+    await clickAddReading(win)
     await win
       .getByRole('dialog', { name: 'Which course is this for?' })
       .getByRole('button', { name: 'Skip' })
       .click()
+    await closeShelf(win)
 
     // Renders: some page canvas has non-white pixels.
     await expect
@@ -79,10 +86,7 @@ pdfs.forEach((file, i) => {
       readings: { id: string }[]
     }
     expect(saved.readings).toHaveLength(1)
-    await win
-      .getByRole('navigation', { name: 'Readings' })
-      .locator(`[data-reading-id="${saved.readings[0].id}"]`)
-      .click()
+    await (await openShelf(win)).locator(`[data-reading-id="${saved.readings[0].id}"]`).click()
     await expect.poll(() => current(win), { timeout: 60_000 }).toEqual([at])
     await app.close()
   })

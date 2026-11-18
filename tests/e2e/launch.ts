@@ -2,7 +2,7 @@ import { spawn } from 'child_process'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { resolve, join } from 'path'
-import { _electron as electron, type ElectronApplication } from '@playwright/test'
+import { _electron as electron, expect, type ElectronApplication } from '@playwright/test'
 
 const root = resolve(__dirname, '..', '..')
 
@@ -22,7 +22,10 @@ export function packagedExecutable(): string {
  * Launch Tide for an e2e test. TIDE_PACKAGED=1 runs the packaged app from release/
  * (`npm run package` first); otherwise the electron-vite build in out/ (`npm run build`).
  */
-export async function launchTide(env: Record<string, string> = {}): Promise<ElectronApplication> {
+export async function launchTide(
+  env: Record<string, string> = {},
+  opts: { pinWindow?: boolean } = {}
+): Promise<ElectronApplication> {
   // Each launch gets a fresh userData dir (a new, empty shelf) unless the test passes one, e.g. to restart.
   const userData = env.TIDE_USER_DATA ?? (await mkdtemp(join(tmpdir(), 'tide-e2e-')))
   const fullEnv = {
@@ -31,10 +34,29 @@ export async function launchTide(env: Record<string, string> = {}): Promise<Elec
     ...env,
     TIDE_USER_DATA: userData
   }
-  if (process.env.TIDE_PACKAGED === '1') {
-    return electron.launch({ executablePath: packagedExecutable(), env: fullEnv })
-  }
-  return electron.launch({ args: [resolve(root, 'out/main/index.js')], env: fullEnv })
+  const app =
+    process.env.TIDE_PACKAGED === '1'
+      ? await electron.launch({ executablePath: packagedExecutable(), env: fullEnv })
+      : await electron.launch({ args: [resolve(root, 'out/main/index.js')], env: fullEnv })
+  if (opts.pinWindow !== false) await pinWindow(app)
+  return app
+}
+
+/** Content size every e2e window is pinned to: fits a 1024x768 CI screen and is under the 1100 px breakpoint. */
+export const PINNED_SIZE = { width: 1000, height: 700 }
+
+/**
+ * CI runners have ~1024 px screens and the OS clamps Tide's 1200x800 window to them, so the layout would
+ * depend on the machine. Pin the content size (from the test side) so the narrow layout is used everywhere.
+ */
+async function pinWindow(app: ElectronApplication): Promise<void> {
+  const win = await app.firstWindow()
+  await app.evaluate(({ BrowserWindow }, size) => {
+    const w = BrowserWindow.getAllWindows()[0]
+    if (w.isMaximized()) w.unmaximize()
+    w.setContentSize(size.width, size.height)
+  }, PINNED_SIZE)
+  await expect.poll(() => win.evaluate(() => window.innerWidth)).toBe(PINNED_SIZE.width)
 }
 
 /**

@@ -3,7 +3,14 @@ import { mkdtemp, readFile, readdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { test, expect, type Page } from '@playwright/test'
-import { boxesInsideCanvas, highlightIds } from './helpers'
+import {
+  boxesInsideCanvas,
+  highlightIds,
+  clickAddReading,
+  closeShelf,
+  openShelf,
+  shelfReady
+} from './helpers'
 import { launchTide } from './launch'
 
 const fixture = (name: string): string => resolve(__dirname, '..', 'fixtures', 'pdfs', name)
@@ -18,11 +25,12 @@ async function addAndOpen(app: App, win: Page, name: string): Promise<void> {
   await app.evaluate(({ dialog }, p) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as never
   }, dest)
-  await win.getByRole('button', { name: 'Add reading' }).first().click()
+  await clickAddReading(win)
   await win
     .getByRole('dialog', { name: 'Which course is this for?' })
     .getByRole('button', { name: 'Skip' })
     .click()
+  await closeShelf(win)
 }
 
 /** True when page `n` has a canvas with at least one non-white pixel. */
@@ -97,7 +105,7 @@ test('the bundled pdf.js cMaps, standard fonts, ICC profiles and wasm load same-
   const win = await app.firstWindow()
   const messages: string[] = []
   win.on('console', (m) => messages.push(m.text()))
-  await win.getByRole('button', { name: 'Add reading' }).first().waitFor()
+  await shelfReady(win)
   // The directories the build copies (electron.vite.config.ts); one real file from each is fetched
   // exactly as pdf.js does, relative to index.html.
   const assets = await win.evaluate(async () => {
@@ -234,10 +242,7 @@ test('opens a reading, shows a rendered page and a highlight, and restores the p
 
   app = await launchTide({ TIDE_USER_DATA: userData })
   win = await app.firstWindow()
-  await win
-    .getByRole('navigation', { name: 'Readings' })
-    .getByRole('button', { name: /Week 4/ })
-    .click()
+  await (await openShelf(win)).getByRole('button', { name: /Week 4/ }).click()
   await expect(lit(2).first()).toBeVisible()
   expect(await highlightIds(win)).toEqual(['2'])
   await app.close()
@@ -249,9 +254,8 @@ test('Read everything is remembered per reading', async () => {
   let win = await app.firstWindow()
   await addAndOpen(app, win, 'single-column.pdf')
   await addAndOpen(app, win, 'two-column.pdf')
-  const shelf = (): ReturnType<Page['getByRole']> =>
-    win.getByRole('navigation', { name: 'Readings' })
-  await expect(shelf().getByRole('button', { name: /Week 4/ })).toBeVisible()
+  await expect((await openShelf(win)).getByRole('button', { name: /Week 4/ })).toBeVisible()
+  await closeShelf(win)
 
   const item = (): ReturnType<Page['getByRole']> =>
     win.getByRole('menuitemcheckbox', { name: 'Read everything' })
@@ -275,13 +279,12 @@ test('Read everything is remembered per reading', async () => {
   const on = (await savedLibrary(userData)).readings.find((r) => r.readEverything)!
   const off = (await savedLibrary(userData)).readings.find((r) => !r.readEverything)!
   expect(on.title).not.toBe(off.title)
-  const rows = win.getByRole('navigation', { name: 'Readings' })
-  await rows.getByRole('button', { name: on.title }).first().click()
+  await (await openShelf(win)).getByRole('button', { name: on.title }).first().click()
   await expect(win.locator('[data-sentence-count]')).toBeVisible()
   await openMenu()
   await expect(item()).toHaveAttribute('aria-checked', 'true')
   await win.keyboard.press('Escape')
-  await rows.getByRole('button', { name: off.title }).first().click()
+  await (await openShelf(win)).getByRole('button', { name: off.title }).first().click()
   await expect(win.locator('[data-sentence-count]')).toBeVisible()
   await openMenu()
   await expect(item()).toHaveAttribute('aria-checked', 'false')
