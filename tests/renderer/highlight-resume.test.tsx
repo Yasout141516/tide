@@ -244,5 +244,6 @@ describe('Reader highlight, stepping and resume', () => {
       expect(kind, `page ${p}`).toMatch(/R/)
     }
     expect(firsts.map(([p]) => p)).toEqual(firsts.map(([p]) => p).sort((a, b) => a - b))
-  })
+    // Real pdf.js extraction plus a step through every sentence: ~3.3 s alone, over 5 s under full-suite load.
+  }, 20_000)
 })
