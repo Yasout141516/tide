@@ -80,7 +80,14 @@ describe('footnotes', () => {
     expect(text).toContain('before it.') // so does the left column's
   })
 
-  it('does not treat a digit line with fewer than three words as a footnote start', () => {
+  it('drops a short footnote with two lettered words at the bottom', () => {
+    const body = lineOf([{ str: 'Body line above.', x: 72, y: 600 }])
+    const note = lineOf([{ str: '1 See Miller (1956).', x: 72, y: 700, fontSize: 7 }])
+    const [out] = dropFootnotes([[body, note]], [792], 10)
+    expect(out.map((l) => l.text)).toEqual(['Body line above.'])
+  })
+
+  it('does not treat a digit line without lettered words as a footnote start', () => {
     const body = lineOf([{ str: 'Body line above.', x: 72, y: 600 }])
     const axis = lineOf([{ str: '0 10 20 30', x: 72, y: 700, fontSize: 7 }])
     const below = lineOf([{ str: 'More body text below the axis.', x: 72, y: 720 }])

@@ -413,7 +413,7 @@ function singleColumn(): Fixture {
     lines.push(
       simple('Most adults can hold about four chunks of information in mind.', MARGIN, top + 15, 11)
     )
-    lines.push(simple('¹ See Miller (1956) for the full study.', MARGIN, 735, 7, 'footnote'))
+    lines.push(simple('¹ See Miller (1956).', MARGIN, 735, 7, 'footnote'))
     lines.push(footer(1))
     pages.push({ lines, rects: [{ x: MARGIN, top: 724, w: 144, h: 0.5 }] })
   }
@@ -432,7 +432,7 @@ function singleColumn(): Fixture {
     name: 'single-column',
     title: 'PSYC 201 Week 4',
     description:
-      '4 pages, one column of 11pt body text. Running header "PSYC 201 — Week 4" (9pt, top) and footer "Page N" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break "atten-" / "tion", an inline 7pt raised footnote marker "¹" after "capacity", and a 7pt footnote "¹ See Miller (1956) for the full study." under a short rule above the footer.',
+      '4 pages, one column of 11pt body text. Running header "PSYC 201 — Week 4" (9pt, top) and footer "Page N" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break "atten-" / "tion", an inline 7pt raised footnote marker "¹" after "capacity", and a 7pt footnote "¹ See Miller (1956)." under a short rule above the footer.',
     pages
   }
 }

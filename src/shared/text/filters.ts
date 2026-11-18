@@ -78,11 +78,11 @@ const MARKER = /^[\d¹²³⁴⁵⁶⁷⁸⁹⁰*†]{1,3}$/
 
 const WORD_WITH_LETTER = /\p{L}/u
 /** A footnote start needs at least this many words containing letters (axis labels like "0 10 20" are out). */
-const MIN_FOOTNOTE_WORDS = 3
+const MIN_FOOTNOTE_WORDS = 2
 
 /**
  * Drops footnotes: in the bottom 35% of a page, a line smaller than 0.85 x body that starts with a
- * digit, `*`, `†` or a superscript digit, has at least 3 words containing letters, and has no line of
+ * digit, `*`, `†` or a superscript digit, has at least 2 words containing letters, and has no line of
  * 0.85 x body or more below it in the same column starts a footnote. Every such line cuts its own
  * column: it goes with every line at or below it whose x-range overlaps its own (full-width lines
  * overlap every column; lines in the other column stay unless they start a footnote of their own).
