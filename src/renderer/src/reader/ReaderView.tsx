@@ -48,7 +48,7 @@ const noticeCard =
 export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Element {
   const deps = useReaderDeps()
   const report = useReportReader()
-  const { current, setCurrent } = useReaderState()
+  const { current, setCurrent, sentences: reported } = useReaderState()
   const zoom = snapshot.settings.zoom
 
   // Where she resumes: read once, so later position writes never scroll the page.
@@ -276,7 +276,8 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   const firstBuild = useRef(true)
   /** The index whose anchor is already stored; -1 forces a write. */
   const saved = useRef<number | null>(null)
-  const jump = useRef(false)
+  /** The index to centre on opening; dropped once she moves elsewhere. */
+  const jump = useRef<number | null>(null)
 
   useEffect(() => {
     if (!built) return
@@ -289,23 +290,30 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
       firstBuild.current = false
       idx = startAnchor ? resolveAnchor(next, startAnchor) : 0
       saved.current = idx // where she already was: nothing to write
-      jump.current = true
+      jump.current = idx
     } else {
       idx = old ? resolveAnchor(next, anchorOf(old)) : 0
-      saved.current = -1
+      saved.current = idx
+      // The list changed under her: store the re-resolved place (never a stale index into the new list).
+      void tide()
+        .library.update(reading.id, { position: anchorOf(next[idx]) })
+        .catch(() => {})
     }
     setCurrent(idx)
-  }, [built, setCurrent, startAnchor])
+  }, [built, setCurrent, startAnchor, reading.id])
   useEffect(() => () => setCurrent(null), [setCurrent])
 
   // Every change is sent at once; main debounces the disk writes and flushes on quit.
   useEffect(() => {
-    if (current === null || !sentences || saved.current === current) return
+    const s = current === null ? undefined : sentences?.[current]
+    if (current === null || !s || saved.current === current) return
     saved.current = current
     void tide()
-      .library.update(reading.id, { position: anchorOf(sentences[current]) })
+      .library.update(reading.id, { position: anchorOf(s) })
       .catch(() => {})
-  }, [current, sentences, reading.id])
+    // Only a change of `current` writes; a rebuilt list writes its own re-resolved anchor above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, reading.id])
 
   const itemOf = useCallback(
     (p: number, i: number) => pages?.[p - 1]?.items.find((t) => t.index === i),
@@ -317,24 +325,27 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   )
   const currentRects = useMemo(
     () =>
-      sentences && pages && current !== null && sentences[current]
+      // `reported` lags a rebuilt list by one render; until it catches up `current` is stale.
+      sentences && reported === sentences && pages && current !== null && sentences[current]
         ? spanRects(sentences[current].spans, itemOf, sizeOf)
         : [],
-    [sentences, pages, current, itemOf, sizeOf]
+    [sentences, reported, pages, current, itemOf, sizeOf]
   )
 
   // Bring the highlight into view: always on opening, else only when it is off the screen.
   useEffect(() => {
+    if (jump.current !== null && current !== null && jump.current !== current) jump.current = null
     const root = scroller.current
     const el = root?.querySelector('[data-testid="sentence-highlight"]')
     if (!root || !el) return
-    const force = jump.current
-    jump.current = false
+    const force = jump.current !== null
+    jump.current = null
     const r = el.getBoundingClientRect()
     const s = root.getBoundingClientRect()
     if (!force && r.top >= s.top && r.bottom <= s.bottom) return
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     el.scrollIntoView({ block: 'center', behavior: force || calm ? 'auto' : 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRects])
 
   const pick = (n: number, x: number, y: number): void => {

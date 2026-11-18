@@ -3,10 +3,10 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { ReadingView } from '../../src/shared/library/types'
-import { anchorOf, type Anchor } from '../../src/shared/text/anchor'
+import { anchorOf, resolveAnchor, type Anchor } from '../../src/shared/text/anchor'
 import { extractPages } from '../../src/shared/text/extract'
 import { buildSentences } from '../../src/shared/text/pipeline'
 import { DEFAULT_FILTERS, READ_EVERYTHING } from '../../src/shared/text/types'
@@ -65,7 +65,13 @@ async function waitForId(id: string): Promise<void> {
   await waitFor(() => expect(highlightId()).toBe(id))
 }
 
+const realScroll = Element.prototype.scrollIntoView
+
 describe('Reader highlight, stepping and resume', () => {
+  afterEach(() => {
+    Element.prototype.scrollIntoView = realScroll
+  })
+
   it('opens at the first sentence when there is no saved place', async () => {
     const t = await openWith(bodyPages(10))
     await waitForId('0')
@@ -138,21 +144,25 @@ describe('Reader highlight, stepping and resume', () => {
     const input = document.createElement('input')
     dialog.append(input)
     document.body.append(dialog)
-    input.focus()
-    await userEvent.keyboard('{ArrowRight}')
-    expect(highlightId()).toBe('0')
-    // A bare field (no dialog around it) is left alone too.
-    dialog.removeAttribute('role')
-    await userEvent.keyboard('{ArrowRight}')
-    expect(highlightId()).toBe('0')
-    // And an open dialog stops the keys wherever focus is.
-    dialog.setAttribute('role', 'dialog')
-    input.blur()
-    await userEvent.keyboard('{ArrowRight}')
-    expect(highlightId()).toBe('0')
-    dialog.remove()
-    await userEvent.keyboard('{ArrowRight}')
-    await waitForId('1')
+    try {
+      input.focus()
+      await userEvent.keyboard('{ArrowRight}')
+      expect(highlightId()).toBe('0')
+      // A bare field (no dialog around it) is left alone too.
+      dialog.removeAttribute('role')
+      await userEvent.keyboard('{ArrowRight}')
+      expect(highlightId()).toBe('0')
+      // And an open dialog stops the keys wherever focus is.
+      dialog.setAttribute('role', 'dialog')
+      input.blur()
+      await userEvent.keyboard('{ArrowRight}')
+      expect(highlightId()).toBe('0')
+      dialog.remove()
+      await userEvent.keyboard('{ArrowRight}')
+      await waitForId('1')
+    } finally {
+      dialog.remove()
+    }
   })
 
   it('turning on Read everything keeps the place', async () => {
@@ -175,6 +185,38 @@ describe('Reader highlight, stepping and resume', () => {
     await waitForId(String(shifted))
     expect(where()).toEqual(place)
     expect(positions(t).at(-1)).toEqual(anchorOf(before[at]))
+  })
+
+  it('turning Read everything off from past the end of the shorter list keeps the place', async () => {
+    const pages = await fixturePages('cover-refs.pdf')
+    const shorter = sentencesOf(pages)
+    const everything = sentencesOf(pages, READ_EVERYTHING)
+    expect(everything.length).toBeGreaterThan(shorter.length)
+    const last = anchorOf(everything[everything.length - 1])
+    const t = await openWith(pages, { position: last, readEverything: true })
+    await waitForId(String(everything.length - 1))
+    await userEvent.click(screen.getByRole('button', { name: /^More options/ }))
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: /Read everything/ }))
+    const resolved = resolveAnchor(shorter, last)
+    await waitForId(String(resolved))
+    // Exactly one write, the re-resolved anchor: no stale index into the new list.
+    expect(positions(t)).toEqual([anchorOf(shorter[resolved])])
+  })
+
+  it('a click after opening does not force a centred scroll', async () => {
+    const scrolls: unknown[] = []
+    Element.prototype.scrollIntoView = function (arg?: unknown) {
+      scrolls.push(arg)
+    }
+    await openWith(bodyPages(2))
+    await waitForId('0')
+    scrolls.length = 0
+    fireEvent.click(document.querySelector('[data-page="1"]')!, {
+      clientX: 100 * SCALE,
+      clientY: 110 * SCALE
+    })
+    await waitForId('1')
+    expect(scrolls).toEqual([])
   })
 
   it('→ follows reading order down the left column, then the right, on two-column.pdf', async () => {
