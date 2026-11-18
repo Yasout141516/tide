@@ -28,16 +28,28 @@ let segmenter: Intl.Segmenter | undefined
 /** A question or exclamation, possibly inside closing quotes or brackets: "...listening?”". */
 const ENDS_QUESTION_OR_EXCLAMATION = /[?!]["'”’)\]]*$/
 
+/** Words that start a sentence: a single capital letter before one of them is a word, not an initial. */
+const SENTENCE_STARTERS = new Set(
+  (
+    'The This These That Those It Its In On At A An As However We They He She There But And For ' +
+    'When While Although If Our Their Such Some Many Most Each One'
+  ).split(' ')
+)
+
 /**
  * True when a trimmed segment must not end a sentence: it ends in an abbreviation or a single-letter
- * initial ("J." in "J. K. Rowan", "T." in "Barlow, T. M."), or is tiny.
+ * initial ("J." in "J. K. Rowan", "T." in "Barlow, T. M."), or is tiny. `next` is the trimmed segment
+ * after it: an initial followed by a sentence starter ("vitamin C. The body") does end the sentence.
  */
-function continues(trimmed: string): boolean {
+function continues(trimmed: string, next: string | undefined): boolean {
   if (trimmed.length < MIN_SENTENCE_CHARS) return true
   if (/(^|\s)et al\.$/i.test(trimmed)) return true
   // Leading brackets/quotes are not part of the word: "(e.g." and "(A." count.
   const last = trimmed.slice(trimmed.lastIndexOf(' ') + 1).replace(/^[("'“‘[]+/, '')
-  return /^[A-Z]\.$/.test(last) || ABBREVIATIONS.has(last.toLowerCase())
+  if (ABBREVIATIONS.has(last.toLowerCase())) return true
+  if (!/^[A-Z]\.$/.test(last)) return false
+  const nextWord = next?.replace(/^[("'“‘[]+/, '').match(/^[A-Za-z]+/)?.[0]
+  return !(nextWord && SENTENCE_STARTERS.has(nextWord))
 }
 
 /**
@@ -46,7 +58,8 @@ function continues(trimmed: string): boolean {
  *
  * Uses `Intl.Segmenter('en', { granularity: 'sentence' })`, then merges a segment into the next when
  * it ends in a known abbreviation ("e.g.", "et al.", "p.", "Fig." ...) or is under 3 characters once
- * trimmed, or ends in a single capital-letter initial ("J. K. Rowan"). A segment that starts with
+ * trimmed, or ends in a single capital-letter initial ("J. K. Rowan") unless the next segment starts with a
+ * common sentence starter ("Take vitamin C. The body needs it."). A segment that starts with
  * a lowercase letter (or "(" + lowercase) right after a "?" or "!" (the segmenter breaks after `?”` in
  * `“Is anyone listening?” the tutor asked.`) joins the sentence before it. A tiny LAST segment has no
  * next one, so it joins the previous sentence (a lone "6" after a contents line). Whitespace-only
@@ -56,7 +69,8 @@ export function segmentSentences(blockText: string): { start: number; end: numbe
   segmenter ??= new Intl.Segmenter('en', { granularity: 'sentence' })
   const out: { start: number; end: number }[] = []
   let pending: { start: number; end: number } | null = null
-  for (const { segment, index } of segmenter.segment(blockText)) {
+  const segments = [...segmenter.segment(blockText)]
+  for (const [k, { segment, index }] of segments.entries()) {
     const lead = segment.length - segment.trimStart().length
     const trimmed = segment.trim()
     if (!trimmed) continue
@@ -71,7 +85,7 @@ export function segmentSentences(blockText: string): { start: number; end: numbe
       pending = resumesPrev ? out.pop()! : { start, end }
     }
     pending.end = end
-    if (continues(trimmed)) continue
+    if (continues(trimmed, segments[k + 1]?.segment.trim())) continue
     out.push(pending)
     pending = null
   }

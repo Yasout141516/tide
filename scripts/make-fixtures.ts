@@ -56,6 +56,7 @@ type SkipReason =
   | 'figure/table caption'
   | 'table'
   | 'cover page'
+  | 'table of contents'
   | 'references'
   | 'resource list'
   | 'citation'
@@ -83,6 +84,8 @@ interface FLine {
   xs?: number[]
   /** Set when DEFAULT_FILTERS should drop the whole line. */
   skip?: SkipReason
+  /** A table-of-contents entry's title: what READ_EVERYTHING speaks (no leader, no page number). */
+  title?: string
 }
 
 interface Rect {
@@ -351,7 +354,7 @@ async function build(f: Fixture): Promise<void> {
         spoken,
         // Only citation edits exist so far, so "with citations" is the page before its edits.
         ...(p.spokenEdits ? { spokenWithCitations: unedited } : {}),
-        spokenReadEverything: joinSpoken(p.lines.map((l) => lineText(l, false))),
+        spokenReadEverything: joinSpoken(p.lines.map((l) => l.title ?? lineText(l, false))),
         skipped
       }
     })
@@ -902,14 +905,17 @@ function coverRefs(): Fixture {
   })
   pages.push({
     lines: [
-      simple('Contents', MARGIN, 90, 16),
+      simple('Contents', MARGIN, 90, 16, 'table of contents'),
       ...[
         'Introduction ........ 3',
         'Notes ........ 3',
         'Results ........ 4',
         'Discussion ........ 5',
         'References ........ 6'
-      ].map((t, k) => simple(t, MARGIN, 124 + k * 18, 11))
+      ].map((t, k) => ({
+        ...simple(t, MARGIN, 124 + k * 18, 11, 'table of contents'),
+        title: t.split(' ')[0]
+      }))
     ]
   })
   const section = (blocks: Array<[string, string[]]>, startTop = 90): FLine[] => {
@@ -998,7 +1004,7 @@ function coverRefs(): Fixture {
       '6 pages. Page 1: cover (28/16/12pt centered title lines) with the 9pt line "© 2026 Course Pack — All rights reserved". Page 2: table of contents ("Contents" 16pt, 11pt dot-leader entries including "References ........ 6"). Page 3: 14pt headings "Introduction" and a mid-document "Notes" (page 3 of 6, before 60% of the document). Pages 4-5: 14pt headings "Results", "Discussion" with body text. Page 6: a body paragraph, then a 14pt "References" heading followed by 10pt APA entries with an 18pt hanging indent. No running headers or footers.',
     notes: [
       'Page 1 is skipped by default as a cover/copyright page (© / "all rights reserved" / "course pack" markers).',
-      'Page 2 (contents) is spoken by default: the spec has no table-of-contents filter, it has no cover markers, and it has more than 2 sentences. Its "References ........ 6" line must NOT stop reading (not a standalone heading; page 2 of 6).',
+      'Page 2 (contents) is skipped by default like a cover page (owner decision 2026-11-17): the "Contents" heading and the dot-leader entries are dropped, and the page is reported as skipped with reason "contents". Its "References ........ 6" line must NOT stop reading (not a standalone heading; page 2 of 6). With READ_EVERYTHING each entry is spoken as its title alone: no leader, no page number.',
       'The page 3 "Notes" heading is a standalone heading-sized line but lies before the last 40% of the document, so it must NOT stop reading.',
       'Speech stops at the page 6 "References" heading (last 40% of the document): the heading and everything after it are not spoken by default.'
     ],
@@ -1077,6 +1083,51 @@ function ligatures(): Fixture {
           lig('The \uFB01gure shows a clear bene\uFB01t for the o\u00ADther group.', 90),
           lig('E\uFB00ects were \uFB02at in the o\uFB03ce and ba\uFB04ing elsewhere.', 108),
           lig('Responses took 450\u00A0ms on average.', 126)
+        ]
+      }
+    ]
+  }
+}
+
+function sentenceEdges(): Fixture {
+  const line = (t: string, top: number, x = MARGIN): FLine => simple(t, x, top, 11)
+  const toc = (t: string, top: number): FLine => ({
+    ...simple(t, MARGIN, top, 11, 'table of contents'),
+    title: t.split(' ')[0]
+  })
+  return {
+    name: 'sentence-edges',
+    title: 'Sentence edges',
+    description:
+      '1 page, 11pt, no headings. A sentence that ends the line "...one tutor argued that" and runs on, after a gap, into an indented (x=108) block quote "the mind keeps few items at once. ..."; a line ending in a full stop followed after a gap by a lower-case line (the gap still breaks); a 4-entry table of contents with dot leaders ("Introduction ........ 1"); then "Take vitamin C. The body needs it.", "J. K. Rowan wrote this." and "Barlow, T. M. disagreed." (each its own block), and a closing multi-line paragraph at 15pt leading (so the page line height is 15pt and the 38pt and wider gaps above are real gaps).',
+    notes: [
+      'The block quote continues the sentence before it: the gap break is suppressed when the previous line does not end in terminal punctuation and the next starts in lower case.',
+      'The table-of-contents entries are dropped by default (skipped like cover pages); the page still has text, so it is not reported as skipped. With READ_EVERYTHING each entry is its own block, spoken as its title.',
+      '"vitamin C. The" is two sentences (a sentence starter follows the initial); "J. K. Rowan" and "Barlow, T. M." are not split.'
+    ],
+    pages: [
+      {
+        lines: [
+          line('Early lecturers rarely agreed on how memory works, and one tutor argued that', 90),
+          line(
+            'the mind keeps few items at once. Later work supported her view.',
+            128,
+            MARGIN + 36
+          ),
+          line('Her students found the claim bold.', 143, MARGIN + 36),
+          line('Practice should be spread over several days.', 190),
+          line('which is why cramming fails for most learners.', 228),
+          toc('Introduction ........ 1', 280),
+          toc('Method ........ 4', 298),
+          toc('Results ........ 7', 316),
+          toc('Discussion ........ 9', 334),
+          line('Take vitamin C. The body needs it.', 380),
+          line('J. K. Rowan wrote this.', 420),
+          line('Barlow, T. M. disagreed.', 460),
+          ...para(
+            'Participants studied word lists in quiet rooms and returned a week later for a recall test. Those who tested themselves between sessions recalled more words than those who only reread. The pattern held for every list length that the team tried, from ten words up to sixty. Short lists were remembered well by everyone, so the gap between the groups was small there. Long lists showed the largest benefit, because rereading alone left most of the words unfamiliar. Volunteers also rated how confident they felt, and those ratings did not track the real scores closely. Many of them guessed that rereading had helped more than it did. The team repeated the study with a second group and saw the same result.',
+            520
+          ).lines
         ]
       }
     ]
@@ -1212,7 +1263,8 @@ async function main(): Promise<void> {
     citations,
     noText,
     ligatures,
-    longSentence
+    longSentence,
+    sentenceEdges
   ].map((f) => f())
   for (const f of fixtures) await build(f)
   writeOpenFailureFixtures()

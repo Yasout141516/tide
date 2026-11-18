@@ -17,6 +17,7 @@ const GOLDEN = [
   'tables-lists',
   'captions-tables',
   'cover-refs',
+  'sentence-edges',
   'citations',
   'ligatures',
   'long-sentence'
@@ -113,6 +114,17 @@ describe('sentences', () => {
     ])
   })
 
+  it('splits after a single capital letter that is followed by a sentence starter', () => {
+    const text = 'Take vitamin C. The body needs it. See Table A. However, this holds.'
+    const got = segmentSentences(text).map((r) => text.slice(r.start, r.end))
+    expect(got).toEqual([
+      'Take vitamin C.',
+      'The body needs it.',
+      'See Table A.',
+      'However, this holds.'
+    ])
+  })
+
   it('does not split after a single-letter initial', () => {
     const text = 'Early researcher J. K. Rowan proposed a model. Barlow, T. M. (2003). Next.'
     const got = segmentSentences(text).map((r) => text.slice(r.start, r.end))
@@ -160,7 +172,10 @@ describe('buildSentences', () => {
   })
 
   it('Read everything reads the resource sections', async () => {
-    const { sentences, skippedPages } = buildSentences(await pagesOf('tables-lists'), READ_EVERYTHING)
+    const { sentences, skippedPages } = buildSentences(
+      await pagesOf('tables-lists'),
+      READ_EVERYTHING
+    )
     const expected = sidecar('tables-lists')
       .pages.map((p) => p.spokenReadEverything)
       .filter(Boolean)
@@ -179,6 +194,61 @@ describe('buildSentences', () => {
     expect(text).not.toContain('example.org')
     expect(text).toContain('Next chapter')
     expect(skippedPages).toEqual([{ page: 4, reason: 'resources' }])
+  })
+
+  it('a block quote that continues a sentence after a gap stays one sentence', async () => {
+    const { sentences } = buildSentences(await pagesOf('sentence-edges'))
+    expect(sentences[0].text).toBe(
+      'Early lecturers rarely agreed on how memory works, and one tutor argued that the mind keeps few items at once.'
+    )
+    expect(sentences[1].text).toBe('Later work supported her view.')
+  })
+
+  it('a gap after a full stop still breaks', async () => {
+    const { sentences } = buildSentences(await pagesOf('sentence-edges'))
+    const texts = sentences.map((s) => s.text)
+    expect(texts).toContain('Practice should be spread over several days.')
+    expect(texts).toContain('which is why cramming fails for most learners.')
+  })
+
+  it('table-of-contents entries and the Contents heading are skipped by default; a page left empty is skippedPages reason "contents"', async () => {
+    const cover = buildSentences(await pagesOf('cover-refs'))
+    const text = cover.sentences.map((s) => s.text).join(' ')
+    expect(text).not.toMatch(/Contents|[.]{4}/)
+    expect(cover.skippedPages).toContainEqual({ page: 2, reason: 'contents' })
+    // A page with entries and other text keeps the text and is not reported.
+    const edges = buildSentences(await pagesOf('sentence-edges'))
+    const spoken = edges.sentences.map((s) => s.text).join(' ')
+    expect(spoken).not.toMatch(/Introduction|Method|Discussion|[.]{4}/)
+    expect(edges.skippedPages).toEqual([])
+  })
+
+  it('with cover skipping off, table-of-contents entries are spoken as their titles without leaders or page numbers', async () => {
+    const pages = await pagesOf('cover-refs')
+    const { sentences } = buildSentences(pages, READ_EVERYTHING)
+    const texts = sentences.map((s) => s.text)
+    expect(texts.slice(4, 10)).toEqual([
+      'Contents',
+      'Introduction',
+      'Notes',
+      'Results',
+      'Discussion',
+      'References'
+    ])
+    // Spans of 'Introduction' map only to the title characters of its text item.
+    const item = pages[1].items.find((i) => i.str.startsWith('Introduction'))!
+    expect(sentences[5].spans).toEqual([
+      { page: 2, itemIndex: item.index, start: 0, end: 'Introduction'.length }
+    ])
+  })
+
+  it('"vitamin C. The" is two sentences; "J. K. Rowan" and "Barlow, T. M." are not split', async () => {
+    const { sentences } = buildSentences(await pagesOf('sentence-edges'))
+    const texts = sentences.map((s) => s.text)
+    expect(texts).toContain('Take vitamin C.')
+    expect(texts).toContain('The body needs it.')
+    expect(texts).toContain('J. K. Rowan wrote this.')
+    expect(texts).toContain('Barlow, T. M. disagreed.')
   })
 
   it('no-text pdf', async () => {
@@ -232,10 +302,11 @@ describe('buildSentences', () => {
     expect(r.skippedPages).toEqual([])
   })
 
-  it('reports the pages skipped as cover pages and References', async () => {
+  it('reports the pages skipped as cover, contents and References pages', async () => {
     const r = buildSentences(await pagesOf('cover-refs'))
     expect(r.skippedPages).toEqual([
       { page: 1, reason: 'cover' },
+      { page: 2, reason: 'contents' },
       { page: 6, reason: 'references' }
     ])
     expect(buildSentences(await pagesOf('cover-refs'), READ_EVERYTHING).skippedPages).toEqual([])

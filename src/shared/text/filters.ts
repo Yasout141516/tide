@@ -4,6 +4,35 @@ import type { Line } from './types'
 /** "Page 3", "12", "xiv", "Page 4 of 10": a page number on its own. */
 const PAGE_NUMBER = /^(page\s+)?(\d{1,4}|[ivxlcdm]{1,7})(\s+of\s+\d{1,4})?$/i
 
+/** A table-of-contents entry: a title, a run of dot leaders, a page number ("Methods ..... 12"). */
+const TOC_ENTRY = /^(.*\S)\s*(?:\.\s*){4,}\s*(\d{1,4}|[ivxlc]{1,6})$/i
+
+/** The title of a table-of-contents entry line (leaders and page number removed), else null. */
+export function tocTitle(text: string): string | null {
+  const m = TOC_ENTRY.exec(text.trim())
+  // The greedy title may swallow some of the leader dots when the title ends in a full stop.
+  const title = m?.[1].replace(/[\s.]+$/, '')
+  return title ? title : null
+}
+
+/** A standalone "Contents" / "Table of contents" heading line. */
+const CONTENTS_HEADING = /^(table of contents|contents)$/i
+
+/**
+ * Drops table-of-contents entries and a standalone "Contents" heading on a page that has entries.
+ * Returns the lines kept and the 1-based pages left with no text because of it.
+ */
+export function dropContents(pages: Line[][]): { lines: Line[][]; emptied: number[] } {
+  const emptied: number[] = []
+  const lines = pages.map((l, p) => {
+    if (!l.some((x) => tocTitle(x.text) !== null)) return l
+    const kept = l.filter((x) => tocTitle(x.text) === null && !CONTENTS_HEADING.test(x.text.trim()))
+    if (kept.length === 0) emptied.push(p + 1)
+    return kept
+  })
+  return { lines, emptied }
+}
+
 type Zone = 'top' | 'bottom'
 
 /** The digit-insensitive key that identifies a running header or footer across pages. */
@@ -204,7 +233,7 @@ function alignedTableRows(lines: Line[]): Set<number> {
         return k < 0 ? [] : [k]
       })
     ).size >= 2
-  for (let i = 0; i < lines.length; ) {
+  for (let i = 0; i < lines.length;) {
     const anchor = rows[i]
     if (!anchor) {
       i++

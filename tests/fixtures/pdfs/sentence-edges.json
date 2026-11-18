@@ -1,0 +1,62 @@
+{
+  "fixture": "sentence-edges.pdf",
+  "description": "1 page, 11pt, no headings. A sentence that ends the line \"...one tutor argued that\" and runs on, after a gap, into an indented (x=108) block quote \"the mind keeps few items at once. ...\"; a line ending in a full stop followed after a gap by a lower-case line (the gap still breaks); a 4-entry table of contents with dot leaders (\"Introduction ........ 1\"); then \"Take vitamin C. The body needs it.\", \"J. K. Rowan wrote this.\" and \"Barlow, T. M. disagreed.\" (each its own block), and a closing multi-line paragraph at 15pt leading (so the page line height is 15pt and the 38pt and wider gaps above are real gaps).",
+  "pageCount": 1,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "The block quote continues the sentence before it: the gap break is suppressed when the previous line does not end in terminal punctuation and the next starts in lower case.",
+    "The table-of-contents entries are dropped by default (skipped like cover pages); the page still has text, so it is not reported as skipped. With READ_EVERYTHING each entry is its own block, spoken as its title.",
+    "\"vitamin C. The\" is two sentences (a sentence starter follows the initial); \"J. K. Rowan\" and \"Barlow, T. M.\" are not split."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Early lecturers rarely agreed on how memory works, and one tutor argued that",
+        "the mind keeps few items at once. Later work supported her view.",
+        "Her students found the claim bold.",
+        "Practice should be spread over several days.",
+        "which is why cramming fails for most learners.",
+        "Introduction ........ 1",
+        "Method ........ 4",
+        "Results ........ 7",
+        "Discussion ........ 9",
+        "Take vitamin C. The body needs it.",
+        "J. K. Rowan wrote this.",
+        "Barlow, T. M. disagreed.",
+        "Participants studied word lists in quiet rooms and returned a week later for a recall test. Those",
+        "who tested themselves between sessions recalled more words than those who only reread. The",
+        "pattern held for every list length that the team tried, from ten words up to sixty. Short lists were",
+        "remembered well by everyone, so the gap between the groups was small there. Long lists",
+        "showed the largest benefit, because rereading alone left most of the words unfamiliar.",
+        "Volunteers also rated how confident they felt, and those ratings did not track the real scores",
+        "closely. Many of them guessed that rereading had helped more than it did. The team repeated",
+        "the study with a second group and saw the same result."
+      ],
+      "spoken": "Early lecturers rarely agreed on how memory works, and one tutor argued that the mind keeps few items at once. Later work supported her view. Her students found the claim bold. Practice should be spread over several days. which is why cramming fails for most learners. Take vitamin C. The body needs it. J. K. Rowan wrote this. Barlow, T. M. disagreed. Participants studied word lists in quiet rooms and returned a week later for a recall test. Those who tested themselves between sessions recalled more words than those who only reread. The pattern held for every list length that the team tried, from ten words up to sixty. Short lists were remembered well by everyone, so the gap between the groups was small there. Long lists showed the largest benefit, because rereading alone left most of the words unfamiliar. Volunteers also rated how confident they felt, and those ratings did not track the real scores closely. Many of them guessed that rereading had helped more than it did. The team repeated the study with a second group and saw the same result.",
+      "spokenReadEverything": "Early lecturers rarely agreed on how memory works, and one tutor argued that the mind keeps few items at once. Later work supported her view. Her students found the claim bold. Practice should be spread over several days. which is why cramming fails for most learners. Introduction Method Results Discussion Take vitamin C. The body needs it. J. K. Rowan wrote this. Barlow, T. M. disagreed. Participants studied word lists in quiet rooms and returned a week later for a recall test. Those who tested themselves between sessions recalled more words than those who only reread. The pattern held for every list length that the team tried, from ten words up to sixty. Short lists were remembered well by everyone, so the gap between the groups was small there. Long lists showed the largest benefit, because rereading alone left most of the words unfamiliar. Volunteers also rated how confident they felt, and those ratings did not track the real scores closely. Many of them guessed that rereading had helped more than it did. The team repeated the study with a second group and saw the same result.",
+      "skipped": [
+        {
+          "text": "Introduction ........ 1",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Method ........ 4",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Results ........ 7",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Discussion ........ 9",
+          "reason": "table of contents"
+        }
+      ]
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { tocTitle } from './filters'
 import { normalizeText } from './normalize'
 import type { Line, Span } from './types'
 
@@ -129,6 +130,18 @@ export class SpokenText {
    * "ex-" + "perience").
    */
   appendLine(line: Line): void {
+    // A table-of-contents entry is a block of its own, spoken as its title: no leader, no page number.
+    const title = tocTitle(line.text)
+    if (title !== null) {
+      this.hardBreak()
+      this.appendText({ ...line, text: title })
+      this.hardBreak()
+      return
+    }
+    this.appendText(line)
+  }
+
+  private appendText(line: Line): void {
     const segs = lineSegments(line)
     if (segs.length === 0) return
     if (this.current.length > 0) {

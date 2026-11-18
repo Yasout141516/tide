@@ -9,7 +9,7 @@
   "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
   "notes": [
     "Page 1 is skipped by default as a cover/copyright page (© / \"all rights reserved\" / \"course pack\" markers).",
-    "Page 2 (contents) is spoken by default: the spec has no table-of-contents filter, it has no cover markers, and it has more than 2 sentences. Its \"References ........ 6\" line must NOT stop reading (not a standalone heading; page 2 of 6).",
+    "Page 2 (contents) is skipped by default like a cover page (owner decision 2026-11-17): the \"Contents\" heading and the dot-leader entries are dropped, and the page is reported as skipped with reason \"contents\". Its \"References ........ 6\" line must NOT stop reading (not a standalone heading; page 2 of 6). With READ_EVERYTHING each entry is spoken as its title alone: no leader, no page number.",
     "The page 3 \"Notes\" heading is a standalone heading-sized line but lies before the last 40% of the document, so it must NOT stop reading.",
     "Speech stops at the page 6 \"References\" heading (last 40% of the document): the heading and everything after it are not spoken by default."
   ],
@@ -53,9 +53,34 @@
         "Discussion ........ 5",
         "References ........ 6"
       ],
-      "spoken": "Contents Introduction ........ 3 Notes ........ 3 Results ........ 4 Discussion ........ 5 References ........ 6",
-      "spokenReadEverything": "Contents Introduction ........ 3 Notes ........ 3 Results ........ 4 Discussion ........ 5 References ........ 6",
-      "skipped": []
+      "spoken": "",
+      "spokenReadEverything": "Contents Introduction Notes Results Discussion References",
+      "skipped": [
+        {
+          "text": "Contents",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Introduction ........ 3",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Notes ........ 3",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Results ........ 4",
+          "reason": "table of contents"
+        },
+        {
+          "text": "Discussion ........ 5",
+          "reason": "table of contents"
+        },
+        {
+          "text": "References ........ 6",
+          "reason": "table of contents"
+        }
+      ]
     },
     {
       "page": 3,

@@ -3,6 +3,7 @@ import {
   bodyFontSize,
   coverPages,
   dropCaptionsAndTables,
+  dropContents,
   dropFootnotes,
   dropHeadersFooters,
   lineHeight,
@@ -25,13 +26,18 @@ const HEADING_RATIO = 1.15
 /** A baseline gap this many line heights wide starts a new block (a paragraph or section break). */
 const GAP_RATIO = 1.4
 
+/** A line ending like this ends a sentence (or introduces something): the next line starts afresh. */
+const SENTENCE_END = /[.!?:;]["'”’)\]]*$/
+/** A line starting like this (lower case, maybe after an opening quote or bracket) continues a sentence. */
+const QUOTE_START = /^["'“‘(]?[a-z]/
+
 export interface BuildResult {
   /** The sentences to speak, in reading order; `id` is the 0-based position. */
   sentences: Sentence[]
   /** 1-based pages with no text at all (e.g. a scanned page with no text layer). */
   textlessPages: number[]
   /**
-   * 1-based pages the cover-page and References rules skipped, in page order, so the reader can offer
+   * 1-based pages the cover-page, contents and References rules skipped, in page order, so the reader can offer
    * "Read everything". A cover page is skipped whole. A References page is skipped from the
    * References heading on: the heading's own page may still have body text spoken above the heading.
    * Pages with no text are listed only in `textlessPages`.
@@ -41,7 +47,7 @@ export interface BuildResult {
 
 export interface SkippedPage {
   page: number
-  reason: 'cover' | 'references' | 'resources'
+  reason: 'cover' | 'contents' | 'references' | 'resources'
 }
 
 /**
@@ -80,6 +86,13 @@ export function buildSentences(
     }
   }
   if (filters.skipHeadersFooters) lines = dropHeadersFooters(lines, heights)
+  if (filters.skipCoverPages) {
+    // Table-of-contents entries (and their "Contents" heading) go like cover pages; a page left with
+    // no text is reported. With the setting off, SpokenText speaks each entry as its title alone.
+    const dropped = dropContents(lines)
+    lines = dropped.lines
+    for (const page of dropped.emptied) skippedPages.push({ page, reason: 'contents' })
+  }
   if (filters.skipFootnotes) lines = dropFootnotes(lines, heights, body)
   if (filters.skipCaptionsTables) lines = dropCaptionsAndTables(lines, body)
   if (filters.stopAtReferences) {
@@ -106,8 +119,8 @@ export function buildSentences(
       }
     }
     lines = lines.map((l, p) => (dropped[p].size ? l.filter((_, k) => !dropped[p].has(k)) : l))
-    skippedPages.sort((a, b) => a.page - b.page)
   }
+  skippedPages.sort((a, b) => a.page - b.page)
 
   // A compound split by a line break keeps its hyphen if the document writes it whole anywhere, or
   // starts with a compound prefix and its right part is a word of the document (see keepsHyphen).
@@ -140,7 +153,11 @@ function appendPage(spoken: SpokenText, lines: Line[], body: number): void {
     // A heading wrapped over two lines is one block: same size, and the gap scaled to its font size.
     if (heading(prev) && heading(l) && Math.abs(prev.fontSize - l.fontSize) <= 0.5)
       return gap < 0 || gap > GAP_RATIO * lh * (l.fontSize / body)
-    return heading(prev) || heading(l) || gap > GAP_RATIO * lh
+    if (heading(prev) || heading(l)) return true
+    // A block quote after a gap continues the sentence before it: that sentence has not ended, and
+    // the quote starts in lower case.
+    if (!SENTENCE_END.test(prev.text) && QUOTE_START.test(l.text)) return false
+    return gap > GAP_RATIO * lh
   }
   lines.forEach((l, i) => {
     if (breakBefore(lines[i - 1], l)) spoken.hardBreak()
