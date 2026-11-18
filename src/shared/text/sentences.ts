@@ -48,6 +48,8 @@ function continues(trimmed: string, next: string | undefined): boolean {
   const last = trimmed.slice(trimmed.lastIndexOf(' ') + 1).replace(/^[("'“‘[]+/, '')
   if (ABBREVIATIONS.has(last.toLowerCase())) return true
   if (!/^[A-Z]\.$/.test(last)) return false
+  // Another initial ("A.") is never a sentence start: "Smith, J. A. found it" stays whole.
+  if (next && /^[A-Z]\.(\s|$)/.test(next)) return true
   const nextWord = next?.replace(/^[("'“‘[]+/, '').match(/^[A-Za-z]+/)?.[0]
   return !(nextWord && SENTENCE_STARTERS.has(nextWord))
 }

@@ -125,6 +125,19 @@ describe('sentences', () => {
     ])
   })
 
+  it('keeps two initials in a row together', () => {
+    const text =
+      'Smith, J. A. found it. Next. Lee, K. A. (2019) argued this. Take vitamin C. The body needs it.'
+    const got = segmentSentences(text).map((r) => text.slice(r.start, r.end))
+    expect(got).toEqual([
+      'Smith, J. A. found it.',
+      'Next.',
+      'Lee, K. A. (2019) argued this.',
+      'Take vitamin C.',
+      'The body needs it.'
+    ])
+  })
+
   it('does not split after a single-letter initial', () => {
     const text = 'Early researcher J. K. Rowan proposed a model. Barlow, T. M. (2003). Next.'
     const got = segmentSentences(text).map((r) => text.slice(r.start, r.end))
