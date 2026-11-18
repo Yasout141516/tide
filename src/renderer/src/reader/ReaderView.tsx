@@ -55,6 +55,16 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   const bytes = useRef<Uint8Array | null>(null)
   const [sizes, setSizes] = useState<Size[] | null>(null)
   const [stageWidth, setStageWidth] = useState(0)
+  // Bumped on each wrong password, so the dialog starts with an empty field again.
+  const [wrongCount, setWrongCount] = useState(0)
+  const alive = useRef(true)
+  const opening = useRef(false)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
   const [range, setRange] = useState<[number, number] | null>(null)
   const [topPage, setTopPage] = useState(anchorPage)
   const [anchorDone, setAnchorDone] = useState(false)
@@ -75,7 +85,10 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
       }
       if (r.kind === 'ok') setOpen({ kind: 'ready', doc: r.doc })
       else if (r.kind === 'damaged') setOpen({ kind: 'damaged' })
-      else setOpen({ kind: 'password', wrong: r.kind === 'wrong-password' })
+      else {
+        if (r.kind === 'wrong-password') setWrongCount((c) => c + 1)
+        setOpen({ kind: 'password', wrong: r.kind === 'wrong-password' })
+      }
     },
     [deps]
   )
@@ -328,12 +341,16 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   else if (open.kind === 'password')
     dialog = (
       <PasswordDialog
-        key={open.wrong ? 'wrong' : 'first'}
+        key={wrongCount}
         wrong={open.wrong}
         onCancel={onClose}
         onOpen={(pw) => {
           const data = bytes.current
-          if (data) void tryOpen(data, pw, () => false)
+          if (!data || opening.current) return
+          opening.current = true
+          void tryOpen(data, pw, () => !alive.current).finally(() => {
+            opening.current = false
+          })
         }}
       />
     )
@@ -342,7 +359,7 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
     <div ref={scroller} onScroll={onScroll} className="relative h-full overflow-y-auto">
       {message}
       {doc && sizes ? (
-        <div className="flex flex-col items-center gap-4 px-7 py-4">
+        <div className="flex w-max min-w-full flex-col items-center gap-4 px-7 py-4">
           {sizes.map((s, i) => {
             const n = i + 1
             // Each page fills the column; its own width sets its scale.

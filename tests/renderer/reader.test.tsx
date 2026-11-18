@@ -76,6 +76,8 @@ describe('Reader open states', () => {
     await userEvent.type(within(d).getByLabelText('Password'), 'nope')
     await userEvent.click(within(d).getByRole('button', { name: 'Open' }))
     expect(await screen.findByText("That password didn't work. Try again.")).toBeTruthy()
+    // A wrong attempt starts again with an empty field.
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('')
     await userEvent.type(screen.getByLabelText('Password'), 'tide')
     await userEvent.click(screen.getByRole('button', { name: 'Open' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -191,5 +193,62 @@ describe('Text size', () => {
     await waitFor(() => expect(width()).toBeCloseTo(820 * 0.8))
     act(() => t.emit({ type: 'zoom', step: -1 }))
     expect(t.calls['library.setZoom']).toEqual([[0.8]])
+  })
+})
+
+describe('Lazy canvases', () => {
+  type Entry = { target: Element; isIntersecting: boolean }
+  class ControlledIO {
+    static last: ControlledIO
+    els: Element[] = []
+    constructor(public cb: (e: Entry[]) => void) {
+      ControlledIO.last = this
+    }
+    observe(el: Element): void {
+      this.els.push(el)
+    }
+    unobserve(): void {
+      // no-op
+    }
+    disconnect(): void {
+      // no-op
+    }
+    see(visible: number[]): void {
+      this.cb(
+        this.els.map((el) => ({
+          target: el,
+          isIntersecting: visible.includes(Number((el as HTMLElement).dataset.page))
+        }))
+      )
+    }
+  }
+
+  it('a page outside the window releases its canvas and an in-flight render is aborted', async () => {
+    globalThis.IntersectionObserver = ControlledIO as unknown as typeof IntersectionObserver
+    const doc = fakeDoc(bodyPages(8))
+    const signals: Record<number, AbortSignal> = {}
+    doc.render.mockImplementation(
+      (n: number, canvas: HTMLCanvasElement, _s: number, sig: AbortSignal) => {
+        signals[n] = sig
+        canvas.width = 100
+        // Page 2 never finishes by itself: it is still in flight when the window moves.
+        return n === 2 ? new Promise<void>(() => {}) : Promise.resolve()
+      }
+    )
+    await openReading(fakeDeps({ kind: 'ok', doc }), { pageCount: 8 })
+    const canvas = (n: number): HTMLCanvasElement =>
+      pageBox(n).querySelector('canvas') as HTMLCanvasElement
+    await waitFor(() => expect(signals[2]).toBeTruthy())
+    expect(canvas(1).width).toBe(100)
+    expect(signals[2].aborted).toBe(false)
+    expect(canvas(7).width).toBe(0)
+
+    act(() => ControlledIO.last.see([6]))
+    await waitFor(() => expect(canvas(1).width).toBe(0))
+    expect(signals[2].aborted).toBe(true)
+    // Pages 5 to 7 (visible 6 plus one either side) now hold canvases.
+    await waitFor(() => expect(canvas(7).width).toBe(100))
+    expect(canvas(5).width).toBe(100)
+    expect(canvas(8).width).toBe(0)
   })
 })

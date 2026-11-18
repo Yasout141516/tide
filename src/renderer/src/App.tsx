@@ -63,13 +63,19 @@ function App(): React.JSX.Element {
   // Menu commands. `start` is read through a ref so the subscription is made once.
   const startRef = useRef(adding.start)
   const zoomRef = useRef(1)
+  const libZoomRef = useRef(1)
   const pickRef = useRef(adding.handlePick)
   const failedRef = useRef(adding.openFailed)
   useEffect(() => {
     startRef.current = adding.start
     pickRef.current = adding.handlePick
     failedRef.current = adding.openFailed
-    zoomRef.current = library?.settings.zoom ?? 1
+    // Follow the library only when it changes: a held key can send steps faster than snapshots arrive.
+    const libZoom = library?.settings.zoom ?? 1
+    if (libZoom !== libZoomRef.current) {
+      libZoomRef.current = libZoom
+      zoomRef.current = libZoom
+    }
   })
   useEffect(
     () =>

@@ -129,3 +129,52 @@ test('the bundled pdf.js cMaps, standard fonts, ICC profiles and wasm load same-
   const built = await readdir(resolve(__dirname, '..', '..', 'out', 'renderer', 'pdfjs'))
   expect(built.sort()).toEqual(['cmaps', 'iccs', 'standard_fonts', 'wasm'])
 })
+
+test('the text pipeline runs in its worker: a PDF with no text shows the scanned-copy message', async () => {
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  const win = await app.firstWindow()
+  const messages: string[] = []
+  win.on('console', (m) => messages.push(m.text()))
+  win.on('pageerror', (e) => messages.push(String(e)))
+  await addAndOpen(app, win, 'no-text.pdf')
+  // Only a finished worker build (textlessPages) produces this message.
+  await expect(
+    win.getByText("Tide couldn't find any text in this PDF. It may be a scanned copy.")
+  ).toBeVisible()
+  expect(messages.filter((m) => /Content Security Policy|Refused to|Worker/.test(m))).toEqual([])
+  await app.close()
+})
+
+test('at 200% the left edge of the page can be scrolled into view', async () => {
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  const win = await app.firstWindow()
+  await addAndOpen(app, win, 'two-column.pdf')
+  await expect(win.locator('[data-page="1"]')).toBeVisible()
+  for (let i = 0; i < 10; i++)
+    await app.evaluate(({ Menu }) => {
+      const view = Menu.getApplicationMenu()!.items.find((m) => m.label === 'View')!
+      view.submenu!.items[0].click()
+    })
+  // At 200% the page is twice the column, wider than the stage.
+  await expect
+    .poll(() =>
+      win.evaluate(() => {
+        const page = document.querySelector<HTMLElement>('[data-page="1"]')!
+        return page.clientWidth / page.closest<HTMLElement>('.overflow-y-auto')!.clientWidth
+      })
+    )
+    .toBeGreaterThan(1.2)
+  const edge = await win.evaluate(() => {
+    const page = document.querySelector<HTMLElement>('[data-page="1"]')!
+    const scroller = page.closest<HTMLElement>('.overflow-y-auto')!
+    scroller.scrollLeft = 0
+    return {
+      overflows: scroller.scrollWidth > scroller.clientWidth,
+      left: page.getBoundingClientRect().left - scroller.getBoundingClientRect().left
+    }
+  })
+  expect(edge.overflows).toBe(true)
+  // At scrollLeft 0 the page starts inside the scroller (its left gutter), not off to the left.
+  expect(edge.left).toBeGreaterThanOrEqual(0)
+  await app.close()
+})

@@ -28,8 +28,8 @@ export function AppShell({ renderShelf, stage, player }: Props): React.JSX.Eleme
     <div
       className={
         narrow
-          ? 'grid h-full grid-cols-[1fr] grid-rows-[1fr_auto]'
-          : 'grid h-full grid-cols-[240px_1fr] grid-rows-[1fr_auto]'
+          ? 'grid h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr_auto]'
+          : 'grid h-full grid-cols-[240px_minmax(0,1fr)] grid-rows-[1fr_auto]'
       }
     >
       {narrow ? null : (
@@ -40,7 +40,7 @@ export function AppShell({ renderShelf, stage, player }: Props): React.JSX.Eleme
           {renderShelf(close)}
         </aside>
       )}
-      <div className={`flex min-h-0 flex-col ${STAGE_BG}`}>
+      <div className={`flex min-h-0 min-w-0 flex-col ${STAGE_BG}`}>
         {narrow ? (
           <div className="flex items-center gap-4 px-5 pt-3">
             <Dialog.Root open={open} onOpenChange={setOpen}>
