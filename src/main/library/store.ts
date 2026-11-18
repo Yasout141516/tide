@@ -15,11 +15,16 @@ const exists = (p: string): Promise<boolean> =>
   )
 
 async function readParsed(path: string): Promise<{ present: boolean; data: LibraryFile | null }> {
-  let text: string
+  let text = ''
   try {
-    text = await readFile(path, 'utf8')
-  } catch {
-    return { present: false, data: null }
+    // Only "not there" means absent. Any other failure (a lock, permissions) is retried and then thrown,
+    // so an unreadable shelf is never mistaken for a missing one.
+    await withRetry(async () => {
+      text = await readFile(path, 'utf8')
+    })
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { present: false, data: null }
+    throw err
   }
   try {
     return { present: true, data: parseLibrary(JSON.parse(text)) }
@@ -95,8 +100,9 @@ export class LibraryStore {
       this.enqueue()
       return
     }
-    if (this.timer) clearTimeout(this.timer)
-    this.timer = setTimeout(() => this.enqueue(), this.debounceMs)
+    // The first change after a write starts the clock and later ones do not restart it, so steady updates
+    // still reach disk every debounceMs (a trailing debounce would starve) and never more often.
+    if (!this.timer) this.timer = setTimeout(() => this.enqueue(), this.debounceMs)
   }
 
   /** Writes any pending change now. Resolves true when everything is on disk, false when a write failed. */

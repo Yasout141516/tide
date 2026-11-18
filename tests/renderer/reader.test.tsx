@@ -251,6 +251,28 @@ describe('Lazy canvases', () => {
     }
   }
 
+  it('text extraction still starts when she scrolls away and the anchor render is aborted', async () => {
+    vi.stubGlobal('IntersectionObserver', ControlledIO)
+    const doc = fakeDoc(bodyPages(8))
+    doc.render.mockImplementation(
+      (n: number, _c: HTMLCanvasElement, _s: number, sig: AbortSignal) =>
+        // Page 1 (her place) never finishes by itself; it only ends when the window moves away.
+        n === 1
+          ? new Promise<void>((_, reject) =>
+              sig.addEventListener('abort', () => reject(new Error('aborted')))
+            )
+          : Promise.resolve()
+    )
+    await openReading(fakeDeps({ kind: 'ok', doc }), { pageCount: 8 })
+    await waitFor(() => expect(doc.render).toHaveBeenCalled())
+    expect(doc.pageText).not.toHaveBeenCalled()
+    act(() => ControlledIO.last.see([7]))
+    await waitFor(() => expect(doc.pageText).toHaveBeenCalledTimes(8))
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid="sentence-highlight"]')).toBeTruthy()
+    )
+  })
+
   it('a page outside the window releases its canvas and an in-flight render is aborted', async () => {
     vi.stubGlobal('IntersectionObserver', ControlledIO)
     const doc = fakeDoc(bodyPages(8))

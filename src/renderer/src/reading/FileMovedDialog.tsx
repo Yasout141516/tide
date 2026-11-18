@@ -8,8 +8,11 @@ import { RemoveDialog } from './RemoveDialog'
 
 type Props = {
   reading: ReadingView
-  /** `opened` is true when the file was found and the reading should open. */
-  onDone(opened: boolean): void
+  /**
+   * `opened` is true when the file was found and the reading should open. `fresh` is true when a different
+   * file was accepted, so the old place no longer applies.
+   */
+  onDone(opened: boolean, fresh?: boolean): void
 }
 
 type View =
@@ -56,7 +59,7 @@ export function FileMovedDialog({ reading, onDone }: Props): React.JSX.Element {
     setBusy(true)
     try {
       await tide().library.useDifferentFile(reading.id, pickId)
-      onDone(true)
+      onDone(true, true)
     } catch (err) {
       setView(libraryErrorCode(err) === 'already-on-shelf' ? ON_SHELF : FAILED)
     } finally {

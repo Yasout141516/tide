@@ -43,18 +43,40 @@ const noticeCard =
 
 /**
  * The reading's pages (lazy canvases), its text (pipeline in a worker) and the states around them.
- * Mount with `key={reading.id}`: it holds one open PDF.
+ * Mount with `key={reading.id}`: it holds one open PDF. When the file is found again from the File moved
+ * dialog, the whole session is remounted, so a different file opens at the start and a relinked one at her place.
  */
-export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Element {
+export function ReaderView(props: Props): React.JSX.Element {
+  const [run, setRun] = useState({ generation: 0, fresh: false })
+  return (
+    <ReaderSession
+      key={run.generation}
+      {...props}
+      fresh={run.fresh}
+      onReopen={(fresh) => setRun((r) => ({ generation: r.generation + 1, fresh }))}
+    />
+  )
+}
+
+function ReaderSession({
+  reading,
+  snapshot,
+  onClose,
+  fresh,
+  onReopen
+}: Props & {
+  /** A different file was accepted: ignore the stored place. */
+  fresh: boolean
+  onReopen(fresh: boolean): void
+}): React.JSX.Element {
   const deps = useReaderDeps()
   const report = useReportReader()
   const { current, setCurrent, sentences: reported } = useReaderState()
   const zoom = snapshot.settings.zoom
 
   // Where she resumes: read once, so later position writes never scroll the page.
-  const [anchorPage] = useState(() => reading.position?.page ?? 1)
+  const [anchorPage] = useState(() => (fresh ? 1 : (reading.position?.page ?? 1)))
   const [open, setOpen] = useState<Open>({ kind: 'loading' })
-  const [attempt, setAttempt] = useState(0)
   const bytes = useRef<Uint8Array | null>(null)
   const [sizes, setSizes] = useState<Size[] | null>(null)
   const [stageWidth, setStageWidth] = useState(0)
@@ -113,7 +135,7 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
     return () => {
       dead = true
     }
-  }, [reading.id, attempt, tryOpen])
+  }, [reading.id, tryOpen])
 
   const doc = open.kind === 'ready' ? open.doc : null
   useEffect(() => {
@@ -246,8 +268,9 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   useEffect(() => {
     if (!pages) return
     let stale = false
+    const ctl = new AbortController()
     deps
-      .buildSentences(pages, filters)
+      .buildSentences(pages, filters, ctl.signal)
       .then((r) => {
         if (!stale) setBuilt(r)
       })
@@ -256,6 +279,8 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
       })
     return () => {
       stale = true
+      // Stop the superseded worker, not just ignore its answer.
+      ctl.abort()
     }
   }, [pages, filters, deps])
 
@@ -267,7 +292,7 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
   useEffect(() => () => report({ sentences: [], topPage: 1, numPages: null }), [report])
 
   // --- Current sentence: resume, stepping, saving her place -----------------------------------
-  const [startAnchor] = useState(() => reading.position)
+  const [startAnchor] = useState(() => (fresh ? null : reading.position))
   const currentRef = useRef(current)
   useEffect(() => {
     currentRef.current = current
@@ -426,10 +451,9 @@ export function ReaderView({ reading, snapshot, onClose }: Props): React.JSX.Ele
     dialog = (
       <FileMovedDialog
         reading={reading}
-        onDone={(opened) => {
+        onDone={(opened, isFresh) => {
           if (!opened) return onClose()
-          setOpen({ kind: 'loading' })
-          setAttempt((a) => a + 1)
+          onReopen(isFresh === true)
         }}
       />
     )

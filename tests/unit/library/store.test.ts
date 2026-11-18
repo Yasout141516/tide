@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const faults = vi.hoisted(() => ({ copyFile: 0, writeFile: 0 }))
+const faults = vi.hoisted(() => ({ copyFile: 0, writeFile: 0, readFile: 0, writes: 0 }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs/promises')>()
   const fail = (): Error => Object.assign(new Error('injected'), { code: 'EIO' })
@@ -11,8 +11,16 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...real,
     copyFile: (...a: Parameters<typeof real.copyFile>) =>
       faults.copyFile > 0 ? (faults.copyFile--, Promise.reject(fail())) : real.copyFile(...a),
-    writeFile: (...a: Parameters<typeof real.writeFile>) =>
-      faults.writeFile > 0 ? (faults.writeFile--, Promise.reject(fail())) : real.writeFile(...a)
+    readFile: (...a: Parameters<typeof real.readFile>) =>
+      faults.readFile > 0
+        ? (faults.readFile--, Promise.reject(Object.assign(new Error('locked'), { code: 'EBUSY' })))
+        : real.readFile(...a),
+    writeFile: (...a: Parameters<typeof real.writeFile>) => {
+      faults.writes++
+      return faults.writeFile > 0
+        ? (faults.writeFile--, Promise.reject(fail()))
+        : real.writeFile(...a)
+    }
   }
 })
 import { emptyLibrary, parseLibrary } from '../../../src/main/library/schema'
@@ -23,6 +31,8 @@ let dir: string
 beforeEach(async () => {
   faults.copyFile = 0
   faults.writeFile = 0
+  faults.readFile = 0
+  faults.writes = 0
   vi.spyOn(console, 'error').mockImplementation(() => {})
   dir = await mkdtemp(join(tmpdir(), 'tide-store-'))
 })
@@ -129,6 +139,48 @@ describe('LibraryStore', () => {
     expect(JSON.parse(await readFile(join(dir, aside[0]), 'utf8')).schemaVersion).toBe(2)
   })
 
+  it('a valid primary refreshes the backup on each write', async () => {
+    await writeFile(join(dir, 'library.backup.json'), jsonOf(libWith('stale')))
+    await writeFile(join(dir, 'library.json'), jsonOf(libWith('a')))
+    const store = await open()
+    expect(store.loadedFrom).toBe('library')
+    store.update((d) => d.readings.push(reading('b')), { urgent: true })
+    await store.flush()
+    expect(ids(await readJson('library.backup.json'))).toEqual(['a'])
+    expect(ids(await readJson('library.json'))).toEqual(['a', 'b'])
+  })
+
+  it('recovers when reading library.json is briefly locked', async () => {
+    await writeFile(join(dir, 'library.json'), jsonOf(libWith('a')))
+    faults.readFile = 2
+    const store = await open()
+    expect(store.loadedFrom).toBe('library')
+    expect(ids(store.data())).toEqual(['a'])
+  })
+
+  it('refuses to open, touching nothing, when library.json stays unreadable', async () => {
+    const primary = jsonOf(libWith('new'))
+    const backup = jsonOf(libWith('old'))
+    await writeFile(join(dir, 'library.json'), primary)
+    await writeFile(join(dir, 'library.backup.json'), backup)
+    faults.readFile = 100
+    await expect(open()).rejects.toThrow()
+    faults.readFile = 0
+    expect(await readFile(join(dir, 'library.json'), 'utf8')).toBe(primary)
+    expect(await readFile(join(dir, 'library.backup.json'), 'utf8')).toBe(backup)
+    expect(await readdir(dir)).toHaveLength(2)
+  })
+
+  it('refuses to open with no backup when library.json is unreadable, leaving it alone', async () => {
+    const primary = jsonOf(libWith('new'))
+    await writeFile(join(dir, 'library.json'), primary)
+    faults.readFile = 100
+    await expect(open()).rejects.toThrow()
+    faults.readFile = 0
+    expect(await readdir(dir)).toEqual(['library.json'])
+    expect(await readFile(join(dir, 'library.json'), 'utf8')).toBe(primary)
+  })
+
   it('still updates library.json when the backup copy fails', async () => {
     const store = await open()
     store.update((d) => d.readings.push(reading('r1')), { urgent: true })
@@ -191,6 +243,23 @@ describe('LibraryStore', () => {
     expect(await readdir(dir)).toEqual([])
     await store.flush()
     expect(ids(await readJson('library.json'))).toHaveLength(10)
+  })
+
+  it('steady updates are written about every debounce interval, not starved', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = await LibraryStore.open(dir, { debounceMs: 3000 })
+      for (let t = 0; t < 10; t++) {
+        store.update((d) => d.readings.push(reading(`r${t}`)))
+        await vi.advanceTimersByTimeAsync(1000)
+      }
+      // Disk writes at about 3 s, 6 s and 9 s (updates every 1 s for 10 s): never starved, never more often.
+      vi.useRealTimers()
+      await sleep(100) // the queued writes drain on real I/O
+      expect(faults.writes).toBe(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('writes after the debounce delay on its own', async () => {

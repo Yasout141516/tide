@@ -67,4 +67,25 @@ describe('buildSentencesInWorker', () => {
     await expect(b).rejects.toThrow('crashed')
     expect(wb.terminated).toBe(true)
   })
+
+  it('aborting the signal terminates the superseded worker and rejects the call', async () => {
+    vi.stubGlobal('Worker', FakeWorker)
+    const ctl = new AbortController()
+    const p = buildSentencesInWorker(pages, DEFAULT_FILTERS, ctl.signal)
+    const w = FakeWorker.all[0]
+    expect(w.terminated).toBe(false)
+    ctl.abort()
+    expect(w.terminated).toBe(true)
+    await expect(p).rejects.toThrow(/abort/i)
+  })
+
+  it('an already aborted signal never starts a worker', async () => {
+    vi.stubGlobal('Worker', FakeWorker)
+    const ctl = new AbortController()
+    ctl.abort()
+    await expect(buildSentencesInWorker(pages, DEFAULT_FILTERS, ctl.signal)).rejects.toThrow(
+      /abort/i
+    )
+    expect(FakeWorker.all).toHaveLength(0)
+  })
 })

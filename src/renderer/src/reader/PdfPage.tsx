@@ -14,7 +14,7 @@ type Props = {
   /** Inside the render window: holds a canvas. Outside it the canvas is released. */
   active: boolean
   textless: boolean
-  /** Called when a render finished (or failed); not when it was aborted. */
+  /** Called when a render finished, failed or was aborted (she scrolled away): text extraction must not wait on pixels. */
   onSettled(n: number): void
   /** The current sentence's rectangles on this page (PDF points). */
   highlight?: { rects: Rect[]; sentenceId: number }
@@ -53,9 +53,7 @@ export function PdfPage({
     doc
       .render(n, el, scale, ctl.signal)
       .then(() => settled.current(n))
-      .catch(() => {
-        if (!ctl.signal.aborted) settled.current(n)
-      })
+      .catch(() => settled.current(n))
     return () => ctl.abort()
   }, [doc, n, scale, active])
 

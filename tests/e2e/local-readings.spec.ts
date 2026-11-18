@@ -74,15 +74,14 @@ pdfs.forEach((file, i) => {
     await app.close()
     app = await launchTide({ TIDE_USER_DATA: userData })
     win = await app.firstWindow()
-    // Open the added reading by its saved title (read from disk, never logged).
+    // Open the only saved reading by its id (read from disk); no title is ever used in a locator.
     const saved = JSON.parse(readFileSync(join(userData, 'library.json'), 'utf8')) as {
-      readings: { title: string }[]
+      readings: { id: string }[]
     }
     expect(saved.readings).toHaveLength(1)
     await win
       .getByRole('navigation', { name: 'Readings' })
-      .getByRole('button', { name: saved.readings[0].title })
-      .first()
+      .locator(`[data-reading-id="${saved.readings[0].id}"]`)
       .click()
     await expect.poll(() => current(win), { timeout: 60_000 }).toEqual([at])
     await app.close()

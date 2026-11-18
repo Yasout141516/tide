@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import type { ReadingView } from '../../src/shared/library/types'
 import { fakeTide } from './setup'
-import { renderApp } from './reader-fakes'
+import { renderApp, fakeDeps, fakeDoc, bodyPages } from './reader-fakes'
 
 const base: ReadingView = {
   id: 'r1',
@@ -86,6 +86,30 @@ describe('File moved flow and the More menu', () => {
     await userEvent.click(within(d).getByRole('button', { name: 'Use it anyway' }))
     expect(t.calls['library.useDifferentFile']).toEqual([['r1', 'p1']])
     expect(t.calls['library.update']).toEqual([['r1', { opened: true }]])
+  })
+
+  it('using a different file reopens the reader at the start, not at the old place', async () => {
+    // The shelf thinks the file is there; opening it finds it gone (the in-reader File moved dialog).
+    const docs = [fakeDoc(bodyPages(10)), fakeDoc(bodyPages(10))]
+    let opened = 0
+    const t = fakeTide({ snapshot: { readings: [base] } })
+    t.library.findFile = async () => ({ kind: 'different', pickId: 'p1', fileName: 'x.pdf' })
+    let missing = true
+    t.library.readPdf = async () =>
+      missing ? { ok: false, reason: 'missing' } : { ok: true, data: new Uint8Array([1]) }
+    t.library.useDifferentFile = async () => {
+      missing = false
+    }
+    setTide(t)
+    renderApp(fakeDeps(() => ({ kind: 'ok', doc: docs[opened++] })))
+    await screen.findByRole('button', { name: /^Memory and Attention/ })
+    await clickRow()
+    await userEvent.click(await screen.findByRole('button', { name: 'Find the file' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Use it anyway' }))
+    // The library still says position page 4 (a stale snapshot); the new file must open at page 1.
+    await waitFor(() => expect(docs[0].render).toHaveBeenCalled())
+    expect(docs[0].render.mock.calls.map((c) => c[0])).toContain(1)
+    expect(docs[0].render.mock.calls.map((c) => c[0])).not.toContain(4)
   })
 
   it('a file that is already on the shelf says so and changes nothing', async () => {

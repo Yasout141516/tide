@@ -7,14 +7,18 @@ import type { PageText, ReadingFilters } from '../../../shared/text/types'
 export interface ReaderDepsValue {
   openPdf(data: Uint8Array, password?: string): Promise<OpenPdfResult>
   /** The text pipeline; the default runs it in a Web Worker. */
-  buildSentences(pages: PageText[], filters: ReadingFilters): Promise<BuildResult>
+  buildSentences(
+    pages: PageText[],
+    filters: ReadingFilters,
+    signal?: AbortSignal
+  ): Promise<BuildResult>
 }
 
 // pdf.js is loaded on first use, so importing this file (and App) never pulls it into jsdom tests.
 const defaultDeps: ReaderDepsValue = {
   openPdf: async (data, password) => (await import('./pdf')).openPdf(data, password),
-  buildSentences: async (pages, filters) =>
-    (await import('./pipeline-client')).buildSentencesInWorker(pages, filters)
+  buildSentences: async (pages, filters, signal) =>
+    (await import('./pipeline-client')).buildSentencesInWorker(pages, filters, signal)
 }
 
 const ReaderDeps = createContext<ReaderDepsValue>(defaultDeps)

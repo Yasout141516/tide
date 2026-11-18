@@ -6,12 +6,15 @@ let nextId = 1
 
 /**
  * Runs the text pipeline in a Web Worker so a long reading never freezes the page. One worker per call,
- * terminated afterwards; a reply that does not carry this call's request id is ignored.
+ * terminated afterwards; a reply that does not carry this call's request id is ignored. Aborting the signal
+ * (a newer request supersedes this one) terminates the worker and rejects.
  */
 export function buildSentencesInWorker(
   pages: PageText[],
-  filters: ReadingFilters
+  filters: ReadingFilters,
+  signal?: AbortSignal
 ): Promise<BuildResult> {
+  if (signal?.aborted) return Promise.reject(new Error('The text build was aborted'))
   const worker = new Worker(new URL('./pipeline.worker.ts', import.meta.url), { type: 'module' })
   const id = nextId++
   return new Promise<BuildResult>((resolve, reject) => {
@@ -25,6 +28,14 @@ export function buildSentencesInWorker(
       worker.terminate()
       reject(new Error(e.message || 'the text worker failed'))
     }
+    signal?.addEventListener(
+      'abort',
+      () => {
+        worker.terminate()
+        reject(new Error('The text build was aborted'))
+      },
+      { once: true }
+    )
     const req: WorkerRequest = { id, pages, filters }
     worker.postMessage(req)
   })
