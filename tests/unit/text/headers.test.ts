@@ -28,7 +28,7 @@ describe('dropHeadersFooters', () => {
     // ...and nothing else: the footnote (Task 8) and the title stay.
     expect(text).toMatch(/^Week 4: Attention and Memory /)
     expect(text).toMatch(/selective attention to/)
-    expect(text).toMatch(/¹ See Miller \(1956\)\./)
+    expect(text).toMatch(/¹ See Miller \(1956\) for the full study\./)
   })
 
   it('keeps a line that only repeats on 2 of 6 pages', () => {

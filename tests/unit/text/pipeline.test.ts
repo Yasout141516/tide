@@ -13,6 +13,7 @@ const SPOKEN = join(__dirname, '..', '..', 'fixtures', 'spoken')
 const GOLDEN = [
   'single-column',
   'two-column',
+  'layout',
   'captions-tables',
   'cover-refs',
   'citations',

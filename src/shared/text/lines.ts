@@ -10,6 +10,10 @@ const MIN_COLUMN_COVERAGE = 0.7
  * (the same zones the header/footer filter uses). Items there do not count towards column detection.
  */
 export const EDGE_ZONE = 0.08
+/** A separator row holds an item crossing the page's centre line that is this share of the text width. */
+const SEPARATOR_SHARE = 0.5
+/** A banded column side is prose, not a table, from this median number of words per line. */
+const MIN_COLUMN_WORDS = 5
 
 /**
  * Groups a page's items into lines in reading order.
@@ -22,14 +26,50 @@ export const EDGE_ZONE = 0.08
  * column top to bottom, full-width lines above the right column, the right column, then any remaining
  * full-width lines (e.g. a centered footer).
  *
+ * A separator row (an item crossing x = 0.5 x page width and at least 0.5 x the page's text width wide,
+ * such as a pull quote) cuts the page into bands. Each band between separators is read as above on its
+ * own items and counts as two-column only when each side has >= 2 lines and a median of >= 5 words per
+ * line (so a table is not split). Output is the bands top to bottom, left column then right column
+ * within each, with the separator rows between them. A page without a separator is one band.
+ *
  * Whitespace-only items are ignored: pdf.js emits them across column gutters and they carry no text.
  */
 export function buildLines(page: PageText): Line[] {
   const items = page.items.filter((i) => i.str.trim() !== '')
   if (items.length === 0) return []
   const rows = groupRows(items)
-  const gutter = findGutter(items, page)
-  if (gutter === null) return rows.map((r) => lineFromItems(page.page, r))
+  const half = page.width * 0.5
+  const textWidth =
+    Math.max(...items.map((i) => i.x + i.width)) - Math.min(...items.map((i) => i.x))
+  const isSeparator = (row: TextItem[]): boolean =>
+    row.some((i) => crosses(i, half) && i.width >= SEPARATOR_SHARE * textWidth)
+  if (!rows.some(isSeparator)) return bandLines(page, rows, false)
+
+  // Separator rows cut the page into bands; each band is read on its own, with the separators between.
+  const out: Line[] = []
+  let band: TextItem[][] = []
+  const flush = (): void => {
+    if (band.length) out.push(...bandLines(page, band, true))
+    band = []
+  }
+  for (const row of rows) {
+    if (isSeparator(row)) {
+      flush()
+      out.push(lineFromItems(page.page, row))
+    } else band.push(row)
+  }
+  flush()
+  return out
+}
+
+/**
+ * Reads one band of rows: column by column when it has a gutter (and, inside a page cut by separators,
+ * really is two-column text), otherwise row by row.
+ */
+function bandLines(page: PageText, rows: TextItem[][], strict: boolean): Line[] {
+  const rowLines = (): Line[] => rows.map((r) => lineFromItems(page.page, r))
+  const gutter = findGutter(rows.flat(), page)
+  if (gutter === null) return rowLines()
 
   const left: Line[] = []
   const right: Line[] = []
@@ -44,7 +84,15 @@ export function buildLines(page: PageText): Line[] {
     if (l.length) left.push(lineFromItems(page.page, l))
     if (r.length) right.push(lineFromItems(page.page, r))
   }
+  if (strict && !(isProse(left) && isProse(right))) return rowLines()
   return orderColumns(left, right, full)
+}
+
+/** A column side of a banded page counts as prose: at least 2 lines, median 5 words or more per line. */
+function isProse(side: Line[]): boolean {
+  if (side.length < 2) return false
+  const words = side.map((l) => l.text.split(/\s+/).filter(Boolean).length).sort((a, b) => a - b)
+  return words[words.length >> 1] >= MIN_COLUMN_WORDS
 }
 
 // ---------------------------------------------------------------------------------------------

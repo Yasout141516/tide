@@ -40,8 +40,8 @@ describe('footnotes', () => {
 
   it('cuts only the footnote column, keeping the other column', () => {
     const leftTop = lineOf([{ str: 'Left column body text.', x: 72, y: 600 }])
-    const note = lineOf([{ str: '* Corresponding author', x: 72, y: 700, fontSize: 8 }])
-    const leftBelow = lineOf([{ str: 'Left lines below it.', x: 72, y: 720 }])
+    const note = lineOf([{ str: '* Corresponding author is Dr Lee', x: 72, y: 700, fontSize: 8 }])
+    const leftBelow = lineOf([{ str: 'Left note lines below it.', x: 72, y: 720, fontSize: 8 }])
     const right1 = lineOf([{ str: 'Right column body one.', x: 320, y: 710 }])
     const right2 = lineOf([{ str: 'Right column body two.', x: 320, y: 740 }])
     const [out] = dropFootnotes([[leftTop, note, right1, leftBelow, right2]], [792], 10)
@@ -50,6 +50,51 @@ describe('footnotes', () => {
       'Right column body one.',
       'Right column body two.'
     ])
+  })
+
+  it('keeps body text below small chart axis labels', async () => {
+    const { pages, lines } = await linesOf('layout.pdf')
+    const out = dropFootnotes(
+      lines,
+      pages.map((p) => p.height),
+      bodyFontSize(lines)
+    )
+    const text = out[1].map((l) => l.text)
+    expect(text).toContain('0 10 20 30 40')
+    expect(text.some((t) => t.startsWith('Scores rose with sleep'))).toBe(true)
+    expect(text.some((t) => t.startsWith('Taken together'))).toBe(true)
+    expect(text.some((t) => t.startsWith('1 Percentages'))).toBe(false) // the real footnote still goes
+  })
+
+  it('drops a footnote at the bottom of each column', async () => {
+    const { pages, lines } = await linesOf('layout.pdf')
+    const out = dropFootnotes(
+      lines,
+      pages.map((p) => p.height),
+      bodyFontSize(lines)
+    )
+    const text = out[2].map((l) => l.text)
+    expect(text.some((t) => t.startsWith('1 Invented note'))).toBe(false)
+    expect(text.some((t) => t.startsWith('2 Invented note'))).toBe(false)
+    expect(text).toContain('together.') // the last body line of the right column stays
+    expect(text).toContain('before it.') // so does the left column's
+  })
+
+  it('does not treat a digit line with fewer than three words as a footnote start', () => {
+    const body = lineOf([{ str: 'Body line above.', x: 72, y: 600 }])
+    const axis = lineOf([{ str: '0 10 20 30', x: 72, y: 700, fontSize: 7 }])
+    const below = lineOf([{ str: 'More body text below the axis.', x: 72, y: 720 }])
+    const [out] = dropFootnotes([[body, axis, below]], [792], 10)
+    expect(out).toHaveLength(3)
+  })
+
+  it('does not treat a small line with body-size text below it in its column as a footnote start', () => {
+    const small = lineOf([
+      { str: '1 A small aside with several words', x: 72, y: 600, fontSize: 7 }
+    ])
+    const below = lineOf([{ str: 'Body text that follows it.', x: 72, y: 620 }])
+    const [out] = dropFootnotes([[small, below]], [792], 10)
+    expect(out).toHaveLength(2)
   })
 
   it('rebuilds the host line without the marker item', () => {

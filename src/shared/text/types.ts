@@ -82,4 +82,4 @@ export const READ_EVERYTHING: ReadingFilters = Object.freeze({
 })
 
 /** Bump whenever pipeline output can change, so cached spoken text is never served stale. */
-export const PIPELINE_VERSION = 2
+export const PIPELINE_VERSION = 3

@@ -1,6 +1,6 @@
 {
   "fixture": "single-column.pdf",
-  "description": "4 pages, one column of 11pt body text. Running header \"PSYC 201 — Week 4\" (9pt, top) and footer \"Page N\" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break \"atten-\" / \"tion\", an inline 7pt raised footnote marker \"¹\" after \"capacity\", and a 7pt footnote \"¹ See Miller (1956).\" under a short rule above the footer.",
+  "description": "4 pages, one column of 11pt body text. Running header \"PSYC 201 — Week 4\" (9pt, top) and footer \"Page N\" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break \"atten-\" / \"tion\", an inline 7pt raised footnote marker \"¹\" after \"capacity\", and a 7pt footnote \"¹ See Miller (1956) for the full study.\" under a short rule above the footer.",
   "pageCount": 4,
   "pageSize": [
     612,
@@ -21,11 +21,11 @@
         "people encode less and later recall fewer of the items they saw.",
         "Working memory capacity¹ is limited to a few items at once.",
         "Most adults can hold about four chunks of information in mind.",
-        "¹ See Miller (1956).",
+        "¹ See Miller (1956) for the full study.",
         "Page 1"
       ],
       "spoken": "Week 4: Attention and Memory This week we look at how attention shapes what we remember. Attention acts as a filter that decides which parts of the world reach awareness. Information that is never attended to is rarely stored for long. Psychologists have long argued that memory depends on selective attention to the right details at the right moment. When attention is divided, people encode less and later recall fewer of the items they saw. Working memory capacity is limited to a few items at once. Most adults can hold about four chunks of information in mind.",
-      "spokenReadEverything": "PSYC 201 — Week 4 Week 4: Attention and Memory This week we look at how attention shapes what we remember. Attention acts as a filter that decides which parts of the world reach awareness. Information that is never attended to is rarely stored for long. Psychologists have long argued that memory depends on selective attention to the right details at the right moment. When attention is divided, people encode less and later recall fewer of the items they saw. Working memory capacity¹ is limited to a few items at once. Most adults can hold about four chunks of information in mind. ¹ See Miller (1956). Page 1",
+      "spokenReadEverything": "PSYC 201 — Week 4 Week 4: Attention and Memory This week we look at how attention shapes what we remember. Attention acts as a filter that decides which parts of the world reach awareness. Information that is never attended to is rarely stored for long. Psychologists have long argued that memory depends on selective attention to the right details at the right moment. When attention is divided, people encode less and later recall fewer of the items they saw. Working memory capacity¹ is limited to a few items at once. Most adults can hold about four chunks of information in mind. ¹ See Miller (1956) for the full study. Page 1",
       "skipped": [
         {
           "text": "PSYC 201 — Week 4",
@@ -36,7 +36,7 @@
           "reason": "footnote marker"
         },
         {
-          "text": "¹ See Miller (1956).",
+          "text": "¹ See Miller (1956) for the full study.",
           "reason": "footnote"
         },
         {

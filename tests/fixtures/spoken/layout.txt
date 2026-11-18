@@ -1,0 +1,48 @@
+--- page 1 ---
+Reading Order Around Full-Width Lines
+Sleep research began with simple questions about how long people rest each night.
+Early laboratories recorded brain waves and found regular cycles.
+Each cycle lasts about ninety minutes.
+A-LEFT-END.
+A-RIGHT-START.
+Memory benefits from those cycles in different ways.
+Deep stages seem to strengthen facts, while dreaming stages seem to link ideas together.
+Students who sleep after studying recall more the next morning.
+MID-FULL a pulled quotation set across both columns of the page.
+B-LEFT-START.
+Napping has its own literature.
+A short nap of twenty minutes improves alertness without grogginess.
+Longer naps can leave a person dazed for a while.
+B-RIGHT-START.
+Caffeine changes the picture.
+It blocks the signal that builds up as the day goes on.
+The effect fades after several hours.
+--- page 2 ---
+The survey asked students how many hours they slept before an exam.
+Most reported between six and eight hours.
+A small group slept far less than that.
+0 10 20 30 40 Scores rose with sleep up to eight hours and then levelled off.
+The gain was largest for students who had slept five hours or less.
+The authors caution that the groups differed in other ways too.
+Taken together, the results support a simple message about rest before an exam.
+--- page 3 ---
+Learning to read is a long process that begins well before school.
+Children first notice that print carries meaning.
+They then learn that letters stand for sounds.
+Later they learn to blend those sounds into words.
+Each step builds on the one before it.
+Parents can help by reading aloud every day.
+Shared reading builds vocabulary and a love of stories.
+Children who are read to often arrive at school with a head start.
+Teachers add structured practice with sounds and spelling.
+Short daily lessons work better than long weekly ones.
+Progress is checked often, so that no child falls behind unnoticed.
+Reading for pleasure continues to matter in later years.
+Teenagers who read for fun score higher on tests of vocabulary.
+They also write more fluently.
+The habit tends to fade in adolescence, so schools try to protect it.
+Libraries play a quiet part in this.
+A good library offers choice, and choice is the surest way to keep a reluctant reader turning pages.
+Many libraries also run clubs that bring readers together.
+Finally, adults who read regularly report lower stress.
+The effect appears after only a few minutes a day, which is good news for busy people.

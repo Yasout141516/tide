@@ -76,23 +76,33 @@ export function bodyFontSize(pagesLines: Line[][]): number {
 const FOOTNOTE_START = /^[\d*†¹²³⁴⁵⁶⁷⁸⁹⁰]/
 const MARKER = /^[\d¹²³⁴⁵⁶⁷⁸⁹⁰*†]{1,3}$/
 
+const WORD_WITH_LETTER = /\p{L}/u
+/** A footnote start needs at least this many words containing letters (axis labels like "0 10 20" are out). */
+const MIN_FOOTNOTE_WORDS = 3
+
 /**
- * Drops footnotes: in the bottom 35% of a page, the first line smaller than 0.85 x body that starts
- * with a digit, `*`, `†` or a superscript digit goes, with every line at or below it in the same column (x-ranges overlap). Separately,
- * inline markers (items under 0.75 x body matching `MARKER`, raised at least 0.2 x body above their
- * line's baseline) are removed and their line is rebuilt from the remaining items.
+ * Drops footnotes: in the bottom 35% of a page, a line smaller than 0.85 x body that starts with a
+ * digit, `*`, `†` or a superscript digit, has at least 3 words containing letters, and has no line of
+ * 0.85 x body or more below it in the same column starts a footnote. Every such line cuts its own
+ * column: it goes with every line at or below it whose x-range overlaps its own (full-width lines
+ * overlap every column; lines in the other column stay unless they start a footnote of their own).
+ * Separately, inline markers (items under 0.75 x body matching `MARKER`, raised at least 0.2 x body
+ * above their line's baseline) are removed and their line is rebuilt from the remaining items.
  */
 export function dropFootnotes(pages: Line[][], heights: number[], body: number): Line[][] {
   return pages.map((lines, p) => {
     const cutoff = heights[p] * 0.65
-    const start = lines.find(
-      (l) => l.y > cutoff && l.fontSize < 0.85 * body && FOOTNOTE_START.test(l.text)
+    const sameColumn = (a: Line, b: Line): boolean => a.x < b.x + b.width && a.x + a.width > b.x
+    const starts = lines.filter(
+      (l) =>
+        l.y > cutoff &&
+        l.fontSize < 0.85 * body &&
+        FOOTNOTE_START.test(l.text) &&
+        l.text.split(/\s+/).filter((w) => WORD_WITH_LETTER.test(w)).length >= MIN_FOOTNOTE_WORDS &&
+        !lines.some((o) => o.y > l.y && o.fontSize >= 0.85 * body && sameColumn(o, l))
     )
-    // Same column only: a line is cut when it sits at or below the footnote and overlaps its x-range
-    // (full-width lines overlap every column). Lines in the other column stay.
-    const inFootnote = (l: Line): boolean =>
-      !!start && l.y >= start.y && l.x < start.x + start.width && l.x + l.width > start.x
-    const kept = start ? lines.filter((l) => !inFootnote(l)) : lines
+    const inFootnote = (l: Line): boolean => starts.some((s) => l.y >= s.y && sameColumn(l, s))
+    const kept = starts.length ? lines.filter((l) => !inFootnote(l)) : lines
     const out: Line[] = []
     for (const l of kept) {
       const items = l.items.filter(

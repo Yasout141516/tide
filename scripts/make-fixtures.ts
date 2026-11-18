@@ -413,7 +413,7 @@ function singleColumn(): Fixture {
     lines.push(
       simple('Most adults can hold about four chunks of information in mind.', MARGIN, top + 15, 11)
     )
-    lines.push(simple('¹ See Miller (1956).', MARGIN, 735, 7, 'footnote'))
+    lines.push(simple('¹ See Miller (1956) for the full study.', MARGIN, 735, 7, 'footnote'))
     lines.push(footer(1))
     pages.push({ lines, rects: [{ x: MARGIN, top: 724, w: 144, h: 0.5 }] })
   }
@@ -432,7 +432,7 @@ function singleColumn(): Fixture {
     name: 'single-column',
     title: 'PSYC 201 Week 4',
     description:
-      '4 pages, one column of 11pt body text. Running header "PSYC 201 — Week 4" (9pt, top) and footer "Page N" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break "atten-" / "tion", an inline 7pt raised footnote marker "¹" after "capacity", and a 7pt footnote "¹ See Miller (1956)." under a short rule above the footer.',
+      '4 pages, one column of 11pt body text. Running header "PSYC 201 — Week 4" (9pt, top) and footer "Page N" (9pt, centered, bottom) on every page. Page 1: a 16pt title, a hyphenated line break "atten-" / "tion", an inline 7pt raised footnote marker "¹" after "capacity", and a 7pt footnote "¹ See Miller (1956) for the full study." under a short rule above the footer.',
     pages
   }
 }
@@ -485,6 +485,172 @@ function twoColumn(): Fixture {
       markers: { leftColumnLastLine: 'LEFT-END', rightColumnFirstLine: 'RIGHT-START', page: 1 }
     },
     notes: ['LEFT-END and RIGHT-START are ordinary words on page 1 and are spoken.'],
+    pages
+  }
+}
+
+/** Lays `texts` out as wrapped lines of one 216pt column, one baseline every `leading`, from `top`. */
+function column(texts: string[], x: number, top: number, size: number, leading: number): FLine[] {
+  return texts
+    .flatMap((t) => wrap(t, size, 216))
+    .map((t, k) => simple(t, x, top + k * leading, size))
+}
+
+function layout(): Fixture {
+  const LEFT_X = MARGIN
+  const RIGHT_X = PAGE_W - MARGIN - 216
+  const SIZE = 10
+  const pages: FPage[] = []
+
+  // Page 1: title, band A, a full-width pull quote, band B.
+  {
+    const lines: FLine[] = [centered('Reading Order Around Full-Width Lines', 80, 18)]
+    lines.push(
+      ...column(
+        [
+          'Sleep research began with simple questions about how long people rest each night. Early laboratories recorded brain waves and found regular cycles. Each cycle lasts about ninety minutes.',
+          'A-LEFT-END.'
+        ],
+        LEFT_X,
+        120,
+        SIZE,
+        13
+      )
+    )
+    lines.push(
+      ...column(
+        [
+          'A-RIGHT-START.',
+          'Memory benefits from those cycles in different ways. Deep stages seem to strengthen facts, while dreaming stages seem to link ideas together. Students who sleep after studying recall more the next morning.'
+        ],
+        RIGHT_X,
+        120,
+        SIZE,
+        13
+      )
+    )
+    lines.push(
+      centered('MID-FULL a pulled quotation set across both columns of the page.', 230, 14)
+    )
+    lines.push(
+      ...column(
+        [
+          'B-LEFT-START.',
+          'Napping has its own literature. A short nap of twenty minutes improves alertness without grogginess. Longer naps can leave a person dazed for a while.'
+        ],
+        LEFT_X,
+        270,
+        SIZE,
+        13
+      )
+    )
+    lines.push(
+      ...column(
+        [
+          'B-RIGHT-START.',
+          'Caffeine changes the picture. It blocks the signal that builds up as the day goes on. The effect fades after several hours.'
+        ],
+        RIGHT_X,
+        270,
+        SIZE,
+        13
+      )
+    )
+    pages.push({ lines })
+  }
+
+  // Page 2: a small chart axis line starting with digits at 70% of the page height, body below it, then a real footnote.
+  {
+    const lines: FLine[] = []
+    const intro = para(
+      'The survey asked students how many hours they slept before an exam. Most reported between six and eight hours. A small group slept far less than that.',
+      100,
+      { size: SIZE, leading: 14 }
+    )
+    lines.push(...intro.lines)
+    lines.push(simple('0 10 20 30 40', MARGIN, 554, 7))
+    const below = para(
+      'Scores rose with sleep up to eight hours and then levelled off. The gain was largest for students who had slept five hours or less. The authors caution that the groups differed in other ways too.',
+      580,
+      { size: SIZE, leading: 14 }
+    )
+    lines.push(...below.lines)
+    const last = para(
+      'Taken together, the results support a simple message about rest before an exam.',
+      below.next + 8,
+      { size: SIZE, leading: 14 }
+    )
+    lines.push(...last.lines)
+    lines.push(
+      simple(
+        '1 Percentages in this survey are rounded to whole numbers.',
+        MARGIN,
+        712,
+        7,
+        'footnote'
+      )
+    )
+    pages.push({ lines })
+  }
+
+  // Page 3: two columns, each ending in its own 7pt footnote.
+  {
+    const lines: FLine[] = [
+      ...column(
+        [
+          'Learning to read is a long process that begins well before school. Children first notice that print carries meaning. They then learn that letters stand for sounds. Later they learn to blend those sounds into words. Each step builds on the one before it.',
+          'Parents can help by reading aloud every day. Shared reading builds vocabulary and a love of stories. Children who are read to often arrive at school with a head start.',
+          'Teachers add structured practice with sounds and spelling. Short daily lessons work better than long weekly ones. Progress is checked often, so that no child falls behind unnoticed.'
+        ],
+        LEFT_X,
+        480,
+        SIZE,
+        13
+      )
+    ]
+    lines.push(
+      simple(
+        '1 Invented note on how the sample of children was chosen.',
+        LEFT_X,
+        690,
+        7,
+        'footnote'
+      )
+    )
+    lines.push(
+      ...column(
+        [
+          'Reading for pleasure continues to matter in later years. Teenagers who read for fun score higher on tests of vocabulary. They also write more fluently. The habit tends to fade in adolescence, so schools try to protect it.',
+          'Libraries play a quiet part in this. A good library offers choice, and choice is the surest way to keep a reluctant reader turning pages. Many libraries also run clubs that bring readers together.',
+          'Finally, adults who read regularly report lower stress. The effect appears after only a few minutes a day, which is good news for busy people.'
+        ],
+        RIGHT_X,
+        480,
+        SIZE,
+        13
+      )
+    )
+    lines.push(
+      simple('2 Invented note on how the reading scores were scaled.', RIGHT_X, 690, 7, 'footnote')
+    )
+    pages.push({ lines })
+  }
+  return {
+    name: 'layout',
+    title: 'Reading Order Around Full-Width Lines',
+    description:
+      '3 pages, no headers or footers. Page 1: an 18pt centered title; two-column band A (216pt columns at x=72 and x=324, 10pt, 13pt leading) whose left column ends with the line "A-LEFT-END." and whose right column starts with "A-RIGHT-START."; a full-width 14pt centered pull-quote line starting "MID-FULL"; two-column band B whose columns start with "B-LEFT-START." and "B-RIGHT-START.". Page 2: one column; a 7pt chart axis line "0 10 20 30 40" at 70% of the page height with body paragraphs below it, then a real 7pt footnote near the bottom. Page 3: two columns starting at 480pt, each ending in its own 7pt footnote.',
+    extra: {
+      markers: {
+        page: 1,
+        order: ['A-LEFT-END.', 'A-RIGHT-START.', 'MID-FULL', 'B-LEFT-START.', 'B-RIGHT-START.']
+      }
+    },
+    notes: [
+      'The markers are ordinary words and are spoken.',
+      'The axis line "0 10 20 30 40" is spoken: it is not a footnote (no words) and not dropped by any other filter.',
+      'Page 3: both 7pt footnotes are dropped, one per column.'
+    ],
     pages
   }
 }
@@ -891,6 +1057,7 @@ async function main(): Promise<void> {
   const fixtures = [
     singleColumn,
     twoColumn,
+    layout,
     captionsTables,
     coverRefs,
     citations,

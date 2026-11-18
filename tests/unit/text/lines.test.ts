@@ -13,7 +13,7 @@ describe('buildLines', () => {
     expect(lines.indexOf('LEFT-END')).toBeLessThan(lines.indexOf('RIGHT-START')) // markers placed by the generator
   })
 
-  it('covers every fixture', () => expect(sidecars.length).toBe(8))
+  it('covers every fixture', () => expect(sidecars.length).toBe(9))
 
   describe.each(sidecars.map((s) => [s.fixture, s] as const))('%s', (fixture, sidecar) => {
     it('produces the sidecar lines, in reading order, on every page', async () => {
@@ -51,6 +51,43 @@ describe('buildLines', () => {
     expect(withMarker.x + withMarker.width).toBeCloseTo(last.x + last.width)
     expect(lines.find((l) => l.text.startsWith('¹ See Miller'))!.fontSize).toBe(7)
     expect(lines[0]).toMatchObject({ text: 'PSYC 201 — Week 4', fontSize: 9, y: 40, page: 1 })
+  })
+
+  describe('bands around full-width lines', () => {
+    it('reads band A left, band A right, the full-width line, then band B left and right', async () => {
+      const lines = buildLines((await extractPages(readFixture('layout.pdf')))[0]).map(
+        (l) => l.text
+      )
+      const at = (marker: string): number => lines.findIndex((t) => t.startsWith(marker))
+      const order = [
+        'A-LEFT-END',
+        'A-RIGHT-START',
+        'MID-FULL',
+        'B-LEFT-START',
+        'B-RIGHT-START'
+      ].map(at)
+      expect(order.every((i) => i >= 0)).toBe(true)
+      expect([...order].sort((a, b) => a - b)).toEqual(order)
+      // Band A's left column runs in full before its right column starts.
+      expect(lines.indexOf('Sleep research began with simple questions')).toBeLessThan(order[0])
+      expect(lines.indexOf('Memory benefits from those cycles in different')).toBeGreaterThan(
+        order[0]
+      )
+    })
+
+    it('does not split a table band between full-width paragraphs into columns', () => {
+      const full = (str: string, y: number): ItemSpec => ({ str, x: 72, y, width: 468 })
+      const cell = (str: string, x: number, y: number): ItemSpec => ({ str, x, y, width: 60 })
+      const items: ItemSpec[] = [full('A full-width paragraph line above the table.', 100)]
+      for (let k = 0; k < 6; k++)
+        items.push(cell(`left ${k}`, 72, 130 + k * 13), cell(`right ${k}`, 324, 130 + k * 13))
+      items.push(full('A full-width paragraph line below the table.', 260))
+      expect(buildLines(page(items)).map((l) => l.text)).toEqual([
+        'A full-width paragraph line above the table.',
+        ...[0, 1, 2, 3, 4, 5].map((k) => `left ${k} right ${k}`),
+        'A full-width paragraph line below the table.'
+      ])
+    })
   })
 
   it('returns no lines for a page without text', () => expect(buildLines(page([]))).toEqual([]))
@@ -107,6 +144,11 @@ describe('buildLines', () => {
       y: top + k * 13,
       width: 200
     }))
+  /** Columns of prose-like lines (5 words each): a band cut by a separator row only counts as columns then. */
+  const pcol = (side: 'L' | 'R', n: number, top = 100): ItemSpec[] =>
+    col(side, n, top).map((i) => ({ ...i, str: `${i.str} one two three four` }))
+  const pnames = (side: 'L' | 'R', n: number): string[] =>
+    names(side, n).map((t) => `${t} one two three four`)
   const names = (side: 'L' | 'R', n: number): string[] =>
     [...Array(n).keys()].map((k) => `${side}${k}`)
 
@@ -150,11 +192,11 @@ describe('buildLines', () => {
       y: 80 + k * 13,
       width: 468
     }))
-    const items = [...abstract, ...col('L', 8, 250), ...col('R', 8, 250)]
+    const items = [...abstract, ...pcol('L', 8, 250), ...pcol('R', 8, 250)]
     expect(buildLines(page(items)).map((l) => l.text)).toEqual([
       ...abstract.map((a) => a.str),
-      ...names('L', 8),
-      ...names('R', 8)
+      ...pnames('L', 8),
+      ...pnames('R', 8)
     ])
   })
 
@@ -162,13 +204,13 @@ describe('buildLines', () => {
     const items = [
       { str: 'Title', x: 150, y: 60, width: 300 },
       { str: 'Footer', x: 290, y: 760, width: 30 },
-      ...col('L', 50),
-      ...col('R', 50)
+      ...pcol('L', 50),
+      ...pcol('R', 50)
     ]
     expect(buildLines(page(items)).map((l) => l.text)).toEqual([
       'Title',
-      ...names('L', 50),
-      ...names('R', 50),
+      ...pnames('L', 50),
+      ...pnames('R', 50),
       'Footer'
     ])
   })
