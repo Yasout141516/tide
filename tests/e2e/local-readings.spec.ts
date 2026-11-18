@@ -6,11 +6,12 @@
  * For each reading: it renders (a canvas has non-white pixels), stepping moves the highlight with every
  * box inside its page canvas, and quit + relaunch lands on the same sentence.
  */
-import { copyFileSync, existsSync, readdirSync } from 'fs'
+import { copyFileSync, existsSync, readdirSync, readFileSync } from 'fs'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
+import { boxesInsideCanvas as insideCanvas, highlightIds as current } from './helpers'
 import { launchTide } from './launch'
 
 const DIR = resolve(__dirname, '..', '..', 'local-fixtures')
@@ -19,33 +20,6 @@ const pdfs = existsSync(DIR)
       .filter((f) => f.toLowerCase().endsWith('.pdf'))
       .sort()
   : []
-
-const current = (win: Page): Promise<string[]> =>
-  win.evaluate(() => [
-    ...new Set(
-      [...document.querySelectorAll('[data-testid="sentence-highlight"]')].map(
-        (e) => (e as HTMLElement).dataset.sentenceId!
-      )
-    )
-  ])
-
-const insideCanvas = (win: Page): Promise<boolean> =>
-  win.evaluate(() => {
-    const boxes = [...document.querySelectorAll('[data-testid="sentence-highlight"]')]
-    return (
-      boxes.length > 0 &&
-      boxes.every((b) => {
-        const c = b.closest('[data-page]')!.querySelector('canvas')!.getBoundingClientRect()
-        const r = b.getBoundingClientRect()
-        return (
-          r.left >= c.left - 1 &&
-          r.top >= c.top - 1 &&
-          r.right <= c.right + 1 &&
-          r.bottom <= c.bottom + 1
-        )
-      })
-    )
-  })
 
 pdfs.forEach((file, i) => {
   test(`local reading ${i + 1}: renders, steps, and resumes after a restart`, async () => {
@@ -100,12 +74,15 @@ pdfs.forEach((file, i) => {
     await app.close()
     app = await launchTide({ TIDE_USER_DATA: userData })
     win = await app.firstWindow()
+    // Open the added reading by its saved title (read from disk, never logged).
+    const saved = JSON.parse(readFileSync(join(userData, 'library.json'), 'utf8')) as {
+      readings: { title: string }[]
+    }
+    expect(saved.readings).toHaveLength(1)
     await win
       .getByRole('navigation', { name: 'Readings' })
-      .getByRole('button')
-      .filter({ hasNot: win.locator('[aria-label^="More options"]') })
-      .filter({ hasText: /\S/ })
-      .last()
+      .getByRole('button', { name: saved.readings[0].title })
+      .first()
       .click()
     await expect.poll(() => current(win), { timeout: 60_000 }).toEqual([at])
     await app.close()

@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { test, expect, type Page } from '@playwright/test'
+import { boxesInsideCanvas, highlightIds } from './helpers'
 import { launchTide } from './launch'
 
 const fixture = (name: string): string => resolve(__dirname, '..', 'fixtures', 'pdfs', name)
@@ -202,33 +203,6 @@ async function savedLibrary(
 ): Promise<{ readings: { title: string; position: unknown; readEverything: boolean }[] }> {
   return JSON.parse(await readFile(join(userData, 'library.json'), 'utf8'))
 }
-
-const highlightIds = (win: Page): Promise<string[]> =>
-  win.evaluate(() => [
-    ...new Set(
-      [...document.querySelectorAll('[data-testid="sentence-highlight"]')].map(
-        (e) => (e as HTMLElement).dataset.sentenceId!
-      )
-    )
-  ])
-
-/** Every highlight box of the current sentence lies inside its page canvas. */
-const boxesInsideCanvas = (win: Page): Promise<boolean> =>
-  win.evaluate(() => {
-    const boxes = [...document.querySelectorAll('[data-testid="sentence-highlight"]')]
-    if (boxes.length === 0) return false
-    return boxes.every((b) => {
-      const canvas = b.closest('[data-page]')!.querySelector('canvas')!.getBoundingClientRect()
-      const r = b.getBoundingClientRect()
-      const e = 1
-      return (
-        r.left >= canvas.left - e &&
-        r.top >= canvas.top - e &&
-        r.right <= canvas.right + e &&
-        r.bottom <= canvas.bottom + e
-      )
-    })
-  })
 
 test('opens a reading, shows a rendered page and a highlight, and restores the place after a restart', async () => {
   const userData = await mkdtemp(join(tmpdir(), 'tide-e2e-'))
