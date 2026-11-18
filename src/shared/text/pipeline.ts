@@ -6,7 +6,8 @@ import {
   dropFootnotes,
   dropHeadersFooters,
   lineHeight,
-  referencesStart
+  referencesStart,
+  resourceSections
 } from './filters'
 import { buildLines } from './lines'
 import { segmentSentences } from './sentences'
@@ -40,7 +41,7 @@ export interface BuildResult {
 
 export interface SkippedPage {
   page: number
-  reason: 'cover' | 'references'
+  reason: 'cover' | 'references' | 'resources'
 }
 
 /**
@@ -92,6 +93,20 @@ export function buildSentences(
         p + 1 < refs.page ? l : p + 1 === refs.page ? l.slice(0, refs.lineIndex) : []
       )
     }
+    // Suggested readings / Websites sections go with the References setting. Pages are listed once
+    // per section they lose lines on, so a page may carry both reasons.
+    const dropped = lines.map(() => new Set<number>())
+    for (const sec of resourceSections(lines, body)) {
+      for (let p = sec.page - 1; p <= sec.endPage - 1; p++) {
+        const from = p === sec.page - 1 ? sec.lineIndex : 0
+        const to = p === sec.endPage - 1 ? sec.endLine : lines[p].length
+        if (to <= from) continue
+        skippedPages.push({ page: p + 1, reason: 'resources' })
+        for (let k = from; k < to; k++) dropped[p].add(k)
+      }
+    }
+    lines = lines.map((l, p) => (dropped[p].size ? l.filter((_, k) => !dropped[p].has(k)) : l))
+    skippedPages.sort((a, b) => a.page - b.page)
   }
 
   // A compound split by a line break keeps its hyphen if the document writes it whole anywhere, or

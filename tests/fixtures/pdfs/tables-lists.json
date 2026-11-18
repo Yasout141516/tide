@@ -1,0 +1,138 @@
+{
+  "fixture": "tables-lists.pdf",
+  "description": "5 pages, 11pt body, 14pt headings. Page 1: a 2-column table (columns at x=72 and x=250, 10pt, multi-word cells; a header row, 4 rows and one wrapped cell line at x=250) between two body paragraphs. Page 2: a numbered list whose markers are separate text runs and whose wrapped lines hang at x=108. Page 3: ordinary body. Page 4: a closing paragraph, then 14pt \"Suggested readings\" and \"Websites\" sections (example.org addresses only). Page 5: a 15.4pt \"Next chapter\" heading and body text.",
+  "pageCount": 5,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "Page 1: the whole table, including its wrapped cell line, is dropped.",
+    "Page 2: the numbered list is spoken.",
+    "Page 4: the sections from \"Suggested readings\" to the end of the page are dropped; page 5 starts with a heading, so it is read."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Factors in Recall",
+        "Several everyday habits change how much a student remembers after a week. The habits below",
+        "were compared in a small invented study.",
+        "Factor Effect on recall over a week",
+        "Sleep before study Recall improves by about a fifth",
+        "Studying with music Little change in later recall",
+        "Spacing sessions apart Recall roughly doubles for hard material",
+        "especially when the delay grows",
+        "Rereading the same page Small gain that fades within days",
+        "These differences are modest, but they add up across a whole term of study."
+      ],
+      "spoken": "Factors in Recall Several everyday habits change how much a student remembers after a week. The habits below were compared in a small invented study. These differences are modest, but they add up across a whole term of study.",
+      "spokenReadEverything": "Factors in Recall Several everyday habits change how much a student remembers after a week. The habits below were compared in a small invented study. Factor Effect on recall over a week Sleep before study Recall improves by about a fifth Studying with music Little change in later recall Spacing sessions apart Recall roughly doubles for hard material especially when the delay grows Rereading the same page Small gain that fades within days These differences are modest, but they add up across a whole term of study.",
+      "skipped": [
+        {
+          "text": "Factor Effect on recall over a week",
+          "reason": "table"
+        },
+        {
+          "text": "Sleep before study Recall improves by about a fifth",
+          "reason": "table"
+        },
+        {
+          "text": "Studying with music Little change in later recall",
+          "reason": "table"
+        },
+        {
+          "text": "Spacing sessions apart Recall roughly doubles for hard material",
+          "reason": "table"
+        },
+        {
+          "text": "especially when the delay grows",
+          "reason": "table"
+        },
+        {
+          "text": "Rereading the same page Small gain that fades within days",
+          "reason": "table"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lines": [
+        "Study Habits That Work",
+        "Four habits are worth building early in a course.",
+        "1. Test yourself on a topic before you reread it, because recall practice strengthens",
+        "memory.",
+        "2. Space your sessions over several days instead of packing them into one evening.",
+        "3. Explain each idea aloud in your own words as if teaching a friend.",
+        "4. Sleep well after studying so that the new material has time to settle."
+      ],
+      "spoken": "Study Habits That Work Four habits are worth building early in a course. 1. Test yourself on a topic before you reread it, because recall practice strengthens memory. 2. Space your sessions over several days instead of packing them into one evening. 3. Explain each idea aloud in your own words as if teaching a friend. 4. Sleep well after studying so that the new material has time to settle.",
+      "spokenReadEverything": "Study Habits That Work Four habits are worth building early in a course. 1. Test yourself on a topic before you reread it, because recall practice strengthens memory. 2. Space your sessions over several days instead of packing them into one evening. 3. Explain each idea aloud in your own words as if teaching a friend. 4. Sleep well after studying so that the new material has time to settle.",
+      "skipped": []
+    },
+    {
+      "page": 3,
+      "lines": [
+        "Why These Habits Work",
+        "Each habit makes the brain work a little harder at the moment of learning. That effort leaves a",
+        "stronger trace. Easy study feels pleasant but leaves a weaker one.",
+        "Students often judge their learning by how familiar the page feels. Familiarity is a poor guide,",
+        "which is why self-testing is worth the discomfort."
+      ],
+      "spoken": "Why These Habits Work Each habit makes the brain work a little harder at the moment of learning. That effort leaves a stronger trace. Easy study feels pleasant but leaves a weaker one. Students often judge their learning by how familiar the page feels. Familiarity is a poor guide, which is why self-testing is worth the discomfort.",
+      "spokenReadEverything": "Why These Habits Work Each habit makes the brain work a little harder at the moment of learning. That effort leaves a stronger trace. Easy study feels pleasant but leaves a weaker one. Students often judge their learning by how familiar the page feels. Familiarity is a poor guide, which is why self-testing is worth the discomfort.",
+      "skipped": []
+    },
+    {
+      "page": 4,
+      "lines": [
+        "That completes the chapter on remembering well. The next chapter turns to attention.",
+        "Suggested readings",
+        "Alder, P. (2019). Making memories last. Invented Press.",
+        "Birch, T. (2021). The testing effect for beginners. Invented Press.",
+        "Websites",
+        "www.example.org/memory-lab",
+        "www.example.org/study-skills"
+      ],
+      "spoken": "That completes the chapter on remembering well. The next chapter turns to attention.",
+      "spokenReadEverything": "That completes the chapter on remembering well. The next chapter turns to attention. Suggested readings Alder, P. (2019). Making memories last. Invented Press. Birch, T. (2021). The testing effect for beginners. Invented Press. Websites www.example.org/memory-lab www.example.org/study-skills",
+      "skipped": [
+        {
+          "text": "Suggested readings",
+          "reason": "resource list"
+        },
+        {
+          "text": "Alder, P. (2019). Making memories last. Invented Press.",
+          "reason": "resource list"
+        },
+        {
+          "text": "Birch, T. (2021). The testing effect for beginners. Invented Press.",
+          "reason": "resource list"
+        },
+        {
+          "text": "Websites",
+          "reason": "resource list"
+        },
+        {
+          "text": "www.example.org/memory-lab",
+          "reason": "resource list"
+        },
+        {
+          "text": "www.example.org/study-skills",
+          "reason": "resource list"
+        }
+      ]
+    },
+    {
+      "page": 5,
+      "lines": [
+        "Next chapter",
+        "Attention decides what the mind takes in. Without it, little is stored at all."
+      ],
+      "spoken": "Next chapter Attention decides what the mind takes in. Without it, little is stored at all.",
+      "spokenReadEverything": "Next chapter Attention decides what the mind takes in. Without it, little is stored at all.",
+      "skipped": []
+    }
+  ]
+}

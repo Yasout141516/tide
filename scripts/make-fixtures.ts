@@ -57,6 +57,7 @@ type SkipReason =
   | 'table'
   | 'cover page'
   | 'references'
+  | 'resource list'
   | 'citation'
 
 interface Seg {
@@ -655,6 +656,153 @@ function layout(): Fixture {
   }
 }
 
+function tablesLists(): Fixture {
+  const SIZE = 11
+  const COL2 = 250
+  const pages: FPage[] = []
+
+  // Page 1: body, a two-column table with multi-word cells and one wrapped cell, body.
+  {
+    const lines: FLine[] = [simple('Factors in Recall', MARGIN, 90, 14)]
+    const intro = para(
+      'Several everyday habits change how much a student remembers after a week. The habits below were compared in a small invented study.',
+      118
+    )
+    lines.push(...intro.lines)
+    const rows: Array<[string, string]> = [
+      ['Factor', 'Effect on recall over a week'],
+      ['Sleep before study', 'Recall improves by about a fifth'],
+      ['Studying with music', 'Little change in later recall'],
+      ['Spacing sessions apart', 'Recall roughly doubles for hard material'],
+      ['Rereading the same page', 'Small gain that fades within days']
+    ]
+    let top = intro.next + 16
+    rows.forEach((row, r) => {
+      lines.push({
+        segs: row.map((text, c) => ({ text, gap: c > 0 })),
+        x: MARGIN,
+        xs: [MARGIN, COL2],
+        top,
+        size: 10,
+        skip: 'table'
+      })
+      top += 14
+      if (r === 3) {
+        lines.push({
+          segs: [{ text: 'especially when the delay grows' }],
+          x: COL2,
+          top,
+          size: 10,
+          skip: 'table'
+        })
+        top += 14
+      }
+    })
+    const after = para(
+      'These differences are modest, but they add up across a whole term of study.',
+      top + 14
+    )
+    lines.push(...after.lines)
+    pages.push({ lines })
+  }
+
+  // Page 2: a numbered list with a hanging indent (kept).
+  {
+    const lines: FLine[] = [simple('Study Habits That Work', MARGIN, 90, 14)]
+    const intro = para('Four habits are worth building early in a course.', 118)
+    lines.push(...intro.lines)
+    const items = [
+      'Test yourself on a topic before you reread it, because recall practice strengthens memory.',
+      'Space your sessions over several days instead of packing them into one evening.',
+      'Explain each idea aloud in your own words as if teaching a friend.',
+      'Sleep well after studying so that the new material has time to settle.'
+    ]
+    let top = intro.next + 10
+    items.forEach((t, i) => {
+      const wrapped = wrap(t, SIZE, BODY_W - 36)
+      wrapped.forEach((w, k) => {
+        if (k === 0)
+          lines.push({
+            segs: [{ text: `${i + 1}.` }, { text: w, gap: true }],
+            x: MARGIN,
+            xs: [MARGIN, MARGIN + 36],
+            top,
+            size: SIZE
+          })
+        else lines.push(simple(w, MARGIN + 36, top, SIZE))
+        top += 15
+      })
+    })
+    pages.push({ lines })
+  }
+
+  // Page 3: ordinary body text.
+  {
+    const lines: FLine[] = [simple('Why These Habits Work', MARGIN, 90, 14)]
+    const a = para(
+      'Each habit makes the brain work a little harder at the moment of learning. That effort leaves a stronger trace. Easy study feels pleasant but leaves a weaker one.',
+      118
+    )
+    const b = para(
+      'Students often judge their learning by how familiar the page feels. Familiarity is a poor guide, which is why self-testing is worth the discomfort.',
+      a.next + 10
+    )
+    pages.push({ lines: [...lines, ...a.lines, ...b.lines] })
+  }
+
+  // Page 4: end of the chapter with two resource sections (skipped), at 60% of a 5-page document.
+  {
+    const lines: FLine[] = []
+    const close = para(
+      'That completes the chapter on remembering well. The next chapter turns to attention.',
+      90
+    )
+    lines.push(...close.lines)
+    let top = close.next + 30
+    lines.push(simple('Suggested readings', MARGIN, top, 14, 'resource list'))
+    top += 24
+    for (const t of [
+      'Alder, P. (2019). Making memories last. Invented Press.',
+      'Birch, T. (2021). The testing effect for beginners. Invented Press.'
+    ]) {
+      lines.push(simple(t, MARGIN, top, SIZE, 'resource list'))
+      top += 16
+    }
+    top += 14
+    lines.push(simple('Websites', MARGIN, top, 14, 'resource list'))
+    top += 24
+    for (const t of ['www.example.org/memory-lab', 'www.example.org/study-skills']) {
+      lines.push(simple(t, MARGIN, top, SIZE, 'resource list'))
+      top += 16
+    }
+    pages.push({ lines })
+  }
+
+  // Page 5: a heading at 1.4 x body, then body text (kept).
+  {
+    const lines: FLine[] = [simple('Next chapter', MARGIN, 90, 15.4)]
+    const a = para(
+      'Attention decides what the mind takes in. Without it, little is stored at all.',
+      124
+    )
+    lines.push(...a.lines)
+    pages.push({ lines })
+  }
+
+  return {
+    name: 'tables-lists',
+    title: 'Tables, lists and resource sections',
+    description:
+      '5 pages, 11pt body, 14pt headings. Page 1: a 2-column table (columns at x=72 and x=250, 10pt, multi-word cells; a header row, 4 rows and one wrapped cell line at x=250) between two body paragraphs. Page 2: a numbered list whose markers are separate text runs and whose wrapped lines hang at x=108. Page 3: ordinary body. Page 4: a closing paragraph, then 14pt "Suggested readings" and "Websites" sections (example.org addresses only). Page 5: a 15.4pt "Next chapter" heading and body text.',
+    notes: [
+      'Page 1: the whole table, including its wrapped cell line, is dropped.',
+      'Page 2: the numbered list is spoken.',
+      'Page 4: the sections from "Suggested readings" to the end of the page are dropped; page 5 starts with a heading, so it is read.'
+    ],
+    pages
+  }
+}
+
 function captionsTables(): Fixture {
   const pages: FPage[] = []
   {
@@ -1058,6 +1206,7 @@ async function main(): Promise<void> {
     singleColumn,
     twoColumn,
     layout,
+    tablesLists,
     captionsTables,
     coverRefs,
     citations,

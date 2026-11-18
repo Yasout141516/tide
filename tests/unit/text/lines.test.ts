@@ -13,7 +13,7 @@ describe('buildLines', () => {
     expect(lines.indexOf('LEFT-END')).toBeLessThan(lines.indexOf('RIGHT-START')) // markers placed by the generator
   })
 
-  it('covers every fixture', () => expect(sidecars.length).toBe(9))
+  it('covers every fixture', () => expect(sidecars.length).toBe(10))
 
   describe.each(sidecars.map((s) => [s.fixture, s] as const))('%s', (fixture, sidecar) => {
     it('produces the sidecar lines, in reading order, on every page', async () => {

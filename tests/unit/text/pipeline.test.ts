@@ -14,6 +14,7 @@ const GOLDEN = [
   'single-column',
   'two-column',
   'layout',
+  'tables-lists',
   'captions-tables',
   'cover-refs',
   'citations',
@@ -156,6 +157,28 @@ describe('buildSentences', () => {
         .join(' ')
       expect(sentences.map((s) => s.text).join(' '), f).toBe(expected)
     }
+  })
+
+  it('Read everything reads the resource sections', async () => {
+    const { sentences, skippedPages } = buildSentences(await pagesOf('tables-lists'), READ_EVERYTHING)
+    const expected = sidecar('tables-lists')
+      .pages.map((p) => p.spokenReadEverything)
+      .filter(Boolean)
+      .join(' ')
+    const text = sentences.map((s) => s.text).join(' ')
+    expect(text).toBe(expected)
+    expect(text).toContain('Suggested readings')
+    expect(text).toContain('www.example.org/study-skills')
+    expect(skippedPages).toEqual([])
+  })
+
+  it('skips the resource sections by default and reports page 4', async () => {
+    const { sentences, skippedPages } = buildSentences(await pagesOf('tables-lists'))
+    const text = sentences.map((s) => s.text).join(' ')
+    expect(text).not.toContain('Suggested readings')
+    expect(text).not.toContain('example.org')
+    expect(text).toContain('Next chapter')
+    expect(skippedPages).toEqual([{ page: 4, reason: 'resources' }])
   })
 
   it('no-text pdf', async () => {

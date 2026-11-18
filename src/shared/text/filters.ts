@@ -164,10 +164,81 @@ function isTableRow(l: Line): boolean {
   return cells.length >= 3 && cells.every((c) => c.trim().split(/\s+/).length <= 4)
 }
 
+const LIST_MARKER = /^(\d{1,2}[.)]|[•●▪◦–-]|[a-z][.)])$/
+
+interface Cell {
+  x: number
+  text: string
+}
+
+/** The cells of a line: items split by x-gaps over 2 x fontSize. */
+function cellsOf(l: Line): Cell[] {
+  const cells: Cell[] = []
+  let prevEnd = -Infinity
+  for (const i of l.items) {
+    if (cells.length && i.x - prevEnd <= 2 * l.fontSize) cells[cells.length - 1].text += ` ${i.str}`
+    else cells.push({ x: i.x, text: i.str })
+    prevEnd = Math.max(prevEnd, i.x + i.width)
+  }
+  return cells
+}
+
+/** A grid row has at least 2 cells and its first cell is not a list marker. */
+function gridCells(l: Line): Cell[] | null {
+  const cells = cellsOf(l)
+  return cells.length >= 2 && !LIST_MARKER.test(cells[0].text.trim()) ? cells : null
+}
+
+/**
+ * Drop indices of aligned tables: a run of at least 3 grid rows, each with at least 2 cell left edges
+ * (within 0.5 x fontSize) at distinct left edges of the run's first grid row, whatever the words per
+ * cell. The run may include up to 2 consecutive single-cell rows that start at one of those edges.
+ */
+function alignedTableRows(lines: Line[]): Set<number> {
+  const drop = new Set<number>()
+  const rows = lines.map(gridCells)
+  const sharesColumns = (cells: Cell[], anchor: Cell[], tol: number): boolean =>
+    new Set(
+      cells.flatMap((c) => {
+        const k = anchor.findIndex((a) => Math.abs(a.x - c.x) <= tol)
+        return k < 0 ? [] : [k]
+      })
+    ).size >= 2
+  for (let i = 0; i < lines.length; ) {
+    const anchor = rows[i]
+    if (!anchor) {
+      i++
+      continue
+    }
+    const tol = 0.5 * lines[i].fontSize
+    let grid = 1
+    let end = i + 1 // exclusive end of the run, trimmed to its last grid row
+    let wrapped = 0
+    for (let j = i + 1; j < lines.length; j++) {
+      const cells = rows[j]
+      if (cells && sharesColumns(cells, anchor, tol)) {
+        grid++
+        end = j + 1
+        wrapped = 0
+      } else if (
+        !cells &&
+        wrapped < 2 &&
+        cellsOf(lines[j]).length === 1 &&
+        anchor.some((a) => Math.abs(a.x - lines[j].x) <= tol)
+      ) {
+        wrapped++
+      } else break
+    }
+    if (grid >= 3) for (let k = i; k < end; k++) drop.add(k)
+    i = Math.max(end, i + 1)
+  }
+  return drop
+}
+
 /**
  * Drops figure/table captions (a line matching `CAPTION`, plus following lines of the same font size
  * until a gap over 1.5 x line height or a size change) and tables (runs of >= 3 consecutive
- * `isTableRow` lines).
+ * `isTableRow` lines, and aligned multi-word tables, see `alignedTableRows`).
  */
 export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
   return pages.map((lines) => {
@@ -193,6 +264,7 @@ export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
       if (j - i >= 3) for (let k = i; k < j; k++) drop.add(k)
       i = Math.max(j, i + 1)
     }
+    for (const k of alignedTableRows(lines)) drop.add(k)
     return lines.filter((_, i) => !drop.has(i))
   })
 }
@@ -265,4 +337,64 @@ export function referencesStart(
     }
   }
   return null
+}
+
+const RESOURCE_HEADING =
+  /^(?:(?:suggested|further|recommended|additional|selected|key)\s+(?:readings?|resources|websites|viewing)|(?:useful\s+|relevant\s+)?(?:websites|web\s+sites|web\s+links)|(?:audio-?visual|online|internet|web)\s+(?:resources|materials))$/i
+
+/** A line this much larger than body text is a heading (same ratio as the pipeline's block breaks). */
+const SECTION_HEADING_RATIO = 1.15
+
+export interface ResourceSection {
+  /** 1-based page and index of the heading line the section starts at. */
+  page: number
+  lineIndex: number
+  /** 1-based page and line index just past the section: the next heading, or the end of the document. */
+  endPage: number
+  endLine: number
+}
+
+/**
+ * End-of-chapter resource lists ("Suggested readings", "Websites"...). A section starts at a
+ * standalone line of at least body size matching `RESOURCE_HEADING` on a page with
+ * (page - 1) / pageCount >= 0.6, and ends just before the next heading (over 1.15 x body) that does
+ * not itself match, or at the end of the document. Lines from the start up to, not including, the end
+ * position are the section.
+ */
+export function resourceSections(pages: Line[][], body: number): ResourceSection[] {
+  const out: ResourceSection[] = []
+  const isHeading = (l: Line): boolean => l.fontSize > SECTION_HEADING_RATIO * body
+  const matches = (l: Line): boolean => RESOURCE_HEADING.test(l.text.trim())
+  let p = 0
+  let i = 0
+  while (p < pages.length) {
+    if (i >= pages[p].length) {
+      p++
+      i = 0
+      continue
+    }
+    const l = pages[p][i]
+    if (p / pages.length < 0.6 || l.fontSize < body || !matches(l)) {
+      i++
+      continue
+    }
+    // Scan forward for the section's end.
+    let ep = p
+    let ei = i + 1
+    for (;;) {
+      if (ei >= pages[ep].length) {
+        if (ep + 1 >= pages.length) break
+        ep++
+        ei = 0
+        continue
+      }
+      const e = pages[ep][ei]
+      if (isHeading(e) && !matches(e)) break
+      ei++
+    }
+    out.push({ page: p + 1, lineIndex: i, endPage: ep + 1, endLine: ei })
+    p = ep
+    i = ei
+  }
+  return out
 }

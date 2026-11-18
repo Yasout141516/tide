@@ -4,7 +4,8 @@ import {
   coverPages,
   dropCaptionsAndTables,
   dropFootnotes,
-  referencesStart
+  referencesStart,
+  resourceSections
 } from '../../../src/shared/text/filters'
 import { SpokenText } from '../../../src/shared/text/spoken'
 import type { Line } from '../../../src/shared/text/types'
@@ -251,5 +252,101 @@ describe('cover pages and References', () => {
     expect(referencesStart(early, body)).toBeNull()
     expect(lines[1].some((l) => /References/.test(l.text))).toBe(true)
     expect(lines[2].some((l) => l.text === 'Notes')).toBe(true)
+  })
+})
+
+describe('multi-word tables', () => {
+  const row = (y: number, a: string, b: string): Line =>
+    lineOf([
+      { str: a, x: 72, y },
+      { str: b, x: 250, y }
+    ])
+
+  it('drops a table with multi-word cells and its wrapped cell, keeps the paragraphs around it', async () => {
+    const { lines } = await linesOf('tables-lists.pdf')
+    const out = dropCaptionsAndTables(lines, bodyFontSize(lines))
+    const text = out[0].map((l) => l.text)
+    expect(text).not.toContain('Factor Effect on recall over a week')
+    expect(text.some((t) => t.includes('Sleep before study'))).toBe(false)
+    expect(text.some((t) => t.includes('Recall roughly doubles'))).toBe(false)
+    expect(text).not.toContain('especially when the delay grows')
+    expect(text.some((t) => t.startsWith('Several everyday habits'))).toBe(true)
+    expect(text.some((t) => t.startsWith('These differences are modest'))).toBe(true)
+    expect(out[0]).toHaveLength(lines[0].length - 6)
+  })
+
+  it('keeps a numbered list with a hanging indent', async () => {
+    const { lines } = await linesOf('tables-lists.pdf')
+    const out = dropCaptionsAndTables(lines, bodyFontSize(lines))
+    expect(out[1]).toHaveLength(lines[1].length)
+  })
+
+  it('keeps two grid rows, and rows whose columns do not line up', () => {
+    expect(dropCaptionsAndTables([[row(100, 'a b c', 'd e f'), row(112, 'g h i', 'j k l')]], 10)[0])
+      .toHaveLength(2)
+    const shifted = lineOf([
+      { str: 'one two three', x: 72, y: 124 },
+      { str: 'four five six', x: 300, y: 124 }
+    ])
+    const out = dropCaptionsAndTables(
+      [[row(100, 'a b c', 'd e f'), row(112, 'g h i', 'j k l'), shifted]],
+      10
+    )
+    expect(out[0]).toHaveLength(3)
+  })
+
+  it('does not count list-marker first cells as grid rows', () => {
+    const item = (y: number, marker: string): Line =>
+      lineOf([
+        { str: marker, x: 72, y },
+        { str: 'An item of the list that runs on', x: 120, y }
+      ])
+    const lines = [item(100, '1.'), item(112, '2.'), item(124, '3.'), item(136, '•')]
+    expect(dropCaptionsAndTables([lines], 10)[0]).toHaveLength(4)
+  })
+})
+
+describe('resource sections', () => {
+  const at = (str: string, y: number, fontSize = 10): Line => lineOf([{ str, x: 72, y, fontSize }])
+  const doc = (page4: Line[]): Line[][] => [
+    [at('Opening text of the chapter.', 100)],
+    [at('More text.', 100)],
+    [at('Still more text.', 100)],
+    page4,
+    [at('Closing text.', 100)]
+  ]
+
+  it('skips Suggested readings and Websites sections until the next heading', async () => {
+    const { lines } = await linesOf('tables-lists.pdf')
+    const body = bodyFontSize(lines)
+    const secs = resourceSections(lines, body)
+    expect(secs).toEqual([{ page: 4, lineIndex: 1, endPage: 5, endLine: 0 }])
+    const synthetic = doc([
+      at('Suggested readings', 100, 12),
+      at('A title.', 114),
+      at('Next topic', 140, 14),
+      at('Body after.', 160)
+    ])
+    expect(resourceSections(synthetic, 10)).toEqual([
+      { page: 4, lineIndex: 0, endPage: 4, endLine: 2 }
+    ])
+  })
+
+  it('runs to the end of the document when no heading follows', () => {
+    const synthetic = doc([at('Websites', 100, 12), at('www.example.org', 114)])
+    synthetic[4] = [at('www.example.org/more', 100)]
+    expect(resourceSections(synthetic, 10)).toEqual([
+      { page: 4, lineIndex: 0, endPage: 5, endLine: 1 }
+    ])
+  })
+
+  it('a "Websites" heading in the first 60% is read', () => {
+    const synthetic = doc([at('Closing.', 100)])
+    synthetic[1] = [at('Websites', 100, 12), at('www.example.org', 114)]
+    expect(resourceSections(synthetic, 10)).toEqual([])
+  })
+
+  it('ignores a matching line smaller than body text', () => {
+    expect(resourceSections(doc([at('Websites', 100, 8)]), 10)).toEqual([])
   })
 })
