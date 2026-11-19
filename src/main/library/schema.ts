@@ -1,3 +1,4 @@
+import { DEFAULT_VOICE, SPEEDS, VOICE_IDS } from '../../shared/voices'
 import { DEFAULT_FILTERS, type ReadingFilters } from '../../shared/text/types'
 import type { Anchor } from '../../shared/text/anchor'
 import type {
@@ -20,8 +21,8 @@ export function emptyLibrary(): LibraryFile {
     schemaVersion: 1,
     courses: [],
     readings: [],
-    settings: { reading: { ...DEFAULT_FILTERS }, zoom: 1 },
-    ui: { collapsed: [] }
+    settings: { reading: { ...DEFAULT_FILTERS }, zoom: 1, voice: DEFAULT_VOICE, speed: 1 },
+    ui: { collapsed: [], tipsSeen: [] }
   }
 }
 
@@ -81,15 +82,19 @@ function parseSettings(v: unknown): LibrarySettings | null {
   const reading = parseFilters(v.reading)
   const zoom = v.zoom ?? 1
   if (!reading || !isNum(zoom)) return null
-  return { reading, zoom: Math.min(2, Math.max(0.8, zoom)) }
+  const voice = isStr(v.voice) && VOICE_IDS.has(v.voice) ? v.voice : DEFAULT_VOICE
+  const speed = (SPEEDS as readonly unknown[]).includes(v.speed) ? (v.speed as number) : 1
+  return { reading, zoom: Math.min(2, Math.max(0.8, zoom)), voice, speed }
 }
 
 function parseUi(v: unknown): LibraryUi | null {
-  if (v === undefined) return { collapsed: [] }
+  if (v === undefined) return { collapsed: [], tipsSeen: [] }
   if (!isObj(v)) return null
   const collapsed = v.collapsed ?? []
+  const tipsSeen = v.tipsSeen ?? []
   if (!Array.isArray(collapsed) || !collapsed.every(isStr)) return null
-  return { collapsed: [...collapsed] }
+  if (!Array.isArray(tipsSeen) || !tipsSeen.every(isStr)) return null
+  return { collapsed: [...collapsed], tipsSeen: [...tipsSeen] }
 }
 
 /** Validates and normalizes a parsed library.json. Null for invalid input or a newer schemaVersion. */

@@ -28,10 +28,10 @@ function setup(now = (): number => 0) {
   handlers.clear()
   listeners.clear()
   appListeners.clear()
-  let onChange: () => void = () => {}
+  let onChange: (kind?: string) => void = () => {}
   const lib = {
     snapshot: vi.fn(() => snap),
-    onChange: vi.fn((cb: () => void) => {
+    onChange: vi.fn((cb: (kind?: string) => void) => {
       onChange = cb
       return () => {}
     }),
@@ -44,6 +44,9 @@ function setup(now = (): number => 0) {
     useDifferentFile: vi.fn(),
     setCollapsed: vi.fn(),
     setZoom: vi.fn(),
+    setVoice: vi.fn(),
+    tipSeen: vi.fn(),
+    flush: vi.fn(() => Promise.resolve(true)),
     checkMissing: vi.fn(() => Promise.resolve())
   }
   const send = vi.fn()
@@ -54,7 +57,7 @@ function setup(now = (): number => 0) {
   }
   const api = registerLibraryIpc(lib as unknown as Library, { window: () => win as never, now })
   const call = (ch: string, ...a: unknown[]): unknown => handlers.get(ch)!({}, ...a)
-  return { lib, send, api, call, win, wcListeners, fireChange: () => onChange() }
+  return { lib, send, api, call, win, wcListeners, fireChange: (kind?: string) => onChange(kind) }
 }
 
 beforeEach(() => showOpenDialog.mockReset())
@@ -183,6 +186,79 @@ describe('library IPC', () => {
     expect(lib.setZoom).not.toHaveBeenCalled()
     call('library:zoom', 1.5)
     expect(lib.setZoom).toHaveBeenCalledWith(1.5)
+  })
+
+  it('library:voice rejects an unknown voice or a speed outside SPEEDS', () => {
+    const { call, lib } = setup()
+    for (const [v, s] of [
+      ['af_heart', 1],
+      ['bf_emma', 1.1],
+      ['bf_emma', '1'],
+      [3, 1],
+      ['bf_emma', undefined]
+    ])
+      expect(() => call('library:voice', v, s)).toThrow(/library:voice expects/)
+    expect(lib.setVoice).not.toHaveBeenCalled()
+    call('library:voice', 'am_puck', 1.25)
+    expect(lib.setVoice).toHaveBeenCalledWith('am_puck', 1.25)
+  })
+
+  it('library:tip-seen validates its key', () => {
+    const { call, lib } = setup()
+    for (const k of [1, '', 'a'.repeat(65)])
+      expect(() => call('library:tip-seen', k)).toThrow(/library:tip-seen expects/)
+    call('library:tip-seen', 'voice')
+    expect(lib.tipSeen).toHaveBeenCalledWith('voice')
+  })
+
+  it('library:flush resolves after the store flush', async () => {
+    const { call, lib } = setup()
+    let release: (v: boolean) => void = () => {}
+    lib.flush.mockReturnValue(new Promise<boolean>((r) => (release = r)))
+    let resolved = false
+    const p = (call('library:flush') as Promise<void>).then(() => {
+      resolved = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+    release(true)
+    await p
+    expect(resolved).toBe(true)
+  })
+
+  it('position-only updates are broadcast at most once every 3 s, trailing; other changes are broadcast at once and carry the latest position', () => {
+    vi.useFakeTimers()
+    try {
+      const { fireChange, send, lib } = setup()
+      let page = 1
+      lib.snapshot.mockImplementation(() => ({ ...snap, page }) as never)
+      page = 2
+      fireChange('position')
+      page = 3
+      vi.advanceTimersByTime(1000)
+      fireChange('position')
+      page = 4
+      vi.advanceTimersByTime(1000)
+      fireChange('position')
+      expect(send).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(1000)
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenLastCalledWith('library:changed', { ...snap, page: 4 })
+      vi.advanceTimersByTime(10_000)
+      expect(send).toHaveBeenCalledTimes(1)
+      // a non-position change sends now and cancels the pending trailing broadcast
+      page = 5
+      fireChange('position')
+      page = 6
+      fireChange('other')
+      expect(send).toHaveBeenCalledTimes(2)
+      expect(send).toHaveBeenLastCalledWith('library:changed', { ...snap, page: 6 })
+      vi.advanceTimersByTime(10_000)
+      expect(send).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('library:collapse and library:remove validate their arguments', () => {

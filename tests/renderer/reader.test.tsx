@@ -30,7 +30,7 @@ async function openReading(
   const t = fakeTide({
     snapshot: {
       readings: [{ ...reading, ...over }],
-      settings: { reading: DEFAULT_FILTERS, zoom }
+      settings: { reading: DEFAULT_FILTERS, zoom, voice: 'bf_emma', speed: 1 }
     }
   })
   setTide(t)
@@ -188,7 +188,10 @@ describe('Text size', () => {
 
   it('three quick steps with late snapshots still end at +30%', async () => {
     const t = fakeTide({
-      snapshot: { readings: [reading], settings: { reading: DEFAULT_FILTERS, zoom: 1 } }
+      snapshot: {
+        readings: [reading],
+        settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 }
+      }
     })
     const applied = t.library.setZoom
     // Each snapshot arrives 50 ms after its step, so the first one lands between steps 2 and 3.

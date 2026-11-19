@@ -1,5 +1,6 @@
+import { EventEmitter } from 'events'
 import { describe, expect, it, vi } from 'vitest'
-import type { TtsHost } from '../../src/main/tts-host'
+import { TtsHost as RealTtsHost, type TtsHost } from '../../src/main/tts-host'
 
 // Capture the handlers registerIpc gives ipcMain.handle; no Electron runs.
 const handlers = new Map<string, (e: unknown, ...args: unknown[]) => unknown>()
@@ -73,5 +74,72 @@ describe('tts:synthesize', () => {
     expect(() => call(42, { voice: 'bf_emma', speed: 1 })).toThrow(/tts:synthesize expects/)
     expect(() => call('Hi.', { speed: 1 })).toThrow(/tts:synthesize expects/)
     expect(() => call('Hi.', null)).toThrow(/tts:synthesize expects/)
+  })
+})
+
+describe('tts status forwarding', () => {
+  function setup(): {
+    emit: (s: string) => void
+    send: ReturnType<typeof vi.fn>
+  } {
+    handlers.clear()
+    let cb: (s: string) => void = () => {}
+    const send = vi.fn()
+    const host = {
+      onStatus: (fn: (s: string) => void) => {
+        cb = fn
+        return () => {}
+      },
+      status: () => 'ready'
+    } as unknown as TtsHost
+    const win = { isDestroyed: () => false, webContents: { send } }
+    registerIpc(host, { e2e: false, window: () => win as never })
+    return { emit: (s) => cb(s), send }
+  }
+
+  it('tts status changes are forwarded to the window on tts:status', () => {
+    const { emit, send } = setup()
+    emit('loading')
+    emit('ready')
+    expect(send.mock.calls).toEqual([
+      ['tts:status', 'loading'],
+      ['tts:status', 'ready']
+    ])
+    expect(handlers.get('tts:status')!({})).toBe('ready')
+  })
+
+  it('tts status is sent to the window before a pending synthesize rejects on a crash', async () => {
+    handlers.clear()
+    const sent: string[] = []
+    const child = Object.assign(new EventEmitter(), {
+      postMessage: (msg: { id: number; type: string }) => {
+        sent.push(msg.type)
+        if (msg.type === 'load')
+          queueMicrotask(() =>
+            child.emit('message', { id: msg.id, type: 'loaded', loadMs: 1, warmMs: 1 })
+          )
+      },
+      kill: () => true
+    })
+    const host = new RealTtsHost({
+      workerPath: 'w.js',
+      modelDir: '/m',
+      fork: () => child as never
+    })
+    const order: string[] = []
+    const send = vi.fn((_c: string, s: string) => order.push(`status:${s}`))
+    const win = { isDestroyed: () => false, webContents: { send } }
+    registerIpc(host, { e2e: false, window: () => win as never })
+    await host.start()
+    order.length = 0
+    const pending = host
+      .synthesize('Hi.', { voice: 'bf_emma', speed: 1 })
+      .catch(() => order.push('rejected'))
+    await vi.waitFor(() => expect(sent).toContain('synthesize'))
+    child.emit('exit', 1)
+    await pending
+    expect(order[0]).toBe('status:restarting')
+    expect(order.indexOf('rejected')).toBeGreaterThan(0)
+    host.dispose()
   })
 })

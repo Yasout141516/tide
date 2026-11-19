@@ -12,7 +12,9 @@ const settings: LibrarySettings = {
     skipCoverPages: false,
     readCitations: false
   },
-  zoom: 1
+  zoom: 1,
+  voice: 'bf_emma',
+  speed: 1
 }
 
 describe('filtersFor', () => {

@@ -15,9 +15,12 @@ import type {
   ReadingPatch,
   RelinkResult
 } from '../../shared/library/types'
+import { SPEEDS, VOICE_IDS } from '../../shared/voices'
 import type { Library } from './library'
 
 const FOCUS_CHECK_MS = 5000
+/** Position-only changes (autosave while reading) reach the renderer at most this often. */
+const POSITION_BROADCAST_MS = 3000
 /** Errors Library throws on purpose; none carries a path, so their wording may pass through. */
 const DOMAIN_ERRORS = new Set([
   'unknown pick',
@@ -141,7 +144,24 @@ export function registerLibraryIpc(
     return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
   }
 
-  lib.onChange(() => toWindow('library:changed', lib.snapshot()))
+  // Position-only changes are coalesced into one trailing broadcast; any other change sends at once
+  // (and so carries the latest position too) and cancels the pending one.
+  let positionTimer: ReturnType<typeof setTimeout> | null = null
+  const broadcast = (): void => toWindow('library:changed', lib.snapshot())
+  lib.onChange((kind) => {
+    if (kind === 'position') {
+      positionTimer ??= setTimeout(() => {
+        positionTimer = null
+        broadcast()
+      }, POSITION_BROADCAST_MS)
+      return
+    }
+    if (positionTimer) {
+      clearTimeout(positionTimer)
+      positionTimer = null
+    }
+    broadcast()
+  })
 
   const handle = <A extends unknown[], R>(channel: string, fn: (...a: A) => R): void => {
     ipcMain.handle(channel, (_e, ...a) => guarded(fn)(...(a as A)))
@@ -205,6 +225,27 @@ export function registerLibraryIpc(
     if (typeof zoom !== 'number' || !Number.isFinite(zoom) || zoom < 0.8 || zoom > 2)
       bad('library:zoom', '(zoom: a number from 0.8 to 2)')
     lib.setZoom(zoom)
+  })
+
+  handle('library:voice', (voice: unknown, speed: unknown): void => {
+    if (
+      !isStr(voice) ||
+      !VOICE_IDS.has(voice) ||
+      typeof speed !== 'number' ||
+      !(SPEEDS as readonly number[]).includes(speed)
+    )
+      bad('library:voice', '(voice: one of the ten voices, speed: one of the speed steps)')
+    lib.setVoice(voice, speed)
+  })
+
+  handle('library:flush', async (): Promise<void> => {
+    await lib.flush()
+  })
+
+  handle('library:tip-seen', (key: unknown): void => {
+    if (!isStr(key) || key.length < 1 || key.length > 64)
+      bad('library:tip-seen', '(key: string of 1 to 64 characters)')
+    lib.tipSeen(key)
   })
 
   // A file may reappear (or vanish) while Tide is in the background: look again on focus.

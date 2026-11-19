@@ -26,15 +26,18 @@ export interface Reading {
   readEverything: boolean
 }
 
-/** `zoom` is 0.8 to 2.0, default 1. */
+/** `zoom` is 0.8 to 2.0, default 1. `voice` is one of VOICE_IDS; `speed` one of SPEEDS. */
 export interface LibrarySettings {
   reading: ReadingFilters
   zoom: number
+  voice: string
+  speed: number
 }
 
-/** CourseIds and/or OTHER. */
+/** `collapsed`: CourseIds and/or OTHER. `tipsSeen`: keys of one-time tips already shown. */
 export interface LibraryUi {
   collapsed: string[]
+  tipsSeen: string[]
 }
 
 export interface LibraryFile {

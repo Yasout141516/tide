@@ -221,7 +221,7 @@ describe('LibraryStore', () => {
     expect(d.readings[0].readEverything).toBe(false)
     expect(d.readings[0].finished).toBe(false)
     expect(d.settings).toEqual(emptyLibrary().settings)
-    expect(d.ui).toEqual({ collapsed: [] })
+    expect(d.ui).toEqual({ collapsed: [], tipsSeen: [] })
   })
 
   it('rejects a file written by a newer Tide', () => {

@@ -1,6 +1,6 @@
 // Sandboxed preload: only `electron` can be required. Exposes a narrow bridge (typed in index.d.ts).
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SynthesizeOptions } from '../shared/ipc-types'
+import type { SynthesizeOptions, TtsStatus } from '../shared/ipc-types'
 import { LIBRARY_ERROR_PREFIX } from '../shared/ipc-types'
 import type {
   AddReadingInput,
@@ -37,7 +37,13 @@ contextBridge.exposeInMainWorld('tide', {
   tts: {
     synthesize: (text: string, o: SynthesizeOptions) =>
       ipcRenderer.invoke('tts:synthesize', text, o),
-    cancel: (gen: string) => ipcRenderer.invoke('tts:cancel', gen)
+    cancel: (gen: string) => ipcRenderer.invoke('tts:cancel', gen),
+    status: () => ipcRenderer.invoke('tts:status'),
+    onStatus: (cb: (s: TtsStatus) => void) => subscribe<TtsStatus>('tts:status', cb)
+  },
+  app: {
+    setPlaying: (on: boolean) => ipcRenderer.send('app:playing', on),
+    relaunch: () => ipcRenderer.send('app:relaunch')
   },
   library: {
     get: () => invoke<LibrarySnapshot>('library:get'),
@@ -51,7 +57,10 @@ contextBridge.exposeInMainWorld('tide', {
     findFile: (id: string) => invoke('library:find', id),
     useDifferentFile: (id: string, pickId: string) => invoke('library:use-different', id, pickId),
     setCollapsed: (key: string, collapsed: boolean) => invoke('library:collapse', key, collapsed),
-    setZoom: (zoom: number) => invoke('library:zoom', zoom)
+    setZoom: (zoom: number) => invoke('library:zoom', zoom),
+    setVoice: (voice: string, speed: number) => invoke('library:voice', voice, speed),
+    flush: () => invoke('library:flush'),
+    tipSeen: (key: string) => invoke('library:tip-seen', key)
   }
 })
 

@@ -1,5 +1,6 @@
 import { isAbsolute } from 'path'
 import { ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type { ExportM4bResult, TtsAudio } from '../shared/ipc-types'
 import { SAMPLE_RATE } from '../shared/pcm'
 import { DEFAULT_VOICE, VOICE_IDS } from '../shared/voices'
@@ -7,7 +8,20 @@ import type { TtsHost } from './tts-host'
 import { assembleChapters, exportM4b, ffmpegHasMp3 } from './audio-export'
 
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
-export function registerIpc(host: TtsHost, { e2e }: { e2e: boolean }): void {
+export function registerIpc(
+  host: TtsHost,
+  { e2e, window }: { e2e: boolean; window?: () => BrowserWindow | null }
+): void {
+  // Sent synchronously, never batched: on a crash the host emits 'restarting' before it rejects
+  // pending jobs, and the renderer must learn that no later than it sees the rejection.
+  if (window) {
+    host.onStatus((s) => {
+      const win = window()
+      if (win && !win.isDestroyed()) win.webContents.send('tts:status', s)
+    })
+    ipcMain.handle('tts:status', () => host.status())
+  }
+
   ipcMain.handle('tts:synthesize', (_e, text: unknown, o: unknown) => {
     const { voice, speed, priority, gen } = (o ?? {}) as {
       voice?: unknown

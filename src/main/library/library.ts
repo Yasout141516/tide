@@ -13,12 +13,16 @@ import type {
   ReadingPatch,
   RelinkResult
 } from '../../shared/library/types'
+import { SPEEDS, VOICE_IDS } from '../../shared/voices'
 import { fingerprint } from './fingerprint'
 import { LibraryStore } from './store'
 
 const MAX_PENDING_PICKS = 20
 const MAX_TITLE = 200
 const MAX_COURSE_NAME = 40
+
+/** `position`: the change touched nothing but a reading's position (a high-rate autosave). */
+export type ChangeKind = 'position' | 'other'
 
 interface PendingPick {
   path: string
@@ -34,7 +38,7 @@ interface LibraryOptions {
 /** Main-process library service. Stores references to the student's PDFs, never copies. No Electron imports. */
 export class Library {
   private readonly picks = new Map<string, PendingPick>()
-  private readonly listeners = new Set<() => void>()
+  private readonly listeners = new Set<(kind: ChangeKind) => void>()
   private missing = new Set<ReadingId>()
 
   private constructor(
@@ -62,20 +66,25 @@ export class Library {
           missing: this.missing.has(r.id)
         }
       }),
-      settings: { reading: { ...d.settings.reading }, zoom: d.settings.zoom },
-      ui: { collapsed: [...d.ui.collapsed] }
+      settings: {
+        reading: { ...d.settings.reading },
+        zoom: d.settings.zoom,
+        voice: d.settings.voice,
+        speed: d.settings.speed
+      },
+      ui: { collapsed: [...d.ui.collapsed], tipsSeen: [...d.ui.tipsSeen] }
     }
   }
 
-  onChange(cb: () => void): () => void {
+  onChange(cb: (kind: ChangeKind) => void): () => void {
     this.listeners.add(cb)
     return () => {
       this.listeners.delete(cb)
     }
   }
 
-  private emit(): void {
-    for (const cb of [...this.listeners]) cb()
+  private emit(kind: ChangeKind = 'other'): void {
+    for (const cb of [...this.listeners]) cb(kind)
   }
 
   private find(id: ReadingId): Reading | undefined {
@@ -230,7 +239,7 @@ export class Library {
       },
       { urgent }
     )
-    this.emit()
+    this.emit(patch.position !== undefined && !urgent ? 'position' : 'other')
   }
 
   remove(id: ReadingId): void {
@@ -312,6 +321,29 @@ export class Library {
     this.store.update(
       (d) => {
         d.settings.zoom = clamped
+      },
+      { urgent: true }
+    )
+    this.emit()
+  }
+
+  setVoice(voice: string, speed: number): void {
+    if (!VOICE_IDS.has(voice) || !(SPEEDS as readonly number[]).includes(speed)) return
+    this.store.update(
+      (d) => {
+        d.settings.voice = voice
+        d.settings.speed = speed
+      },
+      { urgent: true }
+    )
+    this.emit()
+  }
+
+  tipSeen(key: string): void {
+    if (this.store.data().ui.tipsSeen.includes(key)) return
+    this.store.update(
+      (d) => {
+        d.ui.tipsSeen.push(key)
       },
       { urgent: true }
     )

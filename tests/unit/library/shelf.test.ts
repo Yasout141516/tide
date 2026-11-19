@@ -27,7 +27,7 @@ function snap(
     courses,
     readings,
     settings: {} as LibrarySnapshot['settings'],
-    ui: { collapsed }
+    ui: { collapsed, tipsSeen: [] }
   }
 }
 

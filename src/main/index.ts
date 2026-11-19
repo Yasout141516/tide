@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, Menu } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
+import { PlayingBlocker } from './playing'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
 import { registerLibraryIpc } from './library/ipc'
@@ -22,6 +23,7 @@ const QUIT_FLUSH_TIMEOUT_MS = 3000
 let quitting = false
 let mainWindow: BrowserWindow | null = null
 let ttsHost: TtsHost | null = null
+const playing = new PlayingBlocker(powerSaveBlocker)
 let library: Library | null = null
 let libraryIpc: ReturnType<typeof registerLibraryIpc> | null = null
 const openWith = new OpenWithQueue()
@@ -109,6 +111,7 @@ const quitHandler = createQuitHandler({
 
 app.on('will-quit', () => {
   ttsHost?.dispose()
+  playing.dispose()
 })
 
 let windowsReady = false
@@ -131,7 +134,15 @@ app.whenReady().then(async () => {
     workerPath: join(__dirname, 'tts-worker.js'),
     modelDir: resourcePath('models')
   })
-  registerIpc(ttsHost, { e2e })
+  registerIpc(ttsHost, { e2e, window: () => mainWindow })
+  ipcMain.on('app:playing', (_e, on: unknown) => {
+    if (typeof on === 'boolean') playing.set(on)
+  })
+  // quit() runs the before-quit flush, so a relaunch keeps the latest position.
+  ipcMain.on('app:relaunch', () => {
+    app.relaunch()
+    app.quit()
+  })
 
   // If the store cannot open, still show a window (never a windowless app) and leave library.json alone.
   library = await openLibraryOrReport(

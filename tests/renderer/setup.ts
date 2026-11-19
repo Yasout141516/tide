@@ -91,9 +91,11 @@ export function fakeTide(
         skipCoverPages: true,
         readCitations: false
       },
-      zoom: 1
+      zoom: 1,
+      voice: 'bf_emma',
+      speed: 1
     },
-    ui: { collapsed: [] },
+    ui: { collapsed: [], tipsSeen: [] },
     ...init.snapshot
   }
   const calls: Call = {}
@@ -122,7 +124,13 @@ export function fakeTide(
     calls,
     tts: {
       synthesize: fn('tts.synthesize', () => Promise.reject(new Error('no voice in tests'))),
-      cancel: fn('tts.cancel', () => Promise.resolve())
+      cancel: fn('tts.cancel', () => Promise.resolve()),
+      status: fn('tts.status', () => Promise.resolve('ready' as const)),
+      onStatus: () => () => {}
+    },
+    app: {
+      setPlaying: fn('app.setPlaying', () => undefined),
+      relaunch: fn('app.relaunch', () => undefined)
     },
     library: {
       get: fn('library.get', () => Promise.resolve(snap)),
@@ -175,11 +183,21 @@ export function fakeTide(
       useDifferentFile: fn('library.useDifferentFile', () => Promise.resolve()),
       setCollapsed: fn('library.setCollapsed', (key, collapsed) => {
         const rest = snap.ui.collapsed.filter((k) => k !== key)
-        set({ ...snap, ui: { collapsed: collapsed ? [...rest, key] : rest } })
+        set({ ...snap, ui: { ...snap.ui, collapsed: collapsed ? [...rest, key] : rest } })
         return Promise.resolve()
       }),
       setZoom: fn('library.setZoom', (zoom) => {
         set({ ...snap, settings: { ...snap.settings, zoom } })
+        return Promise.resolve()
+      }),
+      setVoice: fn('library.setVoice', (voice, speed) => {
+        set({ ...snap, settings: { ...snap.settings, voice, speed } })
+        return Promise.resolve()
+      }),
+      flush: fn('library.flush', () => Promise.resolve()),
+      tipSeen: fn('library.tipSeen', (key) => {
+        if (!snap.ui.tipsSeen.includes(key))
+          set({ ...snap, ui: { ...snap.ui, tipsSeen: [...snap.ui.tipsSeen, key] } })
         return Promise.resolve()
       })
     }

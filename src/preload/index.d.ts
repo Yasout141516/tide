@@ -13,7 +13,8 @@ import type {
   ExportM4bResult,
   SynthesizeOptions,
   TtsAudio,
-  TtsLoadResult
+  TtsLoadResult,
+  TtsStatus
 } from '../shared/ipc-types'
 
 export interface TideApi {
@@ -24,6 +25,14 @@ export interface TideApi {
   tts: {
     synthesize(text: string, o: SynthesizeOptions): Promise<TtsAudio>
     cancel(gen: string): Promise<void>
+    status(): Promise<TtsStatus>
+    onStatus(cb: (s: TtsStatus) => void): () => void
+  }
+  app: {
+    /** Tell main whether audio is playing, so the machine is not suspended mid-read. */
+    setPlaying(on: boolean): void
+    /** Quit (flushing the library) and start Tide again. */
+    relaunch(): void
   }
   library: {
     get(): Promise<LibrarySnapshot>
@@ -37,6 +46,10 @@ export interface TideApi {
     useDifferentFile(id: ReadingId, pickId: string): Promise<void>
     setCollapsed(key: string, collapsed: boolean): Promise<void>
     setZoom(zoom: number): Promise<void>
+    setVoice(voice: string, speed: number): Promise<void>
+    /** Resolves once the library file has been written. */
+    flush(): Promise<void>
+    tipSeen(key: string): Promise<void>
   }
 }
 

@@ -29,7 +29,7 @@ function snapshot(readings: ReadingView[], collapsed: string[] = []): LibrarySna
     courses: [{ id: 'c1', name: 'PSYC 201' }],
     readings,
     settings: {} as LibrarySnapshot['settings'],
-    ui: { collapsed }
+    ui: { collapsed, tipsSeen: [] }
   }
 }
 
