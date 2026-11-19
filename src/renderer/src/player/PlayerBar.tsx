@@ -1,7 +1,7 @@
-import { speedLabel, voiceName } from '../../../shared/voices'
 import { useReaderState } from '../reader/ReaderState'
 import { usePlayer } from './PlayerContext'
 import { timeLeftLabel } from './timeline'
+import { VoicePopover } from './VoicePopover'
 
 const focus =
   'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
@@ -108,9 +108,7 @@ export function PlayerBar(): React.JSX.Element {
           <span>{right}</span>
         </div>
       </div>
-      <button type="button" className={ctl} disabled>
-        {`${voiceName(snapshot.voice)} · ${speedLabel(snapshot.speed)}`}
-      </button>
+      <VoicePopover disabled={!ready} />
       <button type="button" className={ctl} disabled>
         Sleep
       </button>

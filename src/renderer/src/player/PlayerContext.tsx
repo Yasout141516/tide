@@ -25,6 +25,14 @@ export interface PlayerDeps {
   makeSink?(el: HTMLAudioElement): AudioSink
   makeUrl?(wav: ArrayBuffer): string
   revokeUrl?(url: string): void
+  /** The preview-only audio element; tests give it one that needs no media playback. */
+  makePreview?(url: string): PreviewAudio
+}
+
+/** The little a preview needs from an audio element. */
+export interface PreviewAudio {
+  play(): Promise<void> | void
+  pause(): void
 }
 const DepsCtx = createContext<PlayerDeps>({})
 export const PlayerDepsProvider = DepsCtx.Provider
@@ -39,6 +47,8 @@ export interface PlayerValue {
   readFrom(index: number): void
   setVoice(id: string): void
   setSpeed(s: number): void
+  /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
+  preview(id: string): void
   /** Estimated seconds to read sentences fromIndex..toIndex inclusive, at the current speed. */
   estimateSec(fromIndex: number, toIndex: number): number
 }
@@ -60,6 +70,7 @@ const NOOP: PlayerValue = {
   readFrom: () => {},
   setVoice: () => {},
   setSpeed: () => {},
+  preview: () => {},
   estimateSec: () => 0
 }
 
@@ -231,6 +242,14 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     []
   )
 
+  // --- Preview: a second element, so the reading's own audio is never touched -----------------
+  const previewing = useRef<PreviewAudio | null>(null)
+  const stopPreview = useCallback(() => {
+    previewing.current?.pause()
+    previewing.current = null
+  }, [])
+  useEffect(() => stopPreview, [stopPreview])
+
   // --- Actions ------------------------------------------------------------------------------
   const value = useMemo<PlayerValue>(
     () => ({
@@ -258,6 +277,15 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
           .library.setVoice(engine.snapshot().voice, s)
           .catch(() => {})
       },
+      preview: (id) => {
+        const ph = engine?.snapshot().phase
+        if (ph === 'playing' || ph === 'buffering' || ph === 'loading-voice') engine?.pause()
+        stopPreview()
+        const url = `./voice-previews/${id}.mp3`
+        const a = deps.makePreview ? deps.makePreview(url) : new Audio(url)
+        previewing.current = a
+        void Promise.resolve(a.play()).catch(() => {})
+      },
       estimateSec: (from, to) => {
         if (!engine) return 0
         let sum = 0
@@ -266,7 +294,8 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
         return sum
       }
     }),
-    [engine, snap]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam
+    [engine, snap, stopPreview]
   )
 
   // --- Keys: ← / → skip 15 s, Space plays and pauses ------------------------------------------
