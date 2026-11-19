@@ -5,7 +5,8 @@ describe('wav', () => {
   it('pcmToWav writes a valid RIFF header and clamps samples', () => {
     const buf = pcmToWav(new Float32Array([0, 1, -1, 2, -2, 0.5]), 24000)
     const v = new DataView(buf)
-    const tag = (o: number): string => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3))
+    const tag = (o: number): string =>
+      String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3))
     expect(buf.byteLength).toBe(44 + 12)
     expect(tag(0)).toBe('RIFF')
     expect(v.getUint32(4, true)).toBe(36 + 12)
