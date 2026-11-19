@@ -20,7 +20,8 @@
     "e2e": "playwright test",
     "fetch-model": "node scripts/fetch-model.mjs",
     "spoken-text": "tsx scripts/spoken-text.ts",
-    "voice-samples": "tsx scripts/voice-samples.ts"
+    "voice-samples": "tsx scripts/voice-samples.ts",
+    "voice-previews:render": "tsx scripts/voice-previews.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

@@ -24,7 +24,7 @@ export interface TtsHostOptions {
   fork?: ForkFn
 }
 
-export interface TtsSynthesizeOptions extends SynthesizeOptions {
+export interface TtsSynthesizeOptions extends Omit<SynthesizeOptions, 'priority' | 'gen'> {
   /** Defaults to 'live'. */
   priority?: Priority
   /** Cancellation group; defaults to 'default'. */
@@ -180,7 +180,7 @@ export class TtsHost {
         {
           type: 'load',
           modelDir: this.opts.modelDir,
-          dtype: this.opts.dtype ?? 'q8',
+          dtype: this.opts.dtype ?? 'fp32',
           warmVoice: DEFAULT_VOICE
         },
         {

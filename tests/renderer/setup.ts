@@ -121,7 +121,8 @@ export function fakeTide(
     },
     calls,
     tts: {
-      synthesize: fn('tts.synthesize', () => Promise.reject(new Error('no voice in tests')))
+      synthesize: fn('tts.synthesize', () => Promise.reject(new Error('no voice in tests'))),
+      cancel: fn('tts.cancel', () => Promise.resolve())
     },
     library: {
       get: fn('library.get', () => Promise.resolve(snap)),

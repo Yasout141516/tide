@@ -44,7 +44,7 @@ async function isUpToDate(file, path) {
 }
 
 export async function fetchModel({
-  dtype = 'q8',
+  dtype = 'fp32',
   root = resolve(here, '..', 'resources', 'models')
 } = {}) {
   if (!['q8', 'fp32', 'all'].includes(dtype)) throw new Error(`unknown --dtype ${dtype}`)
@@ -86,7 +86,7 @@ export async function fetchModel({
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const i = process.argv.indexOf('--dtype')
-  const dtype = i >= 0 ? process.argv[i + 1] : 'q8'
+  const dtype = i >= 0 ? process.argv[i + 1] : 'fp32'
   fetchModel({ dtype }).catch((e) => {
     console.error(e.message)
     process.exit(1)

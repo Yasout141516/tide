@@ -40,7 +40,7 @@ test('speaks one sentence offline', async () => {
     win.evaluate(() =>
       (window as unknown as TideWindow).tide.tts.synthesize(
         'Most adults can keep about four items in mind at once.',
-        { voice: 'af_heart', speed: 1 }
+        { voice: 'bf_emma', speed: 1 }
       )
     )
   const r = await speak()

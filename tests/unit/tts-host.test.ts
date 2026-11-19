@@ -66,7 +66,7 @@ describe('TtsHost', () => {
     expect(r).toMatchObject({ sampleRate: 24000, synthMs: 3, chunks: 1 })
     const ids = child().sent.map((m) => m.id)
     expect(new Set(ids).size).toBe(ids.length) // ids are unique
-    expect(child().sent[0]).toMatchObject({ type: 'load', modelDir: '/models', dtype: 'q8' })
+    expect(child().sent[0]).toMatchObject({ type: 'load', modelDir: '/models', dtype: 'fp32' })
     host.dispose()
   })
 

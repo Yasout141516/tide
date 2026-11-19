@@ -4,6 +4,10 @@ import type { PickResult } from './library/types'
 export interface SynthesizeOptions {
   voice: string
   speed: number
+  /** 'live' (default) or 'preview'; export never comes from the renderer. */
+  priority?: 'live' | 'preview'
+  /** Cancellation group (at most 64 characters). */
+  gen?: string
 }
 
 export interface TtsAudio {

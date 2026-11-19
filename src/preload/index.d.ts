@@ -23,6 +23,7 @@ export interface TideApi {
   onCommand(cb: (c: AppCommand) => void): () => void
   tts: {
     synthesize(text: string, o: SynthesizeOptions): Promise<TtsAudio>
+    cancel(gen: string): Promise<void>
   }
   library: {
     get(): Promise<LibrarySnapshot>

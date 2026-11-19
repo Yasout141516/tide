@@ -24,6 +24,8 @@ files:
   # electron-builder 26 then drops its default exclusions (.git, release/, local-fixtures/ shipped).
   - '!node_modules/onnxruntime-node/bin/napi-v*/!(${platform})/**'
   - '!node_modules/onnxruntime-node/bin/napi-v*/${platform}/!(${arch})/**'
+  # kokoro-js ships every voice; Tide offers ten (src/shared/voices.ts), so drop the rest.
+  - '!node_modules/kokoro-js/voices/!(af_kore|af_nicole|af_sarah|am_fenrir|am_michael|am_puck|bf_emma|bf_isabella|bm_fable|bm_george).bin'
   # sharp and its native @img/sharp-* binary stay: transformers.js imports sharp statically at load
   # time, and sharp throws when its native binary is missing (checked: kokoro-js then fails to load).
 # Runtime modules that read their own files from disk (kokoro-js voices) or ship native
@@ -34,13 +36,13 @@ asarUnpack:
   - node_modules/@huggingface/transformers/**
   - node_modules/phonemizer/**
   - node_modules/ffmpeg-static/**
-# Only the default q8 model and its JSON files ship; never the fp32 model.onnx or other dtypes.
+# Only the fp32 model and its JSON files ship; never the quantized model or other dtypes.
 extraResources:
   - from: resources/models
     to: models
     filter:
       - '**/*.json'
-      - '**/onnx/model_quantized.onnx'
+      - '**/onnx/model.onnx'
 mac:
   target:
     - target: dmg

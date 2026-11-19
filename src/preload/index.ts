@@ -36,7 +36,8 @@ contextBridge.exposeInMainWorld('tide', {
   onCommand: (cb: (c: AppCommand) => void) => subscribe<AppCommand>('app:command', cb),
   tts: {
     synthesize: (text: string, o: SynthesizeOptions) =>
-      ipcRenderer.invoke('tts:synthesize', text, o)
+      ipcRenderer.invoke('tts:synthesize', text, o),
+    cancel: (gen: string) => ipcRenderer.invoke('tts:cancel', gen)
   },
   library: {
     get: () => invoke<LibrarySnapshot>('library:get'),
