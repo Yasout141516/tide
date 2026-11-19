@@ -68,6 +68,6 @@ export function nextReading(s: LibrarySnapshot, currentId: ReadingId): ReadingVi
   if (!group) return null
   const order = [...group.active, ...group.finished].sort((a, b) => recency(b) - recency(a))
   const at = order.findIndex((r) => r.id === currentId)
-  const open = (r: ReadingView): boolean => !r.finished && r.id !== currentId
+  const open = (r: ReadingView): boolean => !r.finished && !r.missing && r.id !== currentId
   return order.slice(at + 1).find(open) ?? order.slice(0, at).find(open) ?? null
 }

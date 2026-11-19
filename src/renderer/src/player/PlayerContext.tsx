@@ -157,7 +157,8 @@ type Props = {
   reading: ReadingView | null
   courseName: string | null
   snapshot: LibrarySnapshot | null
-  onPlayNext(id: ReadingId): void
+  /** Opens the reading; false when it did not open (so no autoplay may stay armed for it). */
+  onPlayNext(id: ReadingId): boolean | void
   children: ReactNode
 }
 
@@ -427,11 +428,16 @@ export function PlayerProvider({
     () => ({
       snapshot: snap,
       play: () => {
+        autoplayFor.current = null
         stopPreview()
         engine?.play()
       },
-      pause: () => engine?.pause(),
+      pause: () => {
+        autoplayFor.current = null
+        engine?.pause()
+      },
       toggle: () => {
+        autoplayFor.current = null
         const ph = engine?.snapshot().phase
         if (ph !== 'playing' && ph !== 'buffering' && ph !== 'loading-voice') stopPreview()
         engine?.toggle()
@@ -480,9 +486,12 @@ export function PlayerProvider({
         if (!next) return
         setOffer({ next, dismissed: true })
         autoplayFor.current = next.id
-        latestProps.current.onPlayNext(next.id)
+        if (latestProps.current.onPlayNext(next.id) === false) autoplayFor.current = null
       },
-      dismissFinished: () => setOffer((o) => (o ? { ...o, dismissed: true } : o)),
+      dismissFinished: () => {
+        autoplayFor.current = null
+        setOffer((o) => (o ? { ...o, dismissed: true } : o))
+      },
       setSleep: (o) => {
         const at = engine?.snapshot().index ?? current ?? 0
         timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)

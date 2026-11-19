@@ -44,14 +44,16 @@ function App(): React.JSX.Element {
     stampedId.current = id
     void tide().library.update(id, { opened: true })
   }
-  const open = (id: ReadingId): void => {
+  /** Returns whether the reading is now the selected one (a missing file asks a question instead). */
+  const open = (id: ReadingId): boolean => {
     if (library?.readings.find((r) => r.id === id)?.missing) {
       // The selection stays where it is; only a successful Find it selects (and stamps) this reading.
       setDialog({ kind: 'moved', id })
-      return
+      return false
     }
-    if (id === stampedId.current) return
+    if (id === stampedId.current) return false
     stamp(id)
+    return true
   }
 
   const adding = useAddReading(open)

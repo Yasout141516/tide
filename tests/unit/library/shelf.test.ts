@@ -121,4 +121,11 @@ describe('nextReading', () => {
     const s2 = snap(courses, [mk('a', 1, { finished: true }), mk('b', 2, { finished: true })])
     expect(nextReading(s2, 'a')).toBeNull()
   })
+
+  it('never offers a reading whose file has moved', () => {
+    const s = snap(courses, [mk('a', 1), mk('b', 2, { missing: true }), mk('c', 3)])
+    expect(nextReading(s, 'c')?.id).toBe('a')
+    const only = snap(courses, [mk('a', 1), mk('b', 2, { missing: true })])
+    expect(nextReading(only, 'a')).toBeNull()
+  })
 })

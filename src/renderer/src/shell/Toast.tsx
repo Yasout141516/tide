@@ -31,8 +31,13 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
   const [toast, setToast] = useState<(ToastSpec & { key: number }) | null>(null)
   const counter = useRef(0)
   const show = useCallback((t: ToastSpec): void => {
-    counter.current += 1
-    setToast({ ...t, key: counter.current })
+    setToast((prev) => {
+      // The same message is not announced twice; a sticky one is never pushed aside by a passing one.
+      if (prev && prev.text === t.text) return prev
+      if (prev && prev.ms === Infinity && t.ms !== Infinity) return prev
+      counter.current = Math.max(counter.current, prev?.key ?? 0) + 1
+      return { ...t, key: counter.current }
+    })
   }, [])
   const api = useMemo<ToastApi>(() => ({ show }), [show])
 

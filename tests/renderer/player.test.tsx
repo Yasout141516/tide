@@ -330,7 +330,10 @@ describe('Player bar', () => {
 })
 
 describe('Finished, Play next and voice crashes', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   const second = reading('r2', 'Second Reading', 2)
   const finishedShown = (): boolean => !!within(player()).queryByText(/^Finished ✓/)
@@ -377,6 +380,27 @@ describe('Finished, Play next and voice crashes', () => {
     await waitFor(() => expect(sink.playing).toBe(true))
   })
 
+  it('Play next that does not open the reading leaves no autoplay armed: a later open does not play', async () => {
+    const { t, sink } = await open(bodyPages(2), [second])
+    await playToEnd(sink)
+    // The file goes missing after the offer was made: Play next opens the question, not the reading.
+    await act(async () => {
+      await t.library.update('r2', { missing: true } as never)
+    })
+    await userEvent.click(button('Play next'))
+    await screen.findByRole('dialog')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await act(async () => {
+      await t.library.update('r2', { missing: false } as never)
+    })
+    const plays = sink.plays
+    await userEvent.click(screen.getByRole('button', { name: /^Second Reading/ }))
+    await waitForId('0')
+    await new Promise((r) => setTimeout(r, 100))
+    expect(sink.plays).toBe(plays)
+  })
+
   it('a voice restart shows the restarting toast; a failure offers Restart Tide', async () => {
     const t = fakeTide()
     let emit: (s: 'restarting' | 'failed') => void = () => {}
@@ -393,6 +417,56 @@ describe('Finished, Play next and voice crashes', () => {
     expect(await screen.findByText('The voice stopped unexpectedly.')).toBeTruthy()
     await userEvent.click(screen.getByRole('button', { name: 'Restart Tide' }))
     expect(t.calls['app.relaunch']).toHaveLength(1)
+  })
+
+  it('a later toast does not replace the Restart Tide toast', async () => {
+    const t = fakeTide()
+    let emit: (s: 'restarting' | 'failed') => void = () => {}
+    t.tts.onStatus = ((cb: (s: 'restarting' | 'failed') => void) => {
+      emit = cb
+      return () => {}
+    }) as typeof t.tts.onStatus
+    setTide(t)
+    renderApp()
+    await waitFor(() => expect(t.calls['ready']).toBeTruthy())
+    act(() => emit('failed'))
+    act(() => emit('restarting'))
+    expect(screen.getByRole('button', { name: 'Restart Tide' })).toBeTruthy()
+    expect(screen.queryByText(/Restarting…/)).toBeNull()
+  })
+
+  it('repeated restarting events show one toast', async () => {
+    const t = fakeTide()
+    let emit: (s: 'restarting') => void = () => {}
+    t.tts.onStatus = ((cb: (s: 'restarting') => void) => {
+      emit = cb
+      return () => {}
+    }) as typeof t.tts.onStatus
+    setTide(t)
+    renderApp()
+    await waitFor(() => expect(t.calls['ready']).toBeTruthy())
+    act(() => emit('restarting'))
+    const first = screen.getByText('The voice stopped unexpectedly. Restarting…')
+    act(() => emit('restarting'))
+    act(() => emit('restarting'))
+    expect(screen.getAllByText('The voice stopped unexpectedly. Restarting…')).toHaveLength(1)
+    expect(screen.getByText('The voice stopped unexpectedly. Restarting…')).toBe(first)
+  })
+
+  it('clicking Restart Tide relaunches and dismisses the toast', async () => {
+    const t = fakeTide()
+    let emit: (s: 'failed') => void = () => {}
+    t.tts.onStatus = ((cb: (s: 'failed') => void) => {
+      emit = cb
+      return () => {}
+    }) as typeof t.tts.onStatus
+    setTide(t)
+    renderApp()
+    await waitFor(() => expect(t.calls['ready']).toBeTruthy())
+    act(() => emit('failed'))
+    await userEvent.click(screen.getByRole('button', { name: 'Restart Tide' }))
+    expect(t.calls['app.relaunch']).toHaveLength(1)
+    expect(screen.queryByText('The voice stopped unexpectedly.')).toBeNull()
   })
 
   it('the Restart Tide toast stays until it is clicked', async () => {
