@@ -175,9 +175,16 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
       .catch(() => {})
   }, [engine, readingId])
 
+  /** The list was rebuilt (not opened or switched) while she was listening: carry on afterwards. */
+  const resume = useRef(false)
+  const prevCount = useRef(0)
   useEffect(() => {
     if (!engine) return
     pushed.current = null
+    const ph = engine.snapshot().phase
+    const wasListening = ph === 'playing' || ph === 'buffering' || ph === 'loading-voice'
+    resume.current = wasListening && prevCount.current > 0 && sentences.length > 0
+    prevCount.current = sentences.length
     engine.setSentences(
       sentences.map((s) => s.text),
       null
@@ -187,8 +194,14 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   // A click (or any other reader-side change) of the current sentence moves the engine.
   useEffect(() => {
     if (!engine || current === null || sentences.length === 0) return
-    if (current === pushed.current || current === engine.snapshot().index) return
-    engine.setIndex(current)
+    // The echo of the engine's own move is consumed here; a later click on that sentence is a seek.
+    const echo = pushed.current
+    pushed.current = null
+    if (current !== echo && current !== engine.snapshot().index) engine.setIndex(current)
+    if (resume.current) {
+      resume.current = false
+      engine.play()
+    }
   }, [engine, sentences, current])
 
   // --- Engine -> reader ---------------------------------------------------------------------
@@ -262,23 +275,35 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     latest.current = value
   })
   const hasText = sentences.length > 0
+  /** Space was ours on keydown, so its keyup must not click the focused button. */
+  const spaceHandled = useRef(false)
   const onKey = useCallback(
     (e: KeyboardEvent): void => {
       const space = e.key === ' '
       if (!space && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
       if (!hasText) return
       // Space on a button, link or field does its own thing.
-      if (leavesKeysAlone(e, space ? ', button, a[href], [role="button"], summary' : '')) return
+      if (leavesKeysAlone(e, space ? ', footer[aria-label="Player"] button' : '')) return
       e.preventDefault()
       if (space) {
+        spaceHandled.current = true
         if (!e.repeat) latest.current.toggle()
       } else latest.current.skip(e.key === 'ArrowRight' ? SKIP_SEC : -SKIP_SEC)
     },
     [hasText]
   )
   useEffect(() => {
+    const onUp = (e: KeyboardEvent): void => {
+      if (e.key !== ' ' || !spaceHandled.current) return
+      spaceHandled.current = false
+      e.preventDefault()
+    }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    document.addEventListener('keyup', onUp)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('keyup', onUp)
+    }
   }, [onKey])
 
   return (

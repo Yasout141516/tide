@@ -142,8 +142,9 @@ describe('Player bar', () => {
 
   it('Space toggles play and pause; arrows skip 15 s; both ignored inside a dialog or field', async () => {
     const { sink } = await open()
-    // Focus is on the shelf row she clicked, a button; Space belongs to a button, so let go of it.
-    ;(document.activeElement as HTMLElement).blur()
+    // Focus is on the shelf row she just clicked (a button outside the player): Space still toggles.
+    expect(document.activeElement?.closest('[aria-label="Player"]')).toBeNull()
+    expect(document.activeElement?.tagName).toBe('BUTTON')
     await userEvent.keyboard(' ')
     await waitFor(() => expect(sink.playing).toBe(true))
     await userEvent.keyboard(' ')
@@ -155,10 +156,13 @@ describe('Player bar', () => {
     await userEvent.keyboard('{ArrowLeft}')
     await waitForId('0')
 
-    // A button handles its own Space.
-    button('Back 15s').focus()
+    // A button in the player bar handles its own Space: Forward 15s skips, nothing plays.
+    button('Forward 15s').focus()
     await userEvent.keyboard(' ')
+    await waitForId('3')
     expect(sink.playing).toBe(false)
+    await userEvent.keyboard('{ArrowLeft}')
+    await waitForId('0')
     ;(document.activeElement as HTMLElement).blur()
 
     const dialog = document.createElement('div')
@@ -191,6 +195,36 @@ describe('Player bar', () => {
     await waitFor(() => expect((t.calls['tts.cancel'] ?? []).length).toBeGreaterThan(cancelled))
     // Still playing, and it carries on from the clicked sentence.
     await waitFor(() => expect(button('Pause')).toBeTruthy())
+    await waitFor(() => expect(sink.playing).toBe(true))
+    act(() => sink.end())
+    await waitForId('2')
+  })
+
+  it('rebuilding the sentence list while playing continues from the re-resolved sentence', async () => {
+    const { sink } = await open()
+    await userEvent.click(button('Play'))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    const plays = sink.plays
+    await userEvent.click(screen.getByRole('button', { name: /^More options/ }))
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: /Read everything/ }))
+    await waitFor(() => expect(sink.plays).toBeGreaterThan(plays))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    expect(button('Pause')).toBeTruthy()
+    expect(highlightId()).toBe('0')
+    act(() => sink.end())
+    await waitForId('1')
+  })
+
+  it('a click on the sentence the engine last reached seeks back to it', async () => {
+    const { sink } = await open(bodyPages(4))
+    await userEvent.click(button('Play'))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    act(() => sink.end())
+    await waitForId('1')
+    clickLine(2, 1) // sentence 3
+    await waitForId('3')
+    clickLine(1, 1) // sentence 1 again
+    await waitForId('1')
     await waitFor(() => expect(sink.playing).toBe(true))
     act(() => sink.end())
     await waitForId('2')
