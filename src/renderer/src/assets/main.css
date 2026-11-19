@@ -66,3 +66,23 @@ body,
 .shelf-panel {
   animation: shelf-in 250ms ease-out;
 }
+
+.toast-in {
+  animation: fade-in 200ms ease-out;
+}
+
+/* The play button while the next sentence is still being made. */
+@keyframes play-pulse {
+  0%,
+  100% {
+    box-shadow: 0 4px 12px var(--shadow);
+  }
+  50% {
+    box-shadow:
+      0 4px 12px var(--shadow),
+      0 0 0 6px var(--soft);
+  }
+}
+.play-buffering {
+  animation: play-pulse 1.2s ease-in-out infinite;
+}

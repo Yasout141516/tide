@@ -5,6 +5,7 @@ import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
 import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
+import { HANDS_OFF_MS } from '../player/PlayerContext'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
 import { FileMovedDialog } from '../reading/FileMovedDialog'
@@ -237,12 +238,13 @@ function ReaderSession({
   }, [zoom, colWidth])
 
   // --- Text: the page of her place is drawn first, then every page's text -------------------
-  const settle = useCallback(
-    (n: number) => {
-      if (n === anchor) setAnchorDone(true)
-    },
-    [anchor]
-  )
+  const anchorRef = useRef(anchor)
+  useEffect(() => {
+    anchorRef.current = anchor
+  })
+  const settle = useCallback((n: number) => {
+    if (n === anchorRef.current) setAnchorDone(true)
+  }, [])
 
   useEffect(() => {
     if (!doc || !anchorDone) return
@@ -357,6 +359,33 @@ function ReaderSession({
     [sentences, reported, pages, current, itemOf, sizeOf]
   )
 
+  /** When she last scrolled by hand (wheel, touch, scroll keys, the scrollbar). */
+  const userScrollAt = useRef(-Infinity)
+  useEffect(() => {
+    const mark = (): void => {
+      userScrollAt.current = Date.now()
+    }
+    const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown'])
+    const onKey = (e: KeyboardEvent): void => {
+      if (SCROLL_KEYS.has(e.key)) mark()
+    }
+    const el = scroller.current
+    document.addEventListener('keydown', onKey)
+    el?.addEventListener('wheel', mark, { passive: true })
+    el?.addEventListener('touchmove', mark, { passive: true })
+    const onDown = (e: PointerEvent): void => {
+      // A press on the scroller itself (not on a page) is the scrollbar.
+      if (e.target === el) mark()
+    }
+    el?.addEventListener('pointerdown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      el?.removeEventListener('wheel', mark)
+      el?.removeEventListener('touchmove', mark)
+      el?.removeEventListener('pointerdown', onDown)
+    }
+  }, [])
+
   // Bring the highlight into view: always on opening, else only when it is off the screen.
   useEffect(() => {
     if (jump.current !== null && current !== null && jump.current !== current) jump.current = null
@@ -365,6 +394,8 @@ function ReaderSession({
     if (!root || !el) return
     const force = jump.current !== null
     jump.current = null
+    // Her own scrolling wins for a few seconds: the page is not pulled back under her.
+    if (!force && Date.now() - userScrollAt.current < HANDS_OFF_MS) return
     const r = el.getBoundingClientRect()
     const s = root.getBoundingClientRect()
     if (!force && r.top >= s.top && r.bottom <= s.bottom) return
@@ -373,7 +404,7 @@ function ReaderSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRects])
 
-  const pick = (n: number, x: number, y: number): void => {
+  const pickNow = (n: number, x: number, y: number): void => {
     if (!sentences) return
     const bySentence: Rect[][] = sentences.map((s) =>
       s.spans.some((sp) => sp.page === n) ? spanRects(s.spans, itemOf, sizeOf) : []
@@ -381,24 +412,24 @@ function ReaderSession({
     const hit = sentenceAt(bySentence, n, x, y)
     if (hit !== null) setCurrent(hit)
   }
-
+  // Pages are memoised: a stable handler that reads the latest closure.
+  const pickRef = useRef(pickNow)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      if (!sentences || sentences.length === 0) return
-      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return
-      const t = e.target as HTMLElement | null
-      if (t?.closest('input, textarea, select, [contenteditable], [role="menu"], [role="listbox"]'))
-        return
-      e.preventDefault()
-      const at = currentRef.current
-      const next = at === null ? 0 : at + (e.key === 'ArrowRight' ? 1 : -1)
-      setCurrent(Math.min(Math.max(next, 0), sentences.length - 1))
+    pickRef.current = pickNow
+  })
+  const pick = useCallback((n: number, x: number, y: number) => pickRef.current(n, x, y), [])
+
+  // The highlight each page gets: a page whose highlight did not change keeps the same value.
+  const highlights = useMemo(() => {
+    const m = new Map<number, { rects: Rect[]; sentenceId: number }>()
+    if (current === null) return m
+    for (const r of currentRects) {
+      const h = m.get(r.page)
+      if (h) h.rects.push(r)
+      else m.set(r.page, { rects: [r], sentenceId: current })
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [sentences, setCurrent])
+    return m
+  }, [currentRects, current])
 
   // --- Render -------------------------------------------------------------------------------
   const textless = useMemo(() => new Set(built?.textlessPages ?? []), [built])
@@ -522,11 +553,7 @@ function ReaderSession({
                 textless={textless.has(n)}
                 onSettled={settle}
                 onPick={pick}
-                highlight={
-                  current !== null && currentRects.some((r) => r.page === n)
-                    ? { rects: currentRects.filter((r) => r.page === n), sentenceId: current }
-                    : undefined
-                }
+                highlight={highlights.get(n)}
               />
             )
           })}

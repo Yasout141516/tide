@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { Rect } from '../../../shared/text/highlight'
 import { HighlightLayer } from './HighlightLayer'
 import type { PdfDoc } from './pdf'
@@ -22,7 +22,7 @@ type Props = {
   onPick?(n: number, x: number, y: number): void
 }
 
-export function PdfPage({
+function PdfPageView({
   doc,
   n,
   width,
@@ -81,3 +81,6 @@ export function PdfPage({
     </div>
   )
 }
+
+/** Re-renders only when its own props change: stepping the highlight touches two pages. */
+export const PdfPage = memo(PdfPageView)

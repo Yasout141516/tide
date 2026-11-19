@@ -45,6 +45,9 @@ beforeEach(() => {
   globalThis.IntersectionObserver =
     IntersectionObserverStub as unknown as typeof IntersectionObserver
   Element.prototype.scrollIntoView = () => {}
+  // jsdom has no media playback; the player's sink is faked where a test cares.
+  HTMLMediaElement.prototype.pause = () => {}
+  HTMLMediaElement.prototype.play = () => Promise.resolve()
   narrow = false
   listeners.clear()
   window.matchMedia = ((query: string) => ({

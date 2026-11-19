@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReadingId, ReadingView } from '../../shared/library/types'
 import { AppShell } from './shell/AppShell'
-import { PlayerBarPlaceholder } from './shell/PlayerBarPlaceholder'
+import { PlayerBar } from './player/PlayerBar'
+import { PlayerProvider } from './player/PlayerContext'
+import { ToastProvider } from './shell/Toast'
 import { Shelf } from './shelf/Shelf'
 import { EmptyState } from './shelf/EmptyState'
 import { useLibrary, useLibraryLoadFailed } from './state/useLibrary'
@@ -18,12 +20,6 @@ import { RemoveDialog } from './reading/RemoveDialog'
 
 const ZOOM_MIN = 0.8
 const ZOOM_MAX = 2.0
-
-/** The player's label: the page of the current sentence, else the top visible page. */
-function ReaderPlayer(): React.JSX.Element {
-  const { page, numPages } = useReaderState()
-  return <PlayerBarPlaceholder label={numPages ? `Page ${page} of ${numPages}` : undefined} />
-}
 
 function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
@@ -215,26 +211,35 @@ function App(): React.JSX.Element {
 
   return (
     <ReaderStateProvider>
-      <AppShell
-        renderShelf={(closeOverlay) =>
-          library ? (
-            <Shelf
-              snapshot={library}
-              selectedId={selectedId}
-              onOpen={open}
-              onAdd={add}
-              onPicked={closeOverlay}
-            />
-          ) : (
-            <nav aria-label="Readings" className="flex-1" />
-          )
-        }
-        stage={stage}
-        player={<ReaderPlayer />}
-      />
-      {adding.ui}
-      {dialogUi}
-      {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
+      <PlayerProvider
+        reading={selected}
+        courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
+        snapshot={library}
+        onPlayNext={open}
+      >
+        <ToastProvider>
+          <AppShell
+            renderShelf={(closeOverlay) =>
+              library ? (
+                <Shelf
+                  snapshot={library}
+                  selectedId={selectedId}
+                  onOpen={open}
+                  onAdd={add}
+                  onPicked={closeOverlay}
+                />
+              ) : (
+                <nav aria-label="Readings" className="flex-1" />
+              )
+            }
+            stage={stage}
+            player={<PlayerBar />}
+          />
+          {adding.ui}
+          {dialogUi}
+          {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
+        </ToastProvider>
+      </PlayerProvider>
     </ReaderStateProvider>
   )
 }

@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react'
 import { vi } from 'vitest'
 import App from '../../src/renderer/src/App'
+import type { AudioSink } from '../../src/renderer/src/player/engine'
+import { PlayerDepsProvider, type PlayerDeps } from '../../src/renderer/src/player/PlayerContext'
 import { ReaderDepsProvider, type ReaderDepsValue } from '../../src/renderer/src/reader/deps'
 import type { OpenPdfResult, PdfDoc } from '../../src/renderer/src/reader/pdf'
 import { buildSentences } from '../../src/shared/text/pipeline'
@@ -70,11 +72,65 @@ export function fakeDeps(
   }
 }
 
-/** Renders the whole App with fake reader deps. */
-export function renderApp(deps: Partial<ReaderDepsValue> = fakeDeps()): ReturnType<typeof render> {
+/** An AudioSink with no media: tests call end() when a clip should finish. */
+export class FakeSink implements AudioSink {
+  src = ''
+  playing = false
+  currentTime = 0
+  volume = 1
+  plays = 0
+  private endedCb: (() => void) | undefined
+  setSource(url: string): void {
+    this.src = url
+  }
+  play(): Promise<void> {
+    this.playing = true
+    this.plays += 1
+    return Promise.resolve()
+  }
+  pause(): void {
+    this.playing = false
+  }
+  onEnded(cb: () => void): void {
+    this.endedCb = cb
+  }
+  onError(): void {
+    // not needed
+  }
+  /** The playing clip finished. */
+  end(): void {
+    this.endedCb?.()
+  }
+}
+
+/** A fake sink plus the PlayerDeps that inject it; no media or object URLs are touched. */
+export function fakePlayer(): { sink: FakeSink; deps: PlayerDeps } {
+  const sink = new FakeSink()
+  let n = 0
+  return {
+    sink,
+    deps: { makeSink: () => sink, makeUrl: () => `blob:clip-${n++}`, revokeUrl: () => {} }
+  }
+}
+
+/** One second of silence: what the fake voice returns for any text. */
+export const SILENCE = {
+  pcm: new Float32Array(24000),
+  sampleRate: 24000 as const,
+  synthMs: 1,
+  chunks: 1
+}
+
+/** Renders the whole App with fake reader deps (and, optionally, a fake sink for the player). */
+export function renderApp(
+  deps: Partial<ReaderDepsValue> = fakeDeps(),
+  player: PlayerDeps = fakePlayer().deps
+): ReturnType<typeof render> {
   return render(
-    <ReaderDepsProvider value={deps}>
-      <App />
-    </ReaderDepsProvider>
+    <PlayerDepsProvider value={player}>
+      <ReaderDepsProvider value={deps}>
+        <App />
+      </ReaderDepsProvider>
+    </PlayerDepsProvider>
   )
 }

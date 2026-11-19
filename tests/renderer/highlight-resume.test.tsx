@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -11,7 +11,16 @@ import { extractPages } from '../../src/shared/text/extract'
 import { buildSentences } from '../../src/shared/text/pipeline'
 import { DEFAULT_FILTERS, READ_EVERYTHING } from '../../src/shared/text/types'
 import type { PageText } from '../../src/shared/text/types'
-import { bodyPages, fakeDeps, fakeDoc, PAGE_W, renderApp } from './reader-fakes'
+import {
+  bodyPages,
+  fakeDeps,
+  fakeDoc,
+  FakeSink,
+  fakePlayer,
+  PAGE_W,
+  renderApp,
+  SILENCE
+} from './reader-fakes'
 import { fakeTide } from './setup'
 
 const reading: ReadingView = {
@@ -31,6 +40,8 @@ const reading: ReadingView = {
 /** CSS px per PDF point in jsdom: the column falls back to 820 px, at 100% text size. */
 const SCALE = 820 / PAGE_W
 
+let lastSink: FakeSink
+
 async function openWith(
   pages: PageText[],
   over: Partial<ReadingView> = {}
@@ -42,7 +53,10 @@ async function openWith(
     }
   })
   setTide(t)
-  renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(pages) }))
+  t.tts.synthesize = () => Promise.resolve(SILENCE)
+  const player = fakePlayer()
+  lastSink = player.sink
+  renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(pages) }), player.deps)
   await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
   return t
 }
@@ -96,24 +110,22 @@ describe('Reader highlight, stepping and resume', () => {
     expect(last[1]).toEqual({ block: 'center', behavior: 'auto' })
   })
 
-  it('→ moves to the next sentence and saves its anchor; ← goes back; both stop at the ends', async () => {
-    const pages = bodyPages(2) // 4 sentences
+  it('→ skips 15 s ahead and saves the new place; ← skips back; both stop at the ends', async () => {
+    // Four sentences of about 2.3 s each: 15 s ahead is the end of the reading, 15 s back is its start.
+    const pages = bodyPages(2)
     const s = sentencesOf(pages)
     const t = await openWith(pages)
     await waitForId('0')
     await userEvent.keyboard('{ArrowLeft}')
     await waitForId('0')
     await userEvent.keyboard('{ArrowRight}')
-    await waitForId('1')
-    expect(positions(t).at(-1)).toEqual(anchorOf(s[1]))
-    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
-    await waitForId('3')
-    await userEvent.keyboard('{ArrowRight}')
     await waitForId('3')
     expect(positions(t).at(-1)).toEqual(anchorOf(s[3]))
+    await userEvent.keyboard('{ArrowRight}')
+    await waitForId('3')
     await userEvent.keyboard('{ArrowLeft}')
-    await waitForId('2')
-    expect(positions(t).at(-1)).toEqual(anchorOf(s[2]))
+    await waitForId('0')
+    expect(positions(t).at(-1)).toEqual(anchorOf(s[0]))
   })
 
   it('clicking on a sentence selects it', async () => {
@@ -159,7 +171,7 @@ describe('Reader highlight, stepping and resume', () => {
       expect(highlightId()).toBe('0')
       dialog.remove()
       await userEvent.keyboard('{ArrowRight}')
-      await waitForId('1')
+      await waitForId('3')
     } finally {
       dialog.remove()
     }
@@ -224,6 +236,8 @@ describe('Reader highlight, stepping and resume', () => {
     const total = sentencesOf(pages).length
     await openWith(pages)
     await waitForId('0')
+    // Play steps one sentence at a time as each clip ends.
+    await userEvent.click(screen.getByRole('button', { name: 'Play' }))
     // First rect of each sentence in PDF points: [page, x]. Left column x < 288, right x >= 324.
     const firsts: Array<[number, number]> = []
     for (let i = 0; i < total; i++) {
@@ -231,7 +245,10 @@ describe('Reader highlight, stepping and resume', () => {
       const h = highlights()[0]
       const page = Number((h.closest('[data-page]') as HTMLElement).dataset.page)
       firsts.push([page, parseFloat(h.style.left) / SCALE])
-      await userEvent.keyboard('{ArrowRight}')
+      if (i < total - 1) {
+        await waitFor(() => expect(lastSink.playing).toBe(true))
+        act(() => lastSink.end())
+      }
     }
     for (let p = 1; p <= pages.length; p++) {
       const kind = firsts
