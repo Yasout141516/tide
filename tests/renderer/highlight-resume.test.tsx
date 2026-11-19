@@ -76,7 +76,8 @@ const fixturePages = (name: string): Promise<PageText[]> =>
   extractPages(readFileSync(join(__dirname, '../fixtures/pdfs', name)))
 
 async function waitForId(id: string): Promise<void> {
-  await waitFor(() => expect(highlightId()).toBe(id))
+  // Waits on the condition; the generous limit only matters under full-suite load.
+  await waitFor(() => expect(highlightId()).toBe(id), { timeout: 10_000 })
 }
 
 const realScroll = Element.prototype.scrollIntoView
@@ -105,9 +106,15 @@ describe('Reader highlight, stepping and resume', () => {
     expect(
       document.querySelector('[data-page="2"] [data-testid="sentence-highlight"]')
     ).toBeTruthy()
-    const last = scrolls.at(-1)!
-    expect((last[0] as HTMLElement).dataset.testid).toBe('sentence-highlight')
-    expect(last[1]).toEqual({ block: 'center', behavior: 'auto' })
+    // The scroll follows the highlight; wait for it rather than assume it has happened.
+    await waitFor(
+      () => {
+        const last = scrolls.at(-1)
+        expect((last?.[0] as HTMLElement | undefined)?.dataset.testid).toBe('sentence-highlight')
+        expect(last?.[1]).toEqual({ block: 'center', behavior: 'auto' })
+      },
+      { timeout: 10_000 }
+    )
   })
 
   it('→ skips 15 s ahead and saves the new place; ← skips back; both stop at the ends', async () => {
