@@ -175,4 +175,23 @@ describe('Sleep timer', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Second Reading/ }))
     await waitFor(() => expect(sleepButton().textContent).toBe('Sleep'))
   })
+
+  it('a reading that ends mid-fade restores the volume and turns the sleep timer off', async () => {
+    const { sink, advance } = await open()
+    const shown = (): boolean => !!within(player()).queryByText(/^Finished ✓/)
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    await userEvent.click(sleepButton())
+    await userEvent.click(await screen.findByRole('radio', { name: '10 minutes' }))
+    advance(599)
+    await waitFor(() => expect(sink.volume).toBeCloseTo(0.2))
+    for (let i = 0; i < 40 && !shown(); i++) {
+      await waitFor(() => expect(sink.playing || shown()).toBe(true))
+      if (shown()) break
+      act(() => sink.end())
+    }
+    await waitFor(() => expect(shown()).toBe(true))
+    expect(sink.volume).toBe(1)
+    await waitFor(() => expect(sleepButton().textContent).toBe('Sleep'))
+  })
 })

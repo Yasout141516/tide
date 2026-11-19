@@ -12,7 +12,7 @@ import {
 export interface ToastSpec {
   text: string
   actions?: { label: string; onClick(): void }[]
-  /** How long it stays; default 6 s. */
+  /** How long it stays; default 6 s. Infinity keeps it until an action is clicked. */
   ms?: number
 }
 
@@ -39,7 +39,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
   const key = toast?.key
   const ms = toast?.ms ?? 6000
   useEffect(() => {
-    if (key === undefined) return
+    if (key === undefined || !Number.isFinite(ms)) return
     const id = setTimeout(() => setToast(null), ms)
     return () => clearTimeout(id)
   }, [key, ms])

@@ -211,13 +211,13 @@ function App(): React.JSX.Element {
 
   return (
     <ReaderStateProvider>
-      <PlayerProvider
-        reading={selected}
-        courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
-        snapshot={library}
-        onPlayNext={open}
-      >
-        <ToastProvider>
+      <ToastProvider>
+        <PlayerProvider
+          reading={selected}
+          courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
+          snapshot={library}
+          onPlayNext={open}
+        >
           <AppShell
             renderShelf={(closeOverlay) =>
               library ? (
@@ -238,8 +238,8 @@ function App(): React.JSX.Element {
           {adding.ui}
           {dialogUi}
           {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
-        </ToastProvider>
-      </PlayerProvider>
+        </PlayerProvider>
+      </ToastProvider>
     </ReaderStateProvider>
   )
 }

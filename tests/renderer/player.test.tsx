@@ -329,6 +329,91 @@ describe('Player bar', () => {
   })
 })
 
+describe('Finished, Play next and voice crashes', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const second = reading('r2', 'Second Reading', 2)
+  const finishedShown = (): boolean => !!within(player()).queryByText(/^Finished ✓/)
+  /** Plays the reading to its end, one sentence after another. */
+  async function playToEnd(sink: ReturnType<typeof fakePlayer>['sink']): Promise<void> {
+    await userEvent.click(button('Play'))
+    for (let i = 0; i < 40 && !finishedShown(); i++) {
+      await waitFor(() => expect(sink.playing || finishedShown()).toBe(true))
+      if (finishedShown()) break
+      act(() => sink.end())
+    }
+    await waitFor(() => expect(finishedShown()).toBe(true))
+  }
+
+  it('reaching the end marks the reading finished and offers Play next', async () => {
+    const { t, sink } = await open(bodyPages(2), [second])
+    await playToEnd(sink)
+    expect(t.calls['library.update']).toContainEqual(['r1', { finished: true }])
+    expect(within(player()).getByText('Finished ✓ · Next: Second Reading')).toBeTruthy()
+    expect(button('Play next')).toBeTruthy()
+    expect(button('Dismiss')).toBeTruthy()
+    await userEvent.click(button('Dismiss'))
+    expect(within(player()).queryByText(/Finished ✓/)).toBeNull()
+  })
+
+  it('offers only Dismiss when there is no next reading', async () => {
+    const { sink } = await open()
+    await playToEnd(sink)
+    expect(within(player()).getByText('Finished ✓')).toBeTruthy()
+    expect(within(player()).queryByRole('button', { name: 'Play next' })).toBeNull()
+    expect(button('Dismiss')).toBeTruthy()
+  })
+
+  it('Play next opens the next reading and starts playing it', async () => {
+    const { t, sink } = await open(bodyPages(2), [second])
+    await playToEnd(sink)
+    const plays = sink.plays
+    const spoken = synthTexts(t).length
+    await userEvent.click(button('Play next'))
+    await waitFor(() => expect(sink.plays).toBeGreaterThan(plays))
+    expect(t.calls['library.update']).toContainEqual(['r2', { opened: true }])
+    expect(synthTexts(t)[spoken]).toBe('Memory is shaped by attention.')
+    expect(within(player()).queryByText(/Finished ✓/)).toBeNull()
+    await waitFor(() => expect(sink.playing).toBe(true))
+  })
+
+  it('a voice restart shows the restarting toast; a failure offers Restart Tide', async () => {
+    const t = fakeTide()
+    let emit: (s: 'restarting' | 'failed') => void = () => {}
+    t.tts.onStatus = ((cb: (s: 'restarting' | 'failed') => void) => {
+      emit = cb
+      return () => {}
+    }) as typeof t.tts.onStatus
+    setTide(t)
+    renderApp()
+    await waitFor(() => expect(t.calls['ready']).toBeTruthy())
+    act(() => emit('restarting'))
+    expect(await screen.findByText('The voice stopped unexpectedly. Restarting…')).toBeTruthy()
+    act(() => emit('failed'))
+    expect(await screen.findByText('The voice stopped unexpectedly.')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Restart Tide' }))
+    expect(t.calls['app.relaunch']).toHaveLength(1)
+  })
+
+  it('the Restart Tide toast stays until it is clicked', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const t = fakeTide()
+    let emit: (s: 'failed') => void = () => {}
+    t.tts.onStatus = ((cb: (s: 'failed') => void) => {
+      emit = cb
+      return () => {}
+    }) as typeof t.tts.onStatus
+    setTide(t)
+    renderApp()
+    await waitFor(() => expect(t.calls['ready']).toBeTruthy())
+    act(() => emit('failed'))
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(screen.getByRole('button', { name: 'Restart Tide' })).toBeTruthy()
+  })
+})
+
 describe('Toast', () => {
   function Shower(): React.JSX.Element {
     const toast = useToast()

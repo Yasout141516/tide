@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupShelf, rowLabel } from '../../../src/shared/library/shelf'
+import { groupShelf, nextReading, rowLabel } from '../../../src/shared/library/shelf'
 import { OTHER, type LibrarySnapshot, type ReadingView } from '../../../src/shared/library/types'
 
 function reading(over: Partial<ReadingView> & { id: string }): ReadingView {
@@ -94,5 +94,31 @@ describe('rowLabel', () => {
     expect(rowLabel(reading({ id: 'a' }))).toBe('New')
     expect(rowLabel(reading({ id: 'a', position: pos, pageCount: 22 }))).toBe('Page 4 of 22')
     expect(rowLabel(reading({ id: 'a', position: pos }))).toBe('Page 4')
+  })
+})
+
+describe('nextReading', () => {
+  const courses = [{ id: 'c1', name: 'Psych' }]
+  const mk = (id: string, at: number, over: Partial<ReadingView> = {}): ReadingView =>
+    reading({ id, courseId: 'c1', addedAt: at, ...over })
+
+  it('picks the next unfinished reading in the same course, wrapping to earlier ones', () => {
+    // Active order is newest first: c, b, a.
+    const s = snap(courses, [mk('a', 1), mk('b', 2), mk('c', 3)])
+    expect(nextReading(s, 'c')?.id).toBe('b')
+    expect(nextReading(s, 'b')?.id).toBe('a')
+    // Last in order: wraps to the first unfinished one before it.
+    expect(nextReading(s, 'a')?.id).toBe('c')
+    // Finished ones are skipped.
+    const s2 = snap(courses, [mk('a', 1), mk('b', 2, { finished: true }), mk('c', 3)])
+    expect(nextReading(s2, 'c')?.id).toBe('a')
+  })
+
+  it('is null when every other reading in the course is finished', () => {
+    const s = snap(courses, [mk('a', 1), mk('b', 2, { finished: true })])
+    expect(nextReading(s, 'a')).toBeNull()
+    // The current reading itself may be finished already (just marked): still looks around it.
+    const s2 = snap(courses, [mk('a', 1, { finished: true }), mk('b', 2, { finished: true })])
+    expect(nextReading(s2, 'a')).toBeNull()
   })
 })

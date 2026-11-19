@@ -9,6 +9,8 @@ const focus =
 const skipButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 bg-soft px-3.5 font-sans text-[12.5px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60 ${focus}`
 const playButton = `inline-flex min-h-[46px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-primary px-5 font-sans text-[14px] font-extrabold text-on-primary shadow-[0_4px_12px_var(--shadow)] disabled:cursor-default disabled:opacity-60 ${focus}`
 
+const offerButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 px-3.5 font-sans text-[12.5px] font-extrabold ${focus}`
+
 const WAVE =
   'M0 10 Q 12.5 1 25 10 T 50 10 T 75 10 T 100 10 T 125 10 T 150 10 T 175 10 T 200 10 T 225 10 T 250 10 T 275 10 T 300 10 T 325 10 T 350 10 T 375 10 T 400 10'
 
@@ -40,7 +42,7 @@ function Spinner(): React.JSX.Element {
 
 /** The five controls: Back 15s, Play / Pause, Forward 15s, voice & speed, Sleep. */
 export function PlayerBar(): React.JSX.Element {
-  const { snapshot, toggle, skip } = usePlayer()
+  const { snapshot, toggle, skip, finished, playNext, dismissFinished } = usePlayer()
   const { sentences, page, numPages, current } = useReaderState()
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0
@@ -100,13 +102,40 @@ export function PlayerBar(): React.JSX.Element {
             }}
           />
         </svg>
-        <div
-          aria-live="polite"
-          className="mt-0.5 flex min-h-[1em] justify-between gap-3 text-[11.5px] font-semibold text-muted"
-        >
-          <span>{left}</span>
-          <span>{right}</span>
-        </div>
+        {finished ? (
+          <div
+            aria-live="polite"
+            className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] font-bold text-ink"
+          >
+            <span>
+              {finished.next ? `Finished ✓ · Next: ${finished.next.title}` : 'Finished ✓'}
+            </span>
+            {finished.next ? (
+              <button
+                type="button"
+                className={`${offerButton} bg-primary text-on-primary`}
+                onClick={playNext}
+              >
+                Play next
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`${offerButton} bg-soft text-soft-ink`}
+              onClick={dismissFinished}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : (
+          <div
+            aria-live="polite"
+            className="mt-0.5 flex min-h-[1em] justify-between gap-3 text-[11.5px] font-semibold text-muted"
+          >
+            <span>{left}</span>
+            <span>{right}</span>
+          </div>
+        )}
       </div>
       <VoicePopover disabled={!ready} />
       <SleepPopover disabled={!ready} />

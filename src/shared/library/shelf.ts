@@ -1,5 +1,5 @@
 // Pure shelf grouping and row labels (renderer shelf and tests). No DOM, no IPC.
-import { OTHER, type Course, type LibrarySnapshot, type ReadingView } from './types'
+import { OTHER, type Course, type LibrarySnapshot, type ReadingId, type ReadingView } from './types'
 
 export interface ShelfGroup {
   key: string
@@ -54,4 +54,20 @@ export function rowLabel(r: ReadingView): string {
   return r.pageCount !== null
     ? `Page ${r.position.page} of ${r.pageCount}`
     : `Page ${r.position.page}`
+}
+
+/**
+ * The reading to offer after `currentId`: the first unfinished one after it in its course's shelf
+ * order (newest first), else the first unfinished one before it; null if there is none. The current
+ * reading keeps its place in that order even once it is marked finished.
+ */
+export function nextReading(s: LibrarySnapshot, currentId: ReadingId): ReadingView | null {
+  const group = groupShelf(s).find(
+    (g) => g.active.some((r) => r.id === currentId) || g.finished.some((r) => r.id === currentId)
+  )
+  if (!group) return null
+  const order = [...group.active, ...group.finished].sort((a, b) => recency(b) - recency(a))
+  const at = order.findIndex((r) => r.id === currentId)
+  const open = (r: ReadingView): boolean => !r.finished && r.id !== currentId
+  return order.slice(at + 1).find(open) ?? order.slice(0, at).find(open) ?? null
 }

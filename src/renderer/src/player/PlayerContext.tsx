@@ -11,8 +11,11 @@ import {
 import type { TtsStatus } from '../../../shared/ipc-types'
 import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/library/types'
 import { DEFAULT_VOICE } from '../../../shared/voices'
+import { nextReading } from '../../../shared/library/shelf'
 import { tide } from '../lib/tide'
 import { useReaderState } from '../reader/ReaderState'
+import { useToast } from '../shell/Toast'
+import { bindMediaSession } from './media-session'
 import { PlayerEngine, type AudioSink, type PlayerSnapshot, type TtsClient } from './engine'
 import { HtmlAudioSink } from './sink'
 import { SleepTimer, type SleepOption, type SleepState } from './sleep'
@@ -63,6 +66,11 @@ export interface PlayerValue {
   /** The sleep timer: its option and the seconds left (null for page, reading and off). */
   sleep: SleepState
   setSleep(o: SleepOption): void
+  /** Set once the reading has ended: the reading to offer next, if any. Cleared by Dismiss or Play. */
+  finished: { next: ReadingView | null } | null
+  /** Open the offered next reading and play it once its sentences arrive. */
+  playNext(): void
+  dismissFinished(): void
 }
 
 const IDLE: PlayerSnapshot = {
@@ -86,7 +94,10 @@ const NOOP: PlayerValue = {
   stopPreview: () => {},
   estimateSec: () => 0,
   sleep: { option: 'off', remainingSec: null },
-  setSleep: () => {}
+  setSleep: () => {},
+  finished: null,
+  playNext: () => {},
+  dismissFinished: () => {}
 }
 
 const PlayerCtx = createContext<PlayerValue>(NOOP)
@@ -151,7 +162,13 @@ type Props = {
 }
 
 /** Sits inside ReaderStateProvider. One engine, bound both ways to the reader's current sentence. */
-export function PlayerProvider({ reading, snapshot, children }: Props): React.JSX.Element {
+export function PlayerProvider({
+  reading,
+  courseName,
+  snapshot,
+  onPlayNext,
+  children
+}: Props): React.JSX.Element {
   const deps = useContext(DepsCtx)
   const { sentences, current, setCurrent } = useReaderState()
   const audio = useRef<HTMLAudioElement>(null)
@@ -162,6 +179,19 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     sentencesRef.current = sentences
   })
   const [timer, setTimer] = useState<SleepTimer | null>(null)
+  const [offer, setOffer] = useState<{ next: ReadingView | null; dismissed: boolean } | null>(null)
+  /** What happens once, the moment the reading runs out. Kept current each render. */
+  const onFinished = useRef<() => void>(() => {})
+  const sinkRef = useRef<AudioSink | null>(null)
+  const toast = useToast()
+  const latestProps = useRef({ snapshot, onPlayNext, toast })
+  useEffect(() => {
+    latestProps.current = { snapshot, onPlayNext, toast }
+  })
+  /** The reading to play once its sentences arrive (Play next only; opening never autoplays). */
+  const autoplayFor = useRef<ReadingId | null>(null)
+  /** The sentences on screen when the reading changed: they still belong to the old reading. */
+  const staleSentences = useRef(sentences)
   const [sleep, setSleepState] = useState<SleepState>({ option: 'off', remainingSec: null })
 
   const voice = snapshot?.settings.voice ?? DEFAULT_VOICE
@@ -174,6 +204,7 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     if (!el) return
     const { client, dispose } = createTtsClient()
     const audioSink = deps.makeSink ? deps.makeSink(el) : new HtmlAudioSink(el)
+    sinkRef.current = audioSink
     let tm: SleepTimer | null = null
     const e = new PlayerEngine(
       {
@@ -212,7 +243,12 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     setEngine(e)
     setTimer(sleepTimer)
     setSnap(e.snapshot())
-    const off = e.subscribe(setSnap)
+    let lastPhase = e.snapshot().phase
+    const off = e.subscribe((s) => {
+      setSnap(s)
+      if (s.phase === 'finished' && lastPhase !== 'finished') onFinished.current()
+      lastPhase = s.phase
+    })
     return () => {
       off()
       offSleep()
@@ -240,6 +276,8 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   useEffect(() => {
     engine?.setSentences([], null)
     pushed.current = null
+    staleSentences.current = sentencesRef.current
+    if (autoplayFor.current !== readingId) autoplayFor.current = null
     void tide()
       .library.flush()
       .catch(() => {})
@@ -255,10 +293,22 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     const wasListening = ph === 'playing' || ph === 'buffering' || ph === 'loading-voice'
     resume.current = wasListening && prevCount.current > 0 && sentences.length > 0
     prevCount.current = sentences.length
+    // Play next: this is the first list the new reading has reported, so it plays from the start.
+    if (
+      autoplayFor.current !== null &&
+      autoplayFor.current === readingId &&
+      sentences !== staleSentences.current &&
+      sentences.length > 0
+    ) {
+      autoplayFor.current = null
+      resume.current = true
+    }
     engine.setSentences(
       sentences.map((s) => s.text),
       null
     )
+    // The reading id is read, not watched: a new reading changes `sentences` when its text arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, sentences])
 
   // A click (or any other reader-side change) of the current sentence moves the engine.
@@ -284,6 +334,24 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   }, [snap.index, setCurrent])
 
   const phase = snap.phase
+  const finished = phase === 'finished' && offer && !offer.dismissed ? offer : null
+  useEffect(() => {
+    onFinished.current = () => {
+      // Whatever the timer was doing, the reading is over: it is off, and a fade never outlasts it.
+      timer?.set('off', 0)
+      if (sinkRef.current) sinkRef.current.volume = 1
+      if (readingId === null) {
+        setOffer(null)
+        return
+      }
+      const lib = latestProps.current.snapshot
+      setOffer({ next: lib ? nextReading(lib, readingId) : null, dismissed: false })
+      void tide()
+        .library.update(readingId, { finished: true })
+        .then(() => tide().library.flush())
+        .catch(() => {})
+    }
+  })
   const prevPhase = useRef(phase)
   useEffect(() => {
     const was = prevPhase.current
@@ -324,9 +392,7 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     return () => clearInterval(id)
   }, [sleepOn, engine, timer, nowFn])
   // The reading ran out: a timer waiting for that is done.
-  useEffect(() => {
-    if (phase === 'finished') timer?.readingFinished()
-  }, [phase, timer])
+
   // Another reading starts with the timer off.
   useEffect(() => {
     timer?.set('off', 0)
@@ -339,6 +405,22 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     previewing.current = null
   }, [])
   useEffect(() => stopPreview, [stopPreview])
+
+  // --- Crash toasts: the voice engine restarting, or given up on ------------------------------
+  useEffect(
+    () =>
+      tide().tts.onStatus((st) => {
+        const { toast: t } = latestProps.current
+        if (st === 'restarting') t.show({ text: 'The voice stopped unexpectedly. Restarting…' })
+        else if (st === 'failed')
+          t.show({
+            text: 'The voice stopped unexpectedly.',
+            actions: [{ label: 'Restart Tide', onClick: () => tide().app.relaunch() }],
+            ms: Infinity
+          })
+      }),
+    []
+  )
 
   // --- Actions ------------------------------------------------------------------------------
   const value = useMemo<PlayerValue>(
@@ -392,6 +474,15 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
       },
       stopPreview,
       sleep,
+      finished,
+      playNext: () => {
+        const next = finished?.next
+        if (!next) return
+        setOffer({ next, dismissed: true })
+        autoplayFor.current = next.id
+        latestProps.current.onPlayNext(next.id)
+      },
+      dismissFinished: () => setOffer((o) => (o ? { ...o, dismissed: true } : o)),
       setSleep: (o) => {
         const at = engine?.snapshot().index ?? current ?? 0
         timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)
@@ -405,7 +496,7 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
       }
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam
-    [engine, snap, stopPreview, sleep, timer, current]
+    [engine, snap, stopPreview, sleep, timer, current, finished]
   )
 
   // --- Keys: ← / → skip 15 s, Space plays and pauses ------------------------------------------
@@ -413,6 +504,29 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   useEffect(() => {
     latest.current = value
   })
+  // --- Media keys and Now Playing -------------------------------------------------------------
+  const title = reading?.title ?? null
+  const artist = courseName ?? 'Tide'
+  useEffect(() => {
+    if (title === null) return
+    return bindMediaSession(
+      typeof navigator === 'undefined' ? undefined : navigator.mediaSession,
+      { title, artist },
+      {
+        play: () => latest.current.play(),
+        pause: () => latest.current.pause(),
+        back: () => latest.current.skip(-SKIP_SEC),
+        forward: () => latest.current.skip(SKIP_SEC)
+      }
+    )
+  }, [title, artist])
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaSession) return
+    const listening = phase === 'playing' || phase === 'buffering' || phase === 'loading-voice'
+    navigator.mediaSession.playbackState =
+      title === null ? 'none' : listening ? 'playing' : 'paused'
+  }, [phase, title])
+
   const hasText = sentences.length > 0
   /** Space was ours on keydown, so its keyup must not click the focused button. */
   const spaceHandled = useRef(false)
