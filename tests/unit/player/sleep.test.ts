@@ -107,4 +107,16 @@ describe('SleepTimer', () => {
     expect(t.state.option).toBe('off')
     expect(stop).not.toHaveBeenCalled()
   })
+
+  it('sentenceEnded stops at once on the last sentence of the page and holds the reading', () => {
+    const { t, stop } = make()
+    const pageOf = (i: number): number => (i < 2 ? 1 : 2)
+    t.set('page', 1)
+    expect(t.sentenceEnded(0, pageOf)).toBe(false)
+    expect(stop).not.toHaveBeenCalled()
+    expect(t.sentenceEnded(1, pageOf)).toBe(true)
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(t.state.option).toBe('off')
+    expect(t.sentenceEnded(1, pageOf)).toBe(false)
+  })
 })

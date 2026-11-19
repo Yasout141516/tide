@@ -39,6 +39,11 @@ export interface EngineDeps {
   tts: TtsClient
   makeUrl(wav: ArrayBuffer): string
   revokeUrl(url: string): void
+  /**
+   * Asked as sentence `index` finishes, before the next one starts. Returning true holds the
+   * reading there: paused at `index`, the next sentence not started.
+   */
+  holdAfter?(index: number): boolean
 }
 
 const AHEAD = 3
@@ -364,6 +369,12 @@ export class PlayerEngine {
       this.cur = { i, p: p + 1 }
     } else if (i + 1 < this.texts.length) {
       this.cur = { i: i + 1, p: 0 }
+      if (this.deps.holdAfter?.(i)) {
+        this.wantPlay = false
+        this.phase = 'paused'
+        this.emit()
+        return
+      }
     } else {
       this.wantPlay = false
       this.phase = 'finished'

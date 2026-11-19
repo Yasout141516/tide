@@ -157,6 +157,10 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   const audio = useRef<HTMLAudioElement>(null)
   const [engine, setEngine] = useState<PlayerEngine | null>(null)
   const [snap, setSnap] = useState<PlayerSnapshot>(IDLE)
+  const sentencesRef = useRef(sentences)
+  useEffect(() => {
+    sentencesRef.current = sentences
+  })
   const [timer, setTimer] = useState<SleepTimer | null>(null)
   const [sleep, setSleepState] = useState<SleepState>({ option: 'off', remainingSec: null })
 
@@ -170,19 +174,23 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
     if (!el) return
     const { client, dispose } = createTtsClient()
     const audioSink = deps.makeSink ? deps.makeSink(el) : new HtmlAudioSink(el)
+    let tm: SleepTimer | null = null
     const e = new PlayerEngine(
       {
         sink: audioSink,
         tts: client,
         makeUrl:
           deps.makeUrl ?? ((wav) => URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))),
-        revokeUrl: deps.revokeUrl ?? ((u) => URL.revokeObjectURL(u))
+        revokeUrl: deps.revokeUrl ?? ((u) => URL.revokeObjectURL(u)),
+        // The page option stops exactly at the sentence boundary, not on the next poll.
+        holdAfter: (i) =>
+          tm?.sentenceEnded(i, (k) => sentencesRef.current[k]?.spans[0]?.page ?? -1) ?? false
       },
       initial.current.voice,
       initial.current.speed
     )
     // A fade moves the engine's own sink (never the preview); a stop is a pause, which flushes.
-    const tm = new SleepTimer(
+    const sleepTimer = new SleepTimer(
       (v) => {
         audioSink.volume = v
       },
@@ -191,8 +199,9 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
         audioSink.volume = 1
       }
     )
-    const offSleep = tm.subscribe(() => {
-      const st = tm.state
+    tm = sleepTimer
+    const offSleep = sleepTimer.subscribe(() => {
+      const st = sleepTimer.state
       const remainingSec = st.remainingSec === null ? null : Math.ceil(st.remainingSec)
       setSleepState((prev) =>
         prev.option === st.option && prev.remainingSec === remainingSec
@@ -201,7 +210,7 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
       )
     })
     setEngine(e)
-    setTimer(tm)
+    setTimer(sleepTimer)
     setSnap(e.snapshot())
     const off = e.subscribe(setSnap)
     return () => {
@@ -293,10 +302,6 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   )
 
   // --- Sleep timer: counts real time while playing, fades the engine's own sink, then pauses ----
-  const sentencesRef = useRef(sentences)
-  useEffect(() => {
-    sentencesRef.current = sentences
-  })
   const sleepOn = sleep.option !== 'off'
   const nowFn = deps.now
   useEffect(() => {

@@ -88,6 +88,17 @@ export class SleepTimer {
     }
   }
 
+  /**
+   * Sentence `index` has just finished. True (and the timer has stopped) when it was the last one
+   * of the page the timer was set on: the owner holds the reading there.
+   */
+  sentenceEnded(index: number, sentencePage: (i: number) => number): boolean {
+    if (this.option !== 'page') return false
+    if (sentencePage(index) !== this.page || sentencePage(index + 1) === this.page) return false
+    this.stop()
+    return true
+  }
+
   /** The reading ran out on its own: a timer waiting for that has done its job. */
   readingFinished(): void {
     if (this.option === 'reading') this.set('off', this.page)
