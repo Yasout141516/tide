@@ -81,8 +81,8 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 ## M0e: voices and model precision
 
 - 24 samples rendered from one opening page of a reading, q8 and fp32 (local-only, in `local-fixtures/voice-samples/`; open `index.html` to listen).
-- **Pending: Yasin to choose 6-8 voices and a default** from `local-fixtures/voice-samples/index.html`. Until then the default stays **Heart (af_heart)** per spec 6.7.
-- Speed: on the dev x86 CPU, q8 RTF is about 1.2-1.4 (a different run from the M0a laptop figure of 1.31-1.59; CPU load varies) and **fp32 about 0.5**, so fp32 is about 2.5x faster (q8 pays for dequantization). The model file is about 325 MB vs about 92 MB, so **fp32 adds about 233 MB** to the installer. fp32 would fix the Windows RTF > 1. Whether q8 is good enough is **undecided**: the quality comparison waits for the listening test.
+- **Decided 2026-11-19 (Yasin):** 10 voices (af_kore, af_nicole, af_sarah, am_fenrir, am_michael, am_puck, bf_emma, bf_isabella, bm_fable, bm_george); default **bf_emma**; model precision **fp32** on both OSes.
+- Speed: on the dev x86 CPU, q8 RTF is about 1.2-1.4 (a different run from the M0a laptop figure of 1.31-1.59; CPU load varies) and **fp32 about 0.5**, so fp32 is about 2.5x faster (q8 pays for dequantization). The model file is about 325 MB vs about 92 MB, so **fp32 adds about 233 MB** to the installer. fp32 would fix the Windows RTF > 1. **fp32 chosen** (2026-11-19).
 
 ## Final review fixes (packaging, pdf.js, text)
 
@@ -116,7 +116,7 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 
 **TTS and performance**
 - TTS protocol: cancel/generation ids, timeout from job start, recycle the worker on a hang (first task of M4).
-- Decide q8 vs fp32 (above); consider per-OS defaults.
+- ~~Decide q8 vs fp32~~ fp32 on both OSes (2026-11-19).
 - Short first chunk and model warm-up at start for first-audio latency; re-measure on the M5 Air at hand-off.
 - Deferred minors: tts-host error/exit handling, phonemizer re-count per chunk, missing edge-case tests (very long token, whitespace-only input), `npm audit` unreviewed, fetch error-path tests (the per-file fetch timeout is in), NODE_EXTRA_CA_CERTS note for intercepting proxies.
 

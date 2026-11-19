@@ -546,10 +546,13 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - Left and right arrow keys step by sentence until M4, when they become plus or minus 15 seconds.
 - Deferred text items (each keeps its golden stable until reviewed against her readings; "Read everything" is the escape meanwhile): multi-letter initials, country abbreviations and the "No." merge; run-in bold headings (needs font weight from pdf.js); citation shapes (multiple years, possessive "et al.", group authors, page-only locators); figure source notes, DOI lines and URL speech; outline numerals and item-spacing artifacts; superscript exponents; rotated pages, U+2010 de-hyphenation, compound-prefix syllable splits and roman-numeral zone titles.
 
+**Decided by Yasin for M4 (2026-11-19)**
+- **Voices (10):** af_kore, af_nicole, af_sarah, am_fenrir, am_michael, am_puck, bf_emma, bf_isabella, bm_fable, bm_george. Every other Kokoro voice is pruned at packaging time. Friendly names and one-line descriptions are proposed in the M4+M5 plan for his review.
+- **Default voice: bf_emma** (replaces the af_heart placeholder in 6.7).
+- **Model precision: fp32** on both OSes. It is about 2.5x faster than q8 on x86 (fixes Windows RTF > 1); the installer grows by about 233 MB.
+
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*
-- **Voices:** Yasin to choose 6-8 voices and the default from `local-fixtures/voice-samples/index.html`.
-- **Model precision, q8 vs fp32:** fp32 measured about 2.5x faster on x86 (would fix Windows RTF > 1) at +233 MB installer size. Quality comparison pending the listening test.
 - **GPL ffmpeg binaries** ship in the installers: handle the source-offer obligation before any public release.
 - **Apple Books on a real iPhone** is untested (only the AVFoundation proxy).
 
