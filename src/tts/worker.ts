@@ -3,44 +3,56 @@
 import type { KokoroTTS } from 'kokoro-js'
 import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
 import { blockNetwork, configureOffline, MODEL_ID, speechChunks } from './engine'
+import { JobQueue } from './queue'
 import type { TtsRequest, TtsResponse } from './protocol'
 
 // Installed before kokoro-js / transformers are imported (they are loaded lazily below),
 // so any hidden download fails loudly instead of silently reaching out.
 if (process.env.TIDE_OFFLINE_GUARD === '1') blockNetwork()
 
+type LoadJob = Extract<TtsRequest, { type: 'load' }>
+type SynthJob = Extract<TtsRequest, { type: 'synthesize' }>
+
 let tts: KokoroTTS | null = null
 
-async function handle(msg: TtsRequest): Promise<TtsResponse> {
-  switch (msg.type) {
-    case 'load': {
-      const t0 = performance.now()
-      await configureOffline(msg.modelDir)
-      const { KokoroTTS } = await import('kokoro-js')
-      tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: msg.dtype, device: 'cpu' })
-      return { id: msg.id, type: 'loaded', loadMs: Math.round(performance.now() - t0) }
-    }
-    case 'synthesize': {
-      if (!tts) throw new Error('voice engine is not loaded')
-      const t0 = performance.now()
-      // Kokoro truncates silently past ~510 tokens, so synthesize chunks of at most 400 and join.
-      // kokoro-js validates the voice id itself and throws a readable error for unknown ones.
-      const voice = msg.voice as NonNullable<Parameters<KokoroTTS['generate']>[1]>['voice']
-      const chunks = await speechChunks(msg.text)
-      const parts: Float32Array[] = []
-      for (const chunk of chunks) {
-        const audio = await tts.generate(chunk, { voice, speed: msg.speed })
-        parts.push(audio.audio)
-      }
-      return {
-        id: msg.id,
-        type: 'audio',
-        pcm: concatPcm(parts),
-        sampleRate: SAMPLE_RATE,
-        synthMs: Math.round(performance.now() - t0),
-        chunks: chunks.length
-      }
-    }
+type Voice = NonNullable<Parameters<KokoroTTS['generate']>[1]>['voice']
+
+/** Generations the main process cancelled; a running job of one stops between chunks. */
+const cancelledGens = new Set<string>()
+
+async function load(msg: LoadJob): Promise<TtsResponse> {
+  const t0 = performance.now()
+  await configureOffline(msg.modelDir)
+  const { KokoroTTS } = await import('kokoro-js')
+  tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: msg.dtype, device: 'cpu' })
+  const loadMs = Math.round(performance.now() - t0)
+  // Warm-up: the first inference pays one-off costs, so pay them now and drop the audio.
+  const t1 = performance.now()
+  await tts.generate('Ready.', { voice: msg.warmVoice as Voice, speed: 1 })
+  return { id: msg.id, type: 'loaded', loadMs, warmMs: Math.round(performance.now() - t1) }
+}
+
+async function synthesize(msg: SynthJob): Promise<TtsResponse> {
+  if (!tts) throw new Error('voice engine is not loaded')
+  const t0 = performance.now()
+  // Kokoro truncates silently past ~510 tokens, so synthesize chunks of at most 400 and join.
+  // kokoro-js validates the voice id itself and throws a readable error for unknown ones.
+  const voice = msg.voice as Voice
+  const chunks = await speechChunks(msg.text)
+  const parts: Float32Array[] = []
+  for (const chunk of chunks) {
+    if (cancelledGens.has(msg.gen)) return { id: msg.id, type: 'cancelled' }
+    const audio = await tts.generate(chunk, { voice, speed: msg.speed })
+    parts.push(audio.audio)
+  }
+  if (cancelledGens.has(msg.gen)) return { id: msg.id, type: 'cancelled' }
+  return {
+    id: msg.id,
+    type: 'audio',
+    pcm: concatPcm(parts),
+    sampleRate: SAMPLE_RATE,
+    synthMs: Math.round(performance.now() - t0),
+    chunks: chunks.length
   }
 }
 
@@ -48,20 +60,59 @@ function reply(res: TtsResponse): void {
   process.parentPort.postMessage(res)
 }
 
-// One request at a time: ONNX inference is not re-entrant, and order is preserved.
-let queue: Promise<void> = Promise.resolve()
+function replyError(id: number, err: unknown): void {
+  reply({ id, type: 'error', message: err instanceof Error ? err.message : String(err) })
+}
+
+// One job at a time: ONNX inference is not re-entrant. Cancels bypass the queue.
+const queue = new JobQueue<SynthJob>()
+let running = false
+// Loads share the lane with synthesis so a load is never interleaved with a job.
+let loading: Promise<void> = Promise.resolve()
+
+async function pump(): Promise<void> {
+  if (running) return
+  running = true
+  try {
+    for (let job = queue.next(); job; job = queue.next()) {
+      if (cancelledGens.has(job.gen)) {
+        reply({ id: job.id, type: 'cancelled' })
+        continue
+      }
+      reply({ id: job.id, type: 'started' })
+      try {
+        reply(await synthesize(job))
+      } catch (err) {
+        replyError(job.id, err)
+      }
+    }
+  } finally {
+    running = false
+  }
+}
 
 process.parentPort.on('message', (e) => {
   const msg = e.data as TtsRequest
-  queue = queue.then(async () => {
-    try {
-      reply(await handle(msg))
-    } catch (err) {
-      reply({
-        id: msg?.id ?? -1,
-        type: 'error',
-        message: err instanceof Error ? err.message : String(err)
+  switch (msg?.type) {
+    case 'load':
+      loading = loading.then(async () => {
+        try {
+          reply(await load(msg))
+        } catch (err) {
+          replyError(msg.id, err)
+        }
       })
-    }
-  })
+      break
+    case 'synthesize':
+      // Generations are unique per play session: a cancelled gen is never reused.
+      queue.push(msg)
+      void loading.then(pump)
+      break
+    case 'cancel':
+      for (const job of queue.cancel(msg.gen)) reply({ id: job.id, type: 'cancelled' })
+      cancelledGens.add(msg.gen)
+      break
+    default:
+      replyError((msg as { id?: number } | undefined)?.id ?? -1, new Error('unknown request'))
+  }
 })

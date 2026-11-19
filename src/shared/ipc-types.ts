@@ -14,6 +14,9 @@ export interface TtsAudio {
   chunks: number
 }
 
+/** State of the voice engine as the host reports it. */
+export type TtsStatus = 'loading' | 'ready' | 'restarting' | 'failed'
+
 export interface TtsLoadResult {
   loadMs: number
 }
