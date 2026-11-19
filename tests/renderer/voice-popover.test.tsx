@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
@@ -13,6 +13,7 @@ interface FakePreview {
   url: string
   playing: boolean
   pause: () => void
+  end: () => void
 }
 
 async function open(): Promise<{
@@ -53,10 +54,20 @@ async function open(): Promise<{
         playing: true,
         pause: () => {
           pv.playing = false
-        }
+        },
+        end: () => {}
       }
       previews.push(pv)
-      return { play: () => Promise.resolve(), pause: () => pv.pause() }
+      return {
+        play: () => Promise.resolve(),
+        pause: () => pv.pause(),
+        onEnded: (cb) => {
+          pv.end = () => {
+            pv.playing = false
+            cb()
+          }
+        }
+      }
     }
   }
   renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(2)) }), deps)
@@ -131,10 +142,55 @@ describe('Voice and speed popover', () => {
     await waitFor(() => expect(sink.playing).toBe(true))
     const pop = await openPopover()
     await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    const plays = sink.plays
+    act(() => previews[0].end())
     await new Promise((r) => setTimeout(r, 50))
     expect(sink.playing).toBe(false)
+    expect(sink.plays).toBe(plays)
+    expect(player().textContent).toContain('Play')
+    expect(player().textContent).not.toContain('Pause')
+  })
+
+  it('pressing Play after a preview stops the preview', async () => {
+    const { sink, previews } = await open()
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    expect(previews[0].playing).toBe(true)
+    // the player bar is outside the popover, so this click also dismisses it
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play', hidden: true }))
+    expect(previews[0].playing).toBe(false)
+    await waitFor(() => expect(sink.playing).toBe(true))
+  })
+
+  it('closing the popover stops a running preview', async () => {
+    const { previews } = await open()
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    expect(previews[0].playing).toBe(true)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(previews[0].playing).toBe(false)
+  })
+
+  it('Space and arrows are ignored while the popover is open', async () => {
+    const { sink } = await open()
+    const pop = await openPopover()
+    pop.focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowRight}')
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(sink.plays).toBe(0)
+    expect(sink.playing).toBe(false)
+  })
+
+  it('a preview while the reading is idle leaves it idle', async () => {
+    const { sink, previews } = await open()
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Fenrir' }))
     expect(previews).toHaveLength(1)
-    expect(within(player()).getByRole('button', { name: 'Play' })).toBeTruthy()
+    expect(sink.plays).toBe(0)
+    expect(sink.playing).toBe(false)
+    expect(player().textContent).not.toContain('Pause')
   })
 
   it('Listen on a second voice stops the first preview', async () => {

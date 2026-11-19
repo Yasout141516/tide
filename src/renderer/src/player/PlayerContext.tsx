@@ -33,6 +33,8 @@ export interface PlayerDeps {
 export interface PreviewAudio {
   play(): Promise<void> | void
   pause(): void
+  /** Tell the owner the clip finished on its own. */
+  onEnded?(cb: () => void): void
 }
 const DepsCtx = createContext<PlayerDeps>({})
 export const PlayerDepsProvider = DepsCtx.Provider
@@ -49,6 +51,8 @@ export interface PlayerValue {
   setSpeed(s: number): void
   /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
   preview(id: string): void
+  /** Stop a running preview (the popover closing). */
+  stopPreview(): void
   /** Estimated seconds to read sentences fromIndex..toIndex inclusive, at the current speed. */
   estimateSec(fromIndex: number, toIndex: number): number
 }
@@ -71,10 +75,21 @@ const NOOP: PlayerValue = {
   setVoice: () => {},
   setSpeed: () => {},
   preview: () => {},
+  stopPreview: () => {},
   estimateSec: () => 0
 }
 
 const PlayerCtx = createContext<PlayerValue>(NOOP)
+
+/** A preview on a plain audio element of its own. */
+function htmlPreview(url: string): PreviewAudio {
+  const el = new Audio(url)
+  return {
+    play: () => el.play(),
+    pause: () => el.pause(),
+    onEnded: (cb) => el.addEventListener('ended', cb)
+  }
+}
 
 /** The engine's view of the preload TTS API. The latest status is cached and read synchronously (R6). */
 function createTtsClient(): { client: TtsClient; dispose(): void } {
@@ -254,12 +269,23 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
   const value = useMemo<PlayerValue>(
     () => ({
       snapshot: snap,
-      play: () => engine?.play(),
+      play: () => {
+        stopPreview()
+        engine?.play()
+      },
       pause: () => engine?.pause(),
-      toggle: () => engine?.toggle(),
-      skip: (d) => engine?.skip(d),
+      toggle: () => {
+        const ph = engine?.snapshot().phase
+        if (ph !== 'playing' && ph !== 'buffering' && ph !== 'loading-voice') stopPreview()
+        engine?.toggle()
+      },
+      skip: (d) => {
+        stopPreview()
+        engine?.skip(d)
+      },
       readFrom: (i) => {
         if (!engine) return
+        stopPreview()
         engine.setIndex(i)
         engine.play()
       },
@@ -282,10 +308,14 @@ export function PlayerProvider({ reading, snapshot, children }: Props): React.JS
         if (ph === 'playing' || ph === 'buffering' || ph === 'loading-voice') engine?.pause()
         stopPreview()
         const url = `./voice-previews/${id}.mp3`
-        const a = deps.makePreview ? deps.makePreview(url) : new Audio(url)
+        const a = deps.makePreview ? deps.makePreview(url) : htmlPreview(url)
         previewing.current = a
+        a.onEnded?.(() => {
+          if (previewing.current === a) previewing.current = null
+        })
         void Promise.resolve(a.play()).catch(() => {})
       },
+      stopPreview,
       estimateSec: (from, to) => {
         if (!engine) return 0
         let sum = 0

@@ -9,9 +9,9 @@ const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify
 
 /** The voice & speed button and its popover: ten voices with a Listen each, then five speeds. */
 export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Element {
-  const { snapshot, setVoice, setSpeed, preview } = usePlayer()
+  const { snapshot, setVoice, setSpeed, preview, stopPreview } = usePlayer()
   return (
-    <Popover.Root>
+    <Popover.Root onOpenChange={(open) => !open && stopPreview()}>
       <Popover.Trigger className={trigger} disabled={disabled}>
         {`${voiceName(snapshot.voice)} · ${speedLabel(snapshot.speed)}`}
       </Popover.Trigger>
