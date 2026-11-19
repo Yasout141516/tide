@@ -51,12 +51,24 @@ export const PINNED_SIZE = { width: 1000, height: 700 }
  */
 async function pinWindow(app: ElectronApplication): Promise<void> {
   const win = await app.firstWindow()
-  await app.evaluate(({ BrowserWindow }, size) => {
-    const w = BrowserWindow.getAllWindows()[0]
-    if (w.isMaximized()) w.unmaximize()
-    w.setContentSize(size.width, size.height)
-  }, PINNED_SIZE)
-  await expect.poll(() => win.evaluate(() => window.innerWidth)).toBe(PINNED_SIZE.width)
+  // On a cold launch the window is created hidden and shown on 'ready-to-show'; a resize issued before
+  // that can be lost (or undone by show() on Windows). So wait until it is visible, re-apply the size on
+  // every poll until the renderer reports it, then confirm it stays put.
+  await win.waitForLoadState('domcontentloaded')
+  const applyAndRead = (): Promise<number> =>
+    app
+      .evaluate(({ BrowserWindow }, size) => {
+        const w = BrowserWindow.getAllWindows()[0]
+        if (!w.isVisible()) return false
+        if (w.isMaximized()) w.unmaximize()
+        const [cw, ch] = w.getContentSize()
+        if (cw !== size.width || ch !== size.height) w.setContentSize(size.width, size.height)
+        return true
+      }, PINNED_SIZE)
+      .then(async (visible) => (visible ? win.evaluate(() => window.innerWidth) : -1))
+  await expect.poll(applyAndRead, { timeout: 20_000 }).toBe(PINNED_SIZE.width)
+  await win.waitForTimeout(300)
+  await expect.poll(applyAndRead, { timeout: 10_000 }).toBe(PINNED_SIZE.width)
 }
 
 /**
