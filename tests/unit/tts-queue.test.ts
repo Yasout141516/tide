@@ -21,11 +21,33 @@ describe('JobQueue', () => {
     expect(q.size).toBe(0)
   })
 
+  it('front clips sent in natural order: idle queue takes clip 0 first, prefetches come after', () => {
+    // idle worker: the first message is taken before the second arrives
+    const idle = new JobQueue<Job>()
+    idle.pushFront(job('t-clip0', 'live', 'target'))
+    expect(idle.next()?.n).toBe('t-clip0')
+    idle.pushFront(job('t-clip1', 'live', 'target'))
+    expect(idle.next()?.n).toBe('t-clip1')
+
+    // busy worker: the target's clips run ahead of prefetches, in order
+    const q = new JobQueue<Job>()
+    q.push(job('pre1', 'live', 'p1'))
+    q.push(job('pre2', 'live', 'p2'))
+    q.pushFront(job('t-clip0', 'live', 'target'))
+    q.pushFront(job('t-clip1', 'live', 'target'))
+    // a later seek's target goes ahead of the earlier seek's leftovers, clips still in order
+    q.pushFront(job('u-clip0', 'live', 'later'))
+    q.pushFront(job('u-clip1', 'live', 'later'))
+    const order: string[] = []
+    for (let j = q.next(); j; j = q.next()) order.push(j.n)
+    expect(order).toEqual(['u-clip0', 'u-clip1', 't-clip0', 't-clip1', 'pre1', 'pre2'])
+  })
+
   it('pushFront runs ahead of waiting jobs of the same priority only', () => {
     const q = new JobQueue<Job>()
     q.push(job('l1', 'live'))
     q.push(job('p1', 'preview'))
-    q.pushFront(job('l0', 'live'))
+    q.pushFront(job('l0', 'live', 'other'))
     const order: string[] = []
     for (let j = q.next(); j; j = q.next()) order.push(j.n)
     expect(order).toEqual(['l0', 'l1', 'p1'])

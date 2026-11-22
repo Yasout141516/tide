@@ -333,10 +333,7 @@ export class PlayerEngine {
       secs: new Array<number | undefined>(pieces.length).fill(undefined)
     }
     this.entries.set(i, entry)
-    // Queued at the front, each clip goes ahead of the last, so ask in reverse to keep clip order.
-    const order = pieces.map((_, p) => p)
-    if (front) order.reverse()
-    for (const p of order) {
+    for (let p = 0; p < pieces.length; p++) {
       void this.deps.tts
         .synthesize(pieces[p], {
           voice: entry.voice,

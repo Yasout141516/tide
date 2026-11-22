@@ -10,9 +10,16 @@ export class JobQueue<T extends { priority: Priority; gen: string }> {
     this.lanes[job.priority].push(job)
   }
 
-  /** Queue ahead of the jobs already waiting at this priority. */
+  /**
+   * Queue ahead of the jobs already waiting at this priority, but behind earlier jobs of the same
+   * generation waiting at the head: the clips of one sentence run in the order they were sent,
+   * while a later generation still goes ahead of an earlier one's leftovers.
+   */
   pushFront(job: T): void {
-    this.lanes[job.priority].unshift(job)
+    const lane = this.lanes[job.priority]
+    let at = 0
+    while (at < lane.length && lane[at].gen === job.gen) at += 1
+    lane.splice(at, 0, job)
   }
 
   next(): T | undefined {

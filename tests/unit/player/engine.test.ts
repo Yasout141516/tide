@@ -388,10 +388,10 @@ describe('PlayerEngine', () => {
     const n = tts.calls.length
     engine.setIndex(2)
     const fresh = tts.calls.slice(n)
-    // each front job runs before the one asked earlier, so clip 2 is asked first to run second
+    // clips are sent in natural order (clip 0 first), the queue keeps them together at the front
     expect(fresh.slice(0, 2).map((c) => c.text)).toEqual([
-      ' we shall go forth today.',
-      'Well then my friends,'
+      'Well then my friends,',
+      ' we shall go forth today.'
     ])
     expect(fresh.slice(0, 2).every((c) => c.front === true)).toBe(true)
   })
@@ -441,8 +441,8 @@ describe('PlayerEngine', () => {
     engine.play()
     engine.setIndex(6)
     expect(tts.texts().slice(-3)).toEqual([
-      ' we shall go forth today.', // front jobs are asked in reverse to run in clip order
       'Well then my friends,',
+      ' we shall go forth today.',
       S[1]
     ])
     for (const c of tts.calls) c.resolve(audio(1))
