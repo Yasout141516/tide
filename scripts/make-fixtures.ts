@@ -51,6 +51,7 @@ const BODY_W = PAGE_W - 2 * MARGIN
 type SkipReason =
   | 'running header'
   | 'page number footer'
+  | 'vendor stamp'
   | 'footnote'
   | 'footnote marker'
   | 'figure/table caption'
@@ -1046,6 +1047,42 @@ function citations(): Fixture {
   }
 }
 
+function ebookStamps(): Fixture {
+  const bodyPages = [
+    'Tidal gardens form where a shallow shelf of rock holds seawater between tides. Small pools warm quickly in the sun, and their chemistry shifts within a few hours. Animals that live there must tolerate heat, salt and sudden rain.',
+    'The library also lends databases such as ProQuest to its members. Copyright law differs between countries, and readers should check the rules that apply to them. The next chapter turns to the algae that colour the upper shore.',
+    'Green algae dominate the high pools, where light is strong and grazers are few. Lower down, red algae spread beneath the shade of larger brown weeds. Each band of colour marks a different balance of light and wave action.'
+  ]
+  const pages: FPage[] = bodyPages.map((text, i) => {
+    const n = i + 1
+    const stamp = (t: string, top: number): FLine => simple(t, MARGIN, top, 8, 'vendor stamp')
+    const lines: FLine[] = [
+      stamp(
+        'Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,',
+        28
+      ),
+      stamp('http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.', 38),
+      stamp('Created from lakeview on 2026-03-02 14:11:09.', 48),
+      simple(`Chapter ${n}`, MARGIN, 90, 14),
+      ...para(text, 118).lines,
+      stamp('Copyright ©2019. Harbor Lane Press. All rights reserved.', 748),
+      stamp(`Ebook pages ${28 + 3 * n}-${30 + 3 * n} | Printed page ${n} of 3`, 760)
+    ]
+    return { lines }
+  })
+  return {
+    name: 'ebook-stamps',
+    title: 'Tidal Gardens (invented ebook stamps)',
+    description:
+      '3 pages with invented ProQuest-style ebook stamps: a three-line header (a citation that wraps onto a second line, then a "Created from ... on <date>" line) in 8pt at the top of every page, and a copyright line plus an "Ebook pages ... | Printed page N of 3" line at the bottom. All names are invented.',
+    notes: [
+      'DEFAULT_FILTERS (skipHeadersFooters) drops every stamp line, including the wrapped second line of the citation; READ_EVERYTHING speaks them.',
+      'Page 2 body text mentions "ProQuest" and "Copyright law" in running prose: it is kept.'
+    ],
+    pages
+  }
+}
+
 function noText(): Fixture {
   return {
     name: 'no-text',
@@ -1321,6 +1358,7 @@ async function main(): Promise<void> {
     captionsTables,
     coverRefs,
     citations,
+    ebookStamps,
     noText,
     ligatures,
     longSentence,

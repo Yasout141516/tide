@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { dropHeadersFooters } from '../../../src/shared/text/filters'
+import { dropHeadersFooters, isVendorStamp } from '../../../src/shared/text/filters'
+import { extractPages } from '../../../src/shared/text/extract'
+import { buildSentences } from '../../../src/shared/text/pipeline'
+import { READ_EVERYTHING, type Line } from '../../../src/shared/text/types'
 import { buildLines } from '../../../src/shared/text/lines'
-import { linesOf, loadSidecars, page, spokenOf, type ItemSpec } from './helpers'
+import {
+  lineOf,
+  linesOf,
+  loadSidecars,
+  readFixture,
+  page,
+  spokenOf,
+  type ItemSpec
+} from './helpers'
 
 const HEIGHT = 792
 const body = (k: number): ItemSpec[] => [
@@ -150,11 +161,104 @@ describe('dropHeadersFooters', () => {
       )
       const expected = sidecar.pages.map((p) => {
         const dropped = p.skipped
-          .filter((s) => /header|footer|page number/.test(s.reason))
+          .filter((s) => /header|footer|page number|stamp/.test(s.reason))
           .map((s) => s.text)
         return p.lines.filter((t) => !dropped.includes(t))
       })
       expect(kept.map((p) => p.map((l) => l.text))).toEqual(expected)
     })
+  })
+})
+
+describe('ebook vendor stamps', () => {
+  const one = (items: ItemSpec[], n = 1): string[] => doc(n, (k) => (k === 1 ? items : [])).flat()
+  const stamp = (str: string, y: number): ItemSpec => ({ str, x: 72, y, fontSize: 8 })
+  const A =
+    'Nora Quill. Salt Roads: A Travel Memoir, Orchard Row Books, 2021. ProQuest Ebook Central,'
+
+  it('drops ProQuest header and footer stamps on every page', () => {
+    const out = doc(3, (k) => [
+      stamp(A, 30),
+      stamp(`Created from northfield on 2026-04-0${k} 09:15:00.`, 42),
+      stamp('Copyright ©2021. Orchard Row Books. All rights reserved.', 748),
+      stamp(`Ebook pages ${k}-${k + 2} | Printed page ${k} of 3`, 760)
+    ])
+    for (const p of out)
+      expect(p).toEqual([expect.stringMatching(/^Body text of page/), 'More body text.'])
+  })
+
+  it('drops a stamp that wraps onto two lines', () => {
+    const out = one([
+      stamp(A, 28),
+      stamp('http://ebookcentral.proquest.com/lib/northfield/detail.action?docID=4410298.', 38),
+      stamp('Created from northfield on 2026-04-01 09:15:00.', 48)
+    ])
+    expect(out).toEqual(['Body text of page 1.', 'More body text.'])
+    // The continuation goes only when the stamp ends mid-citation, and only inside the band.
+    const kept = one([
+      stamp('Created from northfield on 2026-04-01.', 30),
+      stamp('Opening note.', 42)
+    ])
+    expect(kept).toContain('Opening note.')
+  })
+
+  it('drops JSTOR and EBSCO download stamps', () => {
+    const out = one([
+      stamp('This content downloaded from 192.0.2.17 on Tue, 05 May 2026 10:00:00 UTC', 30),
+      stamp('EBSCO Publishing eBook Collection - printed on 5/5/2026 10:00 AM', 748)
+    ])
+    expect(out).toEqual(['Body text of page 1.', 'More body text.'])
+  })
+
+  it('does not drop a body sentence that merely mentions ProQuest or copyright', () => {
+    const out = one([
+      { str: 'The archive subscribes to ProQuest and other databases.', x: 72, y: 200 },
+      {
+        str: 'Copyright © is discussed in the next section. All rights reserved by law.',
+        x: 72,
+        y: 220
+      },
+      { str: 'Copyright ©2021 Orchard Row Books. All rights reserved.', x: 72, y: 240 }
+    ])
+    expect(out).toContain('The archive subscribes to ProQuest and other databases.')
+    expect(out).toContain(
+      'Copyright © is discussed in the next section. All rights reserved by law.'
+    )
+    // The copyright stamp pattern applies only in the top or bottom band.
+    expect(out).toContain('Copyright ©2021 Orchard Row Books. All rights reserved.')
+  })
+
+  it('isVendorStamp matches the vendor patterns', () => {
+    const l = (s: string): Line => lineOf([{ str: s, x: 72, y: 30 }])
+    expect(isVendorStamp(l('Created from northfield on 2026-04-01 09:15:00.'))).toBe(true)
+    expect(isVendorStamp(l('ebook pages 3-5 | printed page 2 of 9'))).toBe(true)
+    expect(isVendorStamp(l('Copyright ©2021. Orchard Row Books. All rights reserved.'))).toBe(false)
+    expect(isVendorStamp(l('Copyright ©2021. Orchard Row Books. All rights reserved.'), true)).toBe(
+      true
+    )
+    expect(isVendorStamp(l('Salt is created from brine.'))).toBe(false)
+  })
+
+  it('headers differing only by page numbers repeat-match', () => {
+    const out = doc(4, (k) => [{ str: `Salt Roads - page ${k * 3} of 40`, x: 72, y: TOP }])
+    for (const p of out) expect(p[0]).toMatch(/^Body text/)
+  })
+
+  it('a body line repeating with different numbers survives', () => {
+    const out = doc(4, (k) => [{ str: `Trial ${k} score ${k * 7}`, x: 72, y: 400 }])
+    for (const p of out) expect(p.some((t) => t.startsWith('Trial'))).toBe(true)
+  })
+
+  it('Read everything keeps the stamps', async () => {
+    const pages = await extractPages(readFixture('ebook-stamps.pdf'))
+    const all = buildSentences(pages, READ_EVERYTHING)
+      .sentences.map((s) => s.text)
+      .join(' ')
+    expect(all).toContain('ProQuest Ebook Central')
+    expect(all).toContain('Printed page 2 of 3')
+    const def = buildSentences(pages)
+      .sentences.map((s) => s.text)
+      .join(' ')
+    expect(def).not.toMatch(/Ebook Central|Created from|Printed page|All rights reserved|docID/)
   })
 })

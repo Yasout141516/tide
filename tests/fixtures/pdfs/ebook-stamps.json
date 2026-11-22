@@ -1,0 +1,130 @@
+{
+  "fixture": "ebook-stamps.pdf",
+  "description": "3 pages with invented ProQuest-style ebook stamps: a three-line header (a citation that wraps onto a second line, then a \"Created from ... on <date>\" line) in 8pt at the top of every page, and a copyright line plus an \"Ebook pages ... | Printed page N of 3\" line at the bottom. All names are invented.",
+  "pageCount": 3,
+  "pageSize": [
+    612,
+    792
+  ],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "notes": [
+    "DEFAULT_FILTERS (skipHeadersFooters) drops every stamp line, including the wrapped second line of the citation; READ_EVERYTHING speaks them.",
+    "Page 2 body text mentions \"ProQuest\" and \"Copyright law\" in running prose: it is kept."
+  ],
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+        "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+        "Created from lakeview on 2026-03-02 14:11:09.",
+        "Chapter 1",
+        "Tidal gardens form where a shallow shelf of rock holds seawater between tides. Small pools",
+        "warm quickly in the sun, and their chemistry shifts within a few hours. Animals that live there",
+        "must tolerate heat, salt and sudden rain.",
+        "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+        "Ebook pages 31-33 | Printed page 1 of 3"
+      ],
+      "spoken": "Chapter 1 Tidal gardens form where a shallow shelf of rock holds seawater between tides. Small pools warm quickly in the sun, and their chemistry shifts within a few hours. Animals that live there must tolerate heat, salt and sudden rain.",
+      "spokenReadEverything": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central, http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481. Created from lakeview on 2026-03-02 14:11:09. Chapter 1 Tidal gardens form where a shallow shelf of rock holds seawater between tides. Small pools warm quickly in the sun, and their chemistry shifts within a few hours. Animals that live there must tolerate heat, salt and sudden rain. Copyright ©2019. Harbor Lane Press. All rights reserved. Ebook pages 31-33 | Printed page 1 of 3",
+      "skipped": [
+        {
+          "text": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Created from lakeview on 2026-03-02 14:11:09.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Ebook pages 31-33 | Printed page 1 of 3",
+          "reason": "vendor stamp"
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "lines": [
+        "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+        "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+        "Created from lakeview on 2026-03-02 14:11:09.",
+        "Chapter 2",
+        "The library also lends databases such as ProQuest to its members. Copyright law differs",
+        "between countries, and readers should check the rules that apply to them. The next chapter",
+        "turns to the algae that colour the upper shore.",
+        "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+        "Ebook pages 34-36 | Printed page 2 of 3"
+      ],
+      "spoken": "Chapter 2 The library also lends databases such as ProQuest to its members. Copyright law differs between countries, and readers should check the rules that apply to them. The next chapter turns to the algae that colour the upper shore.",
+      "spokenReadEverything": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central, http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481. Created from lakeview on 2026-03-02 14:11:09. Chapter 2 The library also lends databases such as ProQuest to its members. Copyright law differs between countries, and readers should check the rules that apply to them. The next chapter turns to the algae that colour the upper shore. Copyright ©2019. Harbor Lane Press. All rights reserved. Ebook pages 34-36 | Printed page 2 of 3",
+      "skipped": [
+        {
+          "text": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Created from lakeview on 2026-03-02 14:11:09.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Ebook pages 34-36 | Printed page 2 of 3",
+          "reason": "vendor stamp"
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "lines": [
+        "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+        "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+        "Created from lakeview on 2026-03-02 14:11:09.",
+        "Chapter 3",
+        "Green algae dominate the high pools, where light is strong and grazers are few. Lower down,",
+        "red algae spread beneath the shade of larger brown weeds. Each band of colour marks a",
+        "different balance of light and wave action.",
+        "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+        "Ebook pages 37-39 | Printed page 3 of 3"
+      ],
+      "spoken": "Chapter 3 Green algae dominate the high pools, where light is strong and grazers are few. Lower down, red algae spread beneath the shade of larger brown weeds. Each band of colour marks a different balance of light and wave action.",
+      "spokenReadEverything": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central, http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481. Created from lakeview on 2026-03-02 14:11:09. Chapter 3 Green algae dominate the high pools, where light is strong and grazers are few. Lower down, red algae spread beneath the shade of larger brown weeds. Each band of colour marks a different balance of light and wave action. Copyright ©2019. Harbor Lane Press. All rights reserved. Ebook pages 37-39 | Printed page 3 of 3",
+      "skipped": [
+        {
+          "text": "Mara Ellison. Tidal Gardens: A Field Guide, Harbor Lane Press, 2019. ProQuest Ebook Central,",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "http://ebookcentral.proquest.com/lib/lakeview/detail.action?docID=5530481.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Created from lakeview on 2026-03-02 14:11:09.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Copyright ©2019. Harbor Lane Press. All rights reserved.",
+          "reason": "vendor stamp"
+        },
+        {
+          "text": "Ebook pages 37-39 | Printed page 3 of 3",
+          "reason": "vendor stamp"
+        }
+      ]
+    }
+  ]
+}

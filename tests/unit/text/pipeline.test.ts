@@ -20,7 +20,8 @@ const GOLDEN = [
   'sentence-edges',
   'citations',
   'ligatures',
-  'long-sentence'
+  'long-sentence',
+  'ebook-stamps'
 ]
 
 const SIDECARS = new Map(loadSidecars().map((s) => [s.fixture, s]))
