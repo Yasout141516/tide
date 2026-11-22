@@ -1,0 +1,33 @@
+{
+  "fixture": "listen.pdf",
+  "description": "2 pages, 12 short invented sentences in plain paragraphs; the first sentence has a clause comma near its start. For the player end-to-end tests.",
+  "pageCount": 2,
+  "pageSize": [612, 792],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "pages": [
+    {
+      "page": 1,
+      "lines": [
+        "When the morning fog lifted, the fishing boats slid out of the harbour one by one. Gulls followed",
+        "them past the lighthouse. The first boat carried nets and a small red stove. Its captain hummed",
+        "an old song as she steered. Nobody on the pier spoke for a while. The water was flat and bright.",
+        "By noon the tide had turned. The boats came back with crates of silver fish."
+      ],
+      "spoken": "When the morning fog lifted, the fishing boats slid out of the harbour one by one. Gulls followed them past the lighthouse. The first boat carried nets and a small red stove. Its captain hummed an old song as she steered. Nobody on the pier spoke for a while. The water was flat and bright. By noon the tide had turned. The boats came back with crates of silver fish.",
+      "spokenReadEverything": "When the morning fog lifted, the fishing boats slid out of the harbour one by one. Gulls followed them past the lighthouse. The first boat carried nets and a small red stove. Its captain hummed an old song as she steered. Nobody on the pier spoke for a while. The water was flat and bright. By noon the tide had turned. The boats came back with crates of silver fish.",
+      "skipped": []
+    },
+    {
+      "page": 2,
+      "lines": [
+        "Children gathered on the stones to watch the unloading. A boy counted the crates twice. His",
+        "sister drew the gulls in a notebook. The market opened at one and the fish were gone by two.",
+        "That evening the harbour was quiet again. The lamps came on along the wall, and the water",
+        "turned dark."
+      ],
+      "spoken": "Children gathered on the stones to watch the unloading. A boy counted the crates twice. His sister drew the gulls in a notebook. The market opened at one and the fish were gone by two. That evening the harbour was quiet again. The lamps came on along the wall, and the water turned dark.",
+      "spokenReadEverything": "Children gathered on the stones to watch the unloading. A boy counted the crates twice. His sister drew the gulls in a notebook. The market opened at one and the fish were gone by two. That evening the harbour was quiet again. The lamps came on along the wall, and the water turned dark.",
+      "skipped": []
+    }
+  ]
+}

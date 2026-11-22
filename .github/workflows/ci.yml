@@ -91,6 +91,17 @@ jobs:
             console.log(out.join("\n"))
           '
 
+      - name: 'M4: first-audio latency'
+        if: ${{ !cancelled() }}
+        run: |
+          # The packaged player e2e test writes test-results/first-audio.json (Play click to playing).
+          f=test-results/first-audio.json
+          {
+            echo "### M4: first audio (Play to playing): $RUNNER_OS"
+            echo
+            if [ -f "$f" ]; then echo '```json'; cat "$f"; echo; echo '```'; else echo 'No first-audio metrics: the player test did not get that far.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: 'M0b: ad-hoc signature and Gatekeeper state'
         if: runner.os == 'macOS'
         run: |
@@ -147,11 +158,12 @@ jobs:
             out.push(fs.existsSync(bin) ? `Packaged ffmpeg binary: ${mib(bin)}` : `Packaged ffmpeg binary MISSING: ${bin}`, "")
             if (fs.existsSync("release")) {
               for (const i of fs.readdirSync("release").filter((n) => /\.(dmg|exe)$/.test(n))) {
-                // Budget: M1 baselines (MiB); warn when an installer grows by more than 15 MiB.
-                const base = i.endsWith(".dmg") ? 246.3 : 241.2
+                // Budget baselines (MiB); warn when an installer grows by more than 15 MiB.
+                // fp32 model, M4; dmg is a local estimate, confirm on first CI run (M1 baselines were 246.3 / 241.2).
+                const base = i.endsWith(".dmg") ? 461.7 : 456.6
                 const size = fs.statSync("release/" + i).size / 1048576
                 const delta = size - base
-                out.push(`Installer ${i}: ${size.toFixed(1)} MiB (Δ vs M1 baseline: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} MiB)`, "")
+                out.push(`Installer ${i}: ${size.toFixed(1)} MiB (Δ vs fp32 M4 baseline: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} MiB)`, "")
                 if (delta > 15) console.log("::warning::Installer grew by more than 15 MiB")
               }
             }

@@ -5,6 +5,7 @@ import { join, resolve } from 'path'
 import { test, expect, type Page } from '@playwright/test'
 import {
   boxesInsideCanvas,
+  clickToChangeSentence,
   highlightIds,
   clickAddReading,
   closeShelf,
@@ -224,10 +225,11 @@ test('opens a reading, shows a rendered page and a highlight, and restores the p
   await expect(lit(0).first()).toBeVisible()
   expect(await boxesInsideCanvas(win)).toBe(true)
 
-  await win.keyboard.press('ArrowRight')
-  await win.keyboard.press('ArrowRight')
-  await expect(lit(2).first()).toBeVisible()
-  expect(await highlightIds(win)).toEqual(['2'])
+  // Her place is where she clicked: ← / → skip 15 s now, so a click picks the sentence.
+  const picked = await clickToChangeSentence(win)
+  expect(Number(picked)).toBeGreaterThan(0)
+  await expect(lit(Number(picked)).first()).toBeVisible()
+  expect(await highlightIds(win)).toEqual([picked])
   expect(await boxesInsideCanvas(win)).toBe(true)
   // The page label for the current sentence's page (the player bar; the header has no label of its own).
   await expect(win.getByRole('contentinfo', { name: 'Player' })).toContainText(/Page 1 of 4/)
@@ -243,8 +245,8 @@ test('opens a reading, shows a rendered page and a highlight, and restores the p
   app = await launchTide({ TIDE_USER_DATA: userData })
   win = await app.firstWindow()
   await (await openShelf(win)).getByRole('button', { name: /Week 4/ }).click()
-  await expect(lit(2).first()).toBeVisible()
-  expect(await highlightIds(win)).toEqual(['2'])
+  await expect(lit(Number(picked)).first()).toBeVisible()
+  expect(await highlightIds(win)).toEqual([picked])
   await app.close()
 })
 

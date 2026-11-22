@@ -1,0 +1,16 @@
+{
+  "fixture": "listen-short.pdf",
+  "description": "1 page, 2 short invented sentences. Ends quickly, for the player finish test.",
+  "pageCount": 1,
+  "pageSize": [612, 792],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "pages": [
+    {
+      "page": 1,
+      "lines": ["The lantern swung gently above the door. Its light fell on the wet cobbles."],
+      "spoken": "The lantern swung gently above the door. Its light fell on the wet cobbles.",
+      "spokenReadEverything": "The lantern swung gently above the door. Its light fell on the wet cobbles.",
+      "skipped": []
+    }
+  ]
+}

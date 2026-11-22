@@ -1,0 +1,16 @@
+{
+  "fixture": "listen-next.pdf",
+  "description": "1 page, 2 short invented sentences. The reading offered after listen-short.",
+  "pageCount": 1,
+  "pageSize": [612, 792],
+  "format": "Per page: `lines` = expected buildLines(page).map(l => l.text) in reading order; `spoken` = text to speak with DEFAULT_FILTERS; `spokenReadEverything` = text to speak with READ_EVERYTHING; `skipped` = what DEFAULT_FILTERS drop. Spoken text joins lines with single spaces, de-hyphenates \"-\" + lowercase line starts, and is normalized (ligatures expanded, soft hyphens removed, NBSP/thin space -> space).",
+  "pages": [
+    {
+      "page": 1,
+      "lines": ["A baker opened her shutters before dawn. The street smelled of warm bread."],
+      "spoken": "A baker opened her shutters before dawn. The street smelled of warm bread.",
+      "spokenReadEverything": "A baker opened her shutters before dawn. The street smelled of warm bread.",
+      "skipped": []
+    }
+  ]
+}

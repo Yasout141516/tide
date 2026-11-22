@@ -551,6 +551,17 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - **Default voice: bf_emma** (replaces the af_heart placeholder in 6.7).
 - **Model precision: fp32** on both OSes. It is about 2.5x faster than q8 on x86 (fixes Windows RTF > 1); the installer grows by about 233 MB.
 
+**Decided during M4 build (2026-11-19 to 2026-11-22)**
+- Voice work is renderer-side: one player engine drives a hidden audio element and the reader's current sentence, both ways. The voice engine stays in the main process; a crash restarts it with a toast, and a second failure offers "Restart Tide".
+- First clips are cut at a clause comma or semicolon near the start so audio begins sooner; a comma inside a number or time ("1,000", "12:30") is never a split point.
+- Space plays and pauses everywhere except text fields, open dialogs, menus and popovers, and buttons in the player bar (those keep their own Space). Left and right arrows skip 15 seconds (this replaces stepping by sentence); clicking a sentence picks it.
+- If the sentence list is rebuilt while she is listening (for example Read everything is toggled), playback carries on from the same place.
+- The sleep timer's "end of page" option stops exactly at the sentence boundary, fades over five seconds, and is switched off (volume restored) whenever the reading ends or another reading opens.
+- When a reading ends, the player offers the next unfinished reading in the same course (a reading whose file has moved is never offered). "Play next" opens it and plays; opening a reading never starts audio by itself. The sticky "Restart Tide" toast is not replaced by later toasts.
+- Previews play on their own audio element, so the reading's audio is untouched; a preview stops when she plays, skips or closes the popover.
+- A moved or missing file is never offered as Next, and a Play next that fails to open leaves nothing armed.
+- Test hygiene: the jsdom renderer tests have a 15 second limit and wait on conditions rather than fixed delays; no push of the feature branch happens before the listening check.
+
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*
 - **GPL ffmpeg binaries** ship in the installers: handle the source-offer obligation before any public release.

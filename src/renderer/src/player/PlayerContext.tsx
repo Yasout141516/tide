@@ -571,7 +571,8 @@ export function PlayerProvider({
   return (
     <PlayerCtx.Provider value={value}>
       {children}
-      <audio ref={audio} hidden />
+      {/* data-phase is test-only (TIDE_E2E exposes window.tideTest): e2e waits on the player's phase. */}
+      <audio ref={audio} hidden data-phase={window.tideTest ? phase : undefined} />
     </PlayerCtx.Provider>
   )
 }

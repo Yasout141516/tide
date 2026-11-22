@@ -13,6 +13,7 @@ import { join, resolve } from 'path'
 import { test, expect } from '@playwright/test'
 import {
   boxesInsideCanvas as insideCanvas,
+  clickToChangeSentence,
   clickAddReading,
   closeShelf,
   highlightIds as current,
@@ -64,18 +65,19 @@ pdfs.forEach((file, i) => {
       )
       .toBe(true)
 
-    // Steps: the highlight appears, moves one sentence per press, and stays inside its canvas.
+    // Steps: the highlight appears, moves to the sentence she clicks, and stays inside its canvas.
     await expect(win.locator('[data-testid="sentence-highlight"]').first()).toBeVisible({
       timeout: 60_000
     })
     const first = Number((await current(win))[0])
     expect(await insideCanvas(win)).toBe(true)
+    let at = String(first)
     for (let step = 1; step <= 3; step++) {
-      await win.keyboard.press('ArrowRight')
-      await expect.poll(() => current(win)).toEqual([String(first + step)])
+      // ← / → skip 15 s now, so a click on the page picks the next sentence.
+      at = await clickToChangeSentence(win)
+      await expect.poll(() => current(win)).toEqual([at])
       expect(await insideCanvas(win)).toBe(true)
     }
-    const at = String(first + 3)
 
     // Resumes: the same sentence after a quit and relaunch.
     await app.close()

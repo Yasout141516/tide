@@ -1,4 +1,8 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { copyFileSync } from 'fs'
+import { mkdtemp } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join, resolve } from 'path'
+import { expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 
 /** The distinct sentence ids currently highlighted on the page. */
 export const highlightIds = (win: Page): Promise<string[]> =>
@@ -62,4 +66,56 @@ export async function closeShelf(win: Page): Promise<void> {
   const overlay = win.getByRole('dialog', { name: 'Shelf', exact: true })
   if (await overlay.isVisible()) await win.keyboard.press('Escape')
   await expect(overlay).toHaveCount(0)
+}
+
+/**
+ * Clicks into the body text of page `n` until the highlight moves to another sentence, and returns the
+ * id it landed on. A click picks the sentence under it (the player keeps its keys for skipping 15 s, so
+ * there is no key that steps one sentence).
+ */
+export async function clickToChangeSentence(win: Page, n = 1): Promise<string> {
+  const before = (await highlightIds(win)).join()
+  const page = win.locator(`[data-page="${n}"]`)
+  const box = await page.boundingBox()
+  if (!box) throw new Error(`page ${n} is not on screen`)
+  for (let f = 0.2; f <= 0.9; f += 0.04) {
+    await page.click({ position: { x: box.width * 0.3, y: box.height * f } })
+    try {
+      await expect
+        .poll(async () => (await highlightIds(win)).join(), { timeout: 600 })
+        .not.toBe(before)
+      const ids = await highlightIds(win)
+      if (ids.length === 1) return ids[0]
+    } catch {
+      // That click landed between sentences; try a little lower.
+    }
+  }
+  throw new Error('no click moved the highlight')
+}
+
+/**
+ * Adds a fixture PDF through the stubbed file dialog (the new reading opens), under a new course named
+ * `course`, or with no course ("Skip"). The dialog is stubbed from the main process; no production hook.
+ */
+export async function addFixtureReading(
+  app: ElectronApplication,
+  win: Page,
+  file: string,
+  course?: string
+): Promise<void> {
+  const dest = join(await mkdtemp(join(tmpdir(), 'tide-pdf-')), file)
+  copyFileSync(resolve(__dirname, '..', 'fixtures', 'pdfs', file), dest)
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as never
+  }, dest)
+  await clickAddReading(win)
+  const picker = win.getByRole('dialog', { name: 'Which course is this for?' })
+  if (course === undefined) {
+    await picker.getByRole('button', { name: 'Skip' }).click()
+  } else {
+    await picker.getByRole('button', { name: '＋ New course' }).click()
+    await picker.getByPlaceholder('Course name, e.g. PSYC 201').fill(course)
+    await picker.getByRole('button', { name: 'Add to shelf' }).click()
+  }
+  await closeShelf(win)
 }

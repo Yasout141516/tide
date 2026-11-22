@@ -1149,6 +1149,66 @@ function longSentence(): Fixture {
   }
 }
 
+/** Player e2e readings: invented, short and plain, so a spoken run is quick and predictable. */
+function listenFixture(
+  name: string,
+  title: string,
+  description: string,
+  paragraphs: string[][]
+): Fixture {
+  return {
+    name,
+    title,
+    description,
+    pages: paragraphs.map((texts) => {
+      const lines: FLine[] = []
+      let top = 90
+      for (const t of texts) {
+        const p = para(t, top)
+        lines.push(...p.lines)
+        top = p.next + 10
+      }
+      return { lines }
+    })
+  }
+}
+
+function listen(): Fixture {
+  return listenFixture(
+    'listen',
+    'Harbour Tides Week 2',
+    '2 pages, 12 short invented sentences in plain paragraphs; the first sentence has a clause comma near its start. For the player end-to-end tests.',
+    [
+      [
+        'When the morning fog lifted, the fishing boats slid out of the harbour one by one. Gulls followed them past the lighthouse. The first boat carried nets and a small red stove. Its captain hummed an old song as she steered. Nobody on the pier spoke for a while. The water was flat and bright.',
+        'By noon the tide had turned. The boats came back with crates of silver fish.'
+      ],
+      [
+        'Children gathered on the stones to watch the unloading. A boy counted the crates twice. His sister drew the gulls in a notebook. The market opened at one and the fish were gone by two.',
+        'That evening the harbour was quiet again. The lamps came on along the wall, and the water turned dark.'
+      ]
+    ]
+  )
+}
+
+function listenShort(): Fixture {
+  return listenFixture(
+    'listen-short',
+    'Lantern Notes Week 1',
+    '1 page, 2 short invented sentences. Ends quickly, for the player finish test.',
+    [['The lantern swung gently above the door. Its light fell on the wet cobbles.']]
+  )
+}
+
+function listenNext(): Fixture {
+  return listenFixture(
+    'listen-next',
+    'Lantern Notes Week 2',
+    '1 page, 2 short invented sentences. The reading offered after listen-short.',
+    [['A baker opened her shutters before dawn. The street smelled of warm bread.']]
+  )
+}
+
 // ---------------------------------------------------------------------------------------------
 // Password and damaged fixtures (no sidecars: they are not part of the text pipeline's goldens)
 // ---------------------------------------------------------------------------------------------
@@ -1264,7 +1324,10 @@ async function main(): Promise<void> {
     noText,
     ligatures,
     longSentence,
-    sentenceEdges
+    sentenceEdges,
+    listen,
+    listenShort,
+    listenNext
   ].map((f) => f())
   for (const f of fixtures) await build(f)
   writeOpenFailureFixtures()
