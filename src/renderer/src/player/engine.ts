@@ -62,6 +62,10 @@ interface Entry {
   gen: string
   voice: string
   speed: number
+  /** Request order; the lowest pending one is at the head of the worker's queue. */
+  seq: number
+  /** Queued ahead of other jobs (a seek target). */
+  front: boolean
   /** Clips not arrived yet; the entry is still in flight while this is above zero. */
   pending: number
   /** Object URL per clip; undefined when not arrived yet. Kept after playing, revoked on eviction. */
@@ -266,7 +270,7 @@ export class PlayerEngine {
 
   /**
    * Move to the current index keeping the audio already made. Only jobs outside the new window are
-   * cancelled; a missing target is queued at the front so it does not wait behind kept jobs.
+   * cancelled; a missing (or still waiting) target is queued at the front so it does not wait behind kept jobs.
    */
   private seek(): void {
     if (this.index === null) return
@@ -278,8 +282,24 @@ export class PlayerEngine {
     for (const [k, e] of [...this.entries]) {
       if (e.pending > 0 && (k < lo || k > hi)) this.evict(k)
     }
-    if (this.wantPlay && this.entryFor(lo) === undefined) this.request(lo, true)
+    if (this.wantPlay && this.needsFront(lo)) {
+      this.evict(lo)
+      this.request(lo, true)
+    }
     this.resume()
+  }
+
+  /**
+   * Whether the target must be (re)queued at the front: it is missing, or it is pending with nothing
+   * arrived, was not itself queued at the front, and is not the oldest pending entry (that one is
+   * the head of the worker's queue or already running; redoing it would only cost a chunk).
+   */
+  private needsFront(i: number): boolean {
+    const e = this.entryFor(i)
+    if (e === undefined) return true
+    if (e.front || e.pending !== e.urls.length) return false
+    for (const o of this.entries.values()) if (o.pending > 0 && o.seq < e.seq) return true
+    return false
   }
 
   private resume(): void {
@@ -326,6 +346,8 @@ export class PlayerEngine {
     genCounter += 1
     const entry: Entry = {
       gen: `live-${genCounter}`,
+      seq: genCounter,
+      front,
       voice: this.voice,
       speed: this.speed,
       pending: pieces.length,

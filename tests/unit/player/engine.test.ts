@@ -380,6 +380,36 @@ describe('PlayerEngine', () => {
     expect(fresh[1].front).toBeUndefined()
   })
 
+  it('a seek to a pending target re-requests it at the front', () => {
+    const texts = Array.from({ length: 12 }, (_, k) => `Sentence number ${k}.`)
+    const { engine, tts } = setup(texts, 5)
+    engine.play() // 5..8 in flight
+    engine.setIndex(3) // 3 (front) and 4 are new behind 5 and 6; 7 and 8 are cancelled
+    const byText = (t: string): Call[] => tts.calls.filter((c) => c.text === t)
+    const oldFour = byText(texts[4])[0]
+    const n = tts.calls.length
+    const cancelled = tts.cancels.length
+    engine.setIndex(4) // 4 waits behind 5 and 6 and nothing of it has arrived: ask again, first
+    expect(tts.cancels.slice(cancelled)).toEqual([byText(texts[3])[0].gen, oldFour.gen])
+    const fresh = tts.calls.slice(n)
+    expect(fresh[0]).toMatchObject({ text: texts[4], front: true })
+    expect(fresh[0].gen).not.toBe(oldFour.gen)
+    expect(tts.cancels).not.toContain(byText(texts[5])[0].gen) // kept jobs are untouched
+    // late audio of the cancelled request is dropped
+    oldFour.resolve(audio(1))
+    expect(engine.snapshot().phase).toBe('buffering')
+  })
+
+  it('a seek to the oldest pending entry leaves it where it is', () => {
+    const texts = Array.from({ length: 12 }, (_, k) => `Sentence number ${k}.`)
+    const { engine, tts } = setup(texts, 5)
+    engine.play() // 5..8 in flight; 5 is at the head of the queue
+    const n = tts.calls.length
+    engine.setIndex(6) // 6 is pending behind 5 (cancelled, outside window): 6 is now the oldest
+    expect(tts.calls.slice(n).map((c) => c.text)).toEqual([texts[9]])
+    expect(tts.calls.slice(n)[0].front).toBeUndefined()
+  })
+
   it('a first-clip target is queued at the front with its clips still in order', () => {
     const long = 'Well then my friends, we shall go forth today.'
     const texts = [S[0], S[1], long, S[3], S[4], S[5], S[0], S[1]]

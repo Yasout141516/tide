@@ -48,10 +48,43 @@ describe('clips', () => {
     ])
     // R5 still holds: never inside numbers or times
     const c = 'About 1,000 people came at 12:30 to see the old harbour lights.'
-    expect(firstClips(c, { maxFirstWords: 8 })).toEqual([c])
+    expect(firstClips(c, { maxFirstWords: 8 })).toEqual([
+      'About 1,000 people came at 12:30 to see',
+      ' the old harbour lights.'
+    ])
     // a one-word lead-in is too short to be a clip
     const d = 'Well, that was a very fast and fun ride today.'
-    expect(firstClips(d, { maxFirstWords: 8 })).toEqual([d])
+    expect(firstClips(d, { maxFirstWords: 8 })).toEqual([d]) // and the rest would be under 3 words
     for (const t of [a, b, c, d]) expect(firstClips(t, { maxFirstWords: 8 }).join('')).toBe(t)
+  })
+
+  it('firstClips with maxFirstWords splits a clause-less sentence at a word boundary', () => {
+    const t =
+      'Students who study with their phones nearby check them often and each check breaks the flow of encoding'
+    const parts = firstClips(t, { maxFirstWords: 8 })
+    expect(parts).toHaveLength(2)
+    expect(parts[0]).toBe('Students who study with their phones nearby check')
+    expect(parts.join('')).toBe(t)
+    expect(firstClips(t)).toEqual([t]) // without the option nothing changes
+    // never right before a closing quote or bracket
+    const q = 'She read the old notice aloud twice before saying "stay away from the harbour wall"'
+    const [a, b] = firstClips(q, { maxFirstWords: 8 })
+    expect(b.trimStart()[0]).not.toBe('"')
+    expect(a + b).toBe(q)
+    expect(firstClips('Nobody answered the door "again"', { maxFirstWords: 4 })).toHaveLength(1)
+  })
+
+  it('a word-boundary split never cuts a number or time, and keeps short sentences whole', () => {
+    const n = 'We counted about 1,000 boats at 12:30 near the quiet old harbour wall today'
+    const parts = firstClips(n, { maxFirstWords: 4 })
+    expect(parts.join('')).toBe(n)
+    expect(parts[0]).toBe('We counted about 1,000')
+    const t = 'The boats came back with crates of silver fish and nets'
+    expect(firstClips(t, { maxFirstWords: 8 })).toEqual([
+      'The boats came back with crates of silver',
+      ' fish and nets'
+    ])
+    const short = 'The boats came back with crates of silver fish'
+    expect(firstClips(short, { maxFirstWords: 8 })).toEqual([short]) // rest under 3 words
   })
 })

@@ -39,5 +39,22 @@ export function firstClips(text: string, opts: FirstClipsOptions = {}): string[]
       return [text.slice(0, i + 1), text.slice(i + 1)]
     }
   }
+  if (maxFirstWords !== undefined) {
+    const at = wordSplit(text, maxFirstWords)
+    if (at !== null) return [text.slice(0, at), text.slice(at)]
+  }
   return [text]
+}
+
+const CLOSERS = new Set([')', ']', '}', '"', "'", '”', '’', '»'])
+
+/** Index just after word `n` (so a clip never ends inside a word, number or time), or null. */
+function wordSplit(text: string, n: number): number | null {
+  const words = [...text.matchAll(/\S+/g)]
+  for (let w = n - 1; w < words.length - 3; w++) {
+    const next = words[w + 1][0]
+    if (w < 1 || CLOSERS.has(next[0])) continue
+    return words[w].index + words[w][0].length
+  }
+  return null
 }
