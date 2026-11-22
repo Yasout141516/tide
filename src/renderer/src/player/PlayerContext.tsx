@@ -21,8 +21,6 @@ import { finishInLabel, finishInSpeed, readingSeconds } from './finish-in'
 import { HtmlAudioSink } from './sink'
 import { SleepTimer, type SleepOption, type SleepState } from './sleep'
 
-/** How long her own scrolling keeps the highlight from pulling the page back. */
-export const HANDS_OFF_MS = 5000
 const SKIP_SEC = 15
 /** How often the sleep timer is told the time. */
 const SLEEP_TICK_MS = 250
@@ -588,7 +586,13 @@ export function PlayerProvider({
       if (!space && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
       if (!hasText) return
       // Space on a button, link or field does its own thing.
-      if (leavesKeysAlone(e, space ? ', footer[aria-label="Player"] button' : '')) return
+      if (
+        leavesKeysAlone(
+          e,
+          space ? ', footer[aria-label="Player"] button, button[data-back-to-reading]' : ''
+        )
+      )
+        return
       e.preventDefault()
       if (space) {
         spaceHandled.current = true

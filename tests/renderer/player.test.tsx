@@ -277,7 +277,7 @@ describe('Player bar', () => {
     expect(button('Play')).toBeTruthy()
   })
 
-  it('does not auto-scroll within 5 s of her own scroll, and does again after', async () => {
+  it('stays put after her own scroll, however long, until Back to reading is pressed', async () => {
     await open(bodyPages(4))
     // The opening highlight may still be scrolling itself into view (more slowly under load): let it
     // settle, so only scrolls caused by the steps below are counted.
@@ -287,7 +287,7 @@ describe('Player bar', () => {
     Element.prototype.scrollIntoView = function (arg?: unknown) {
       scrolls.push(arg)
     }
-    // The highlight is always off-screen, so every step wants to scroll to it.
+    // The highlight is always off-screen, so every step would want to scroll to it.
     const rect = Element.prototype.getBoundingClientRect
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: Element
@@ -296,21 +296,25 @@ describe('Player bar', () => {
         ? ({ top: 5000, bottom: 5020, left: 0, right: 0, width: 0, height: 20 } as DOMRect)
         : rect.call(this)
     })
-    vi.useFakeTimers({ toFake: ['Date'] })
     const scroller = document.querySelector('[data-page="1"]')!.closest('.overflow-y-auto')!
     fireEvent.wheel(scroller)
     clickLine(1, 1)
     await waitForId('1')
-    expect(scrolls).toEqual([])
-    vi.setSystemTime(Date.now() + 6000)
+    // No timer brings the page back: a later step still leaves it where she put it.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 60_000)
     clickLine(2, 0)
     await waitForId('2')
-    expect(scrolls.length).toBe(1)
-    // Her scroll keys count as her scrolling too.
-    fireEvent.keyDown(document.body, { key: 'PageDown' })
+    expect(scrolls).toEqual([])
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to reading · Page 2' }))
+    expect(scrolls).toEqual([{ block: 'center', behavior: 'auto' }])
+    // Following again: the next step scrolls at once.
     clickLine(2, 1)
     await waitForId('3')
-    expect(scrolls.length).toBe(1)
+    expect(scrolls.length).toBe(2)
+    // Her scroll keys pause it again.
+    fireEvent.keyDown(document.body, { key: 'PageDown' })
+    await screen.findByRole('button', { name: /^Back to reading/ })
   })
 
   it('stepping one sentence re-renders only the pages whose highlight changed', async () => {

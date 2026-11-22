@@ -5,13 +5,14 @@ import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
 import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
-import { HANDS_OFF_MS } from '../player/PlayerContext'
+import { usePlayer } from '../player/PlayerContext'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
 import { FileMovedDialog } from '../reading/FileMovedDialog'
 import { RemoveDialog } from '../reading/RemoveDialog'
 import { useReaderDeps } from './deps'
 import { filtersFor } from './filters'
+import { BackToReading } from './BackToReading'
 import { PasswordDialog } from './PasswordDialog'
 import type { PdfDoc } from './pdf'
 import { PdfPage } from './PdfPage'
@@ -228,6 +229,8 @@ function ReaderSession({
   const onScroll = (): void => {
     const el = scroller.current
     if (el && el.scrollHeight > 0) place.current = el.scrollTop / el.scrollHeight
+    // The read line came back into view through her own scrolling: follow again.
+    if (!followingRef.current && lineInView()) follow(true)
   }
   useLayoutEffect(() => {
     if (lastZoom.current === zoom && lastWidth.current === colWidth) return
@@ -359,50 +362,94 @@ function ReaderSession({
     [sentences, reported, pages, current, itemOf, sizeOf]
   )
 
-  /** When she last scrolled by hand (wheel, touch, scroll keys, the scrollbar). */
-  const userScrollAt = useRef(-Infinity)
+  // --- Following ------------------------------------------------------------------------------
+  // The page follows the read line instantly. Her own scrolling (wheel, touch, scroll keys, the
+  // scrollbar) pauses that and shows "Back to reading". Tide's own scrollIntoView never counts: it
+  // fires `scroll`, which only ever resumes following, and the pause signals above are not `scroll`.
+  const [following, setFollowing] = useState(true)
+  const followingRef = useRef(true)
+  const follow = useCallback((on: boolean) => {
+    followingRef.current = on
+    setFollowing(on)
+  }, [])
+  const phase = usePlayer().snapshot.phase
+
+  const lineEl = (): Element | null =>
+    scroller.current?.querySelector('[data-testid="sentence-highlight"]') ?? null
+  /** The line's vertical centre as a fraction of the stage, or null when it cannot be measured. */
+  const lineBox = (): { r: DOMRect; s: DOMRect } | null => {
+    const root = scroller.current
+    const el = lineEl()
+    return root && el ? { r: el.getBoundingClientRect(), s: root.getBoundingClientRect() } : null
+  }
+  const lineInView = (): boolean => {
+    const b = lineBox()
+    return !!b && b.r.top >= b.s.top && b.r.bottom <= b.s.bottom
+  }
+  /** Instant, never smooth: the read line to the middle of the stage. */
+  const centreLine = (): void => {
+    lineEl()?.scrollIntoView({ block: 'center', behavior: 'auto' })
+  }
+
   useEffect(() => {
-    const mark = (): void => {
-      userScrollAt.current = Date.now()
+    const pause = (): void => {
+      if (followingRef.current) follow(false)
     }
     const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown'])
     const onKey = (e: KeyboardEvent): void => {
-      if (SCROLL_KEYS.has(e.key)) mark()
+      const t = e.target as HTMLElement | null
+      if (t?.closest('input, textarea, select, [contenteditable]')) return
+      if (SCROLL_KEYS.has(e.key)) pause()
     }
     const el = scroller.current
     document.addEventListener('keydown', onKey)
-    el?.addEventListener('wheel', mark, { passive: true })
-    el?.addEventListener('touchmove', mark, { passive: true })
+    el?.addEventListener('wheel', pause, { passive: true })
+    el?.addEventListener('touchmove', pause, { passive: true })
     const onDown = (e: PointerEvent): void => {
       // A press on the scroller itself (not on a page) is the scrollbar.
-      if (e.target === el) mark()
+      if (e.target === el) pause()
     }
     el?.addEventListener('pointerdown', onDown)
     return () => {
       document.removeEventListener('keydown', onKey)
-      el?.removeEventListener('wheel', mark)
-      el?.removeEventListener('touchmove', mark)
+      el?.removeEventListener('wheel', pause)
+      el?.removeEventListener('touchmove', pause)
       el?.removeEventListener('pointerdown', onDown)
     }
-  }, [])
+  }, [follow])
 
-  // Bring the highlight into view: always on opening, else only when it is off the screen.
+  // Every change of the current sentence: centre it unless it already sits in the middle third.
   useEffect(() => {
     if (jump.current !== null && current !== null && jump.current !== current) jump.current = null
-    const root = scroller.current
-    const el = root?.querySelector('[data-testid="sentence-highlight"]')
-    if (!root || !el) return
+    const b = lineBox()
+    if (!b) return
     const force = jump.current !== null
     jump.current = null
-    // Her own scrolling wins for a few seconds: the page is not pulled back under her.
-    if (!force && Date.now() - userScrollAt.current < HANDS_OFF_MS) return
-    const r = el.getBoundingClientRect()
-    const s = root.getBoundingClientRect()
-    if (!force && r.top >= s.top && r.bottom <= s.bottom) return
-    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    el.scrollIntoView({ block: 'center', behavior: force || calm ? 'auto' : 'smooth' })
+    if (!force && !followingRef.current) return
+    const third = (b.s.bottom - b.s.top) / 3
+    const mid = (b.r.top + b.r.bottom) / 2
+    if (!force && mid >= b.s.top + third && mid <= b.s.bottom - third) return
+    centreLine()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRects])
+
+  // Play after a pause: back to the line.
+  const lastPhase = useRef(phase)
+  useEffect(() => {
+    const was = lastPhase.current
+    lastPhase.current = phase
+    if (phase !== 'playing' || was === 'playing' || followingRef.current) return
+    follow(true)
+    centreLine()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, follow])
+
+  const backToReading = (): void => {
+    follow(true)
+    centreLine()
+  }
+  const currentPage = current !== null ? sentences?.[current]?.spans[0].page : undefined
+  const showPill = !following && currentRects.length > 0 && currentPage !== undefined
 
   const pickNow = (n: number, x: number, y: number): void => {
     if (!sentences) return
@@ -544,48 +591,51 @@ function ReaderSession({
     )
 
   return (
-    <div
-      ref={scroller}
-      onScroll={onScroll}
-      // Test-only (TIDE_E2E exposes window.tideTest): lets Playwright see that the worker built sentences.
-      data-sentence-count={window.tideTest && built ? built.sentences.length : undefined}
-      className="relative h-full overflow-y-auto"
-    >
-      {message}
-      {doc && sizes ? (
-        <div className="flex w-max min-w-full flex-col items-center gap-4 px-7 py-4">
-          {sizes.map((s, i) => {
-            const n = i + 1
-            // Each page fills the column; its own width sets its scale.
-            const scale = (colWidth * zoom) / s.width
-            return (
-              <PdfPage
-                key={n}
-                doc={doc}
-                n={n}
-                width={s.width * scale}
-                height={s.height * scale}
-                scale={scale}
-                active={active.has(n)}
-                textless={textless.has(n)}
-                onSettled={settle}
-                onPick={pick}
-                highlight={highlights.get(n)}
-              />
-            )
-          })}
-        </div>
-      ) : null}
-      {removing ? (
-        <RemoveDialog
-          title={reading.title}
-          onKeep={() => setRemoving(false)}
-          onRemove={removeReading}
-        />
-      ) : (
-        dialog
-      )}
-      {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
+    <div className="relative h-full">
+      <div
+        ref={scroller}
+        onScroll={onScroll}
+        // Test-only (TIDE_E2E exposes window.tideTest): lets Playwright see that the worker built sentences.
+        data-sentence-count={window.tideTest && built ? built.sentences.length : undefined}
+        className="relative h-full overflow-y-auto"
+      >
+        {message}
+        {doc && sizes ? (
+          <div className="flex w-max min-w-full flex-col items-center gap-4 px-7 py-4">
+            {sizes.map((s, i) => {
+              const n = i + 1
+              // Each page fills the column; its own width sets its scale.
+              const scale = (colWidth * zoom) / s.width
+              return (
+                <PdfPage
+                  key={n}
+                  doc={doc}
+                  n={n}
+                  width={s.width * scale}
+                  height={s.height * scale}
+                  scale={scale}
+                  active={active.has(n)}
+                  textless={textless.has(n)}
+                  onSettled={settle}
+                  onPick={pick}
+                  highlight={highlights.get(n)}
+                />
+              )
+            })}
+          </div>
+        ) : null}
+        {removing ? (
+          <RemoveDialog
+            title={reading.title}
+            onKeep={() => setRemoving(false)}
+            onRemove={removeReading}
+          />
+        ) : (
+          dialog
+        )}
+        {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
+      </div>
+      {showPill ? <BackToReading page={currentPage} onClick={backToReading} /> : null}
     </div>
   )
 }
