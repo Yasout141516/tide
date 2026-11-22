@@ -52,7 +52,8 @@ const reading = (id: string): Reading => ({
   addedAt: 1,
   lastOpenedAt: null,
   finished: false,
-  readEverything: false
+  readEverything: false,
+  finishIn: null
 })
 const libWith = (...ids: string[]): LibraryFile => ({
   ...emptyLibrary(),
@@ -211,6 +212,7 @@ describe('LibraryStore', () => {
     const r: Partial<Reading> = reading('r1')
     delete r.readEverything
     delete r.finished
+    delete r.finishIn
     await writeFile(
       join(dir, 'library.json'),
       jsonOf({ schemaVersion: 1, courses: [], readings: [r] })
@@ -220,6 +222,7 @@ describe('LibraryStore', () => {
     const d = store.data()
     expect(d.readings[0].readEverything).toBe(false)
     expect(d.readings[0].finished).toBe(false)
+    expect(d.readings[0].finishIn).toBeNull()
     expect(d.settings).toEqual(emptyLibrary().settings)
     expect(d.ui).toEqual({ collapsed: [], tipsSeen: [] })
   })

@@ -1,4 +1,4 @@
-import { DEFAULT_VOICE, SPEEDS, VOICE_IDS } from '../../shared/voices'
+import { DEFAULT_VOICE, SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import { DEFAULT_FILTERS, type ReadingFilters } from '../../shared/text/types'
 import type { Anchor } from '../../shared/text/anchor'
 import type {
@@ -49,6 +49,8 @@ function parseReading(v: unknown): Reading | null {
   const finished = v.finished ?? false
   const readEverything = v.readEverything ?? false
   if (typeof finished !== 'boolean' || typeof readEverything !== 'boolean') return null
+  const finishIn = v.finishIn ?? null
+  if (!(finishIn === null || (isNum(finishIn) && isFinishInChoice(finishIn)))) return null
   return {
     id: v.id,
     title: v.title,
@@ -60,7 +62,8 @@ function parseReading(v: unknown): Reading | null {
     addedAt: v.addedAt,
     lastOpenedAt: v.lastOpenedAt,
     finished,
-    readEverything
+    readEverything,
+    finishIn
   }
 }
 

@@ -10,13 +10,14 @@ import {
 } from 'react'
 import type { TtsStatus } from '../../../shared/ipc-types'
 import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/library/types'
-import { DEFAULT_VOICE } from '../../../shared/voices'
+import { DEFAULT_VOICE, voiceRate } from '../../../shared/voices'
 import { nextReading } from '../../../shared/library/shelf'
 import { tide } from '../lib/tide'
 import { useReaderState } from '../reader/ReaderState'
 import { useToast } from '../shell/Toast'
 import { bindMediaSession } from './media-session'
 import { PlayerEngine, type AudioSink, type PlayerSnapshot, type TtsClient } from './engine'
+import { finishInLabel, finishInSpeed, readingSeconds } from './finish-in'
 import { HtmlAudioSink } from './sink'
 import { SleepTimer, type SleepOption, type SleepState } from './sleep'
 
@@ -57,6 +58,10 @@ export interface PlayerValue {
   readFrom(index: number): void
   setVoice(id: string): void
   setSpeed(s: number): void
+  /** Her own speed choice (one of SPEEDS); `snapshot.speed` is the effective one, raised by Finish in…. */
+  chosenSpeed: number
+  /** The Finish in… estimate, shown for a few seconds after the limit is set. */
+  finishNote: string | null
   /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
   preview(id: string): void
   /** Stop a running preview (the popover closing). */
@@ -90,6 +95,8 @@ const NOOP: PlayerValue = {
   readFrom: () => {},
   setVoice: () => {},
   setSpeed: () => {},
+  chosenSpeed: 1,
+  finishNote: null,
   preview: () => {},
   stopPreview: () => {},
   estimateSec: () => 0,
@@ -197,6 +204,40 @@ export function PlayerProvider({
 
   const voice = snapshot?.settings.voice ?? DEFAULT_VOICE
   const speed = snapshot?.settings.speed ?? 1
+  const finishIn = reading?.finishIn ?? null
+  // Finish in…: the speed that fits the whole reading, from this voice's rate. Speeds up only.
+  const fin = useMemo(
+    () =>
+      finishIn === null || sentences.length === 0
+        ? null
+        : finishInSpeed(
+            readingSeconds(
+              sentences.map((s) => s.text),
+              voiceRate(voice)
+            ),
+            finishIn
+          ),
+    [finishIn, voice, sentences]
+  )
+  const effectiveSpeed = Math.max(speed, fin?.speed ?? 1)
+  const finRef = useRef({ fin, finishIn })
+  useEffect(() => {
+    finRef.current = { fin, finishIn }
+  })
+  // The estimate shows for 5 s after the limit is set (not when a reading merely opens with one).
+  const [finishNote, setFinishNote] = useState<string | null>(null)
+  const [seenFinish, setSeenFinish] = useState({ id: reading?.id ?? null, finishIn })
+  if (seenFinish.id !== (reading?.id ?? null) || seenFinish.finishIn !== finishIn) {
+    setSeenFinish({ id: reading?.id ?? null, finishIn })
+    const set = seenFinish.id === (reading?.id ?? null) && finishIn !== null && fin !== null
+    setFinishNote(set ? finishInLabel(fin, finishIn) : null)
+  }
+  useEffect(() => {
+    if (finishNote === null) return
+    const id = setTimeout(() => setFinishNote(null), 5000)
+    return () => clearTimeout(id)
+  }, [finishNote])
+
   // The engine is made once; later voice and speed come through the effect below.
   const initial = useRef({ voice, speed })
 
@@ -265,8 +306,8 @@ export function PlayerProvider({
   // A change made elsewhere (or confirmed by main) reaches the engine; the engine ignores no-ops.
   useEffect(() => {
     engine?.setVoice(voice)
-    engine?.setSpeed(speed)
-  }, [engine, voice, speed])
+    engine?.setSpeed(effectiveSpeed)
+  }, [engine, voice, effectiveSpeed])
 
   // --- Reader -> engine ---------------------------------------------------------------------
   /** The index the engine last pushed to the reader: its echo must not seek the engine back. */
@@ -456,16 +497,18 @@ export function PlayerProvider({
         if (!engine) return
         engine.setVoice(id)
         void tide()
-          .library.setVoice(id, engine.snapshot().speed)
+          .library.setVoice(id, latestProps.current.snapshot?.settings.speed ?? 1)
           .catch(() => {})
       },
       setSpeed: (s) => {
         if (!engine) return
-        engine.setSpeed(s)
+        engine.setSpeed(Math.max(s, finRef.current.fin?.speed ?? 1))
         void tide()
           .library.setVoice(engine.snapshot().voice, s)
           .catch(() => {})
       },
+      chosenSpeed: speed,
+      finishNote,
       preview: (id) => {
         const ph = engine?.snapshot().phase
         if (ph === 'playing' || ph === 'buffering' || ph === 'loading-voice') engine?.pause()
@@ -505,7 +548,7 @@ export function PlayerProvider({
       }
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam
-    [engine, snap, stopPreview, sleep, timer, current, finished]
+    [engine, snap, stopPreview, sleep, timer, current, finished, speed, finishNote]
   )
 
   // --- Keys: ← / → skip 15 s, Space plays and pauses ------------------------------------------

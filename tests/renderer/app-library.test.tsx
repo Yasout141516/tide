@@ -18,6 +18,7 @@ const r1: ReadingView = {
   lastOpenedAt: null,
   finished: false,
   readEverything: false,
+  finishIn: null,
   fileName: 'r1.pdf',
   missing: false
 }

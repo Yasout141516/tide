@@ -42,7 +42,7 @@ function Spinner(): React.JSX.Element {
 
 /** The five controls: Back 15s, Play / Pause, Forward 15s, voice & speed, Sleep. */
 export function PlayerBar(): React.JSX.Element {
-  const { snapshot, toggle, skip, finished, playNext, dismissFinished } = usePlayer()
+  const { snapshot, toggle, skip, finished, playNext, dismissFinished, finishNote } = usePlayer()
   const { sentences, page, numPages, current } = useReaderState()
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0
@@ -51,6 +51,7 @@ export function PlayerBar(): React.JSX.Element {
   let left = numPages ? `Page ${page} of ${numPages}` : ''
   if (phase === 'loading-voice') left = 'Getting the voice ready…'
   else if (phase === 'error') left = "The voice isn't working right now."
+  if (finishNote && phase !== 'loading-voice' && phase !== 'error') left = finishNote
   const right = ready && secondsLeft !== null && phase !== 'error' ? timeLeftLabel(secondsLeft) : ''
 
   const progress = ready && current !== null ? (current + 1) / sentences.length : 0

@@ -9,7 +9,7 @@ const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify
 
 /** The voice & speed button and its popover: ten voices with a Listen each, then five speeds. */
 export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Element {
-  const { snapshot, setVoice, setSpeed, preview, stopPreview } = usePlayer()
+  const { snapshot, chosenSpeed, setVoice, setSpeed, preview, stopPreview } = usePlayer()
   return (
     <Popover.Root onOpenChange={(open) => !open && stopPreview()}>
       <Popover.Trigger className={trigger} disabled={disabled}>
@@ -65,7 +65,7 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
             className="flex gap-1 rounded-[14px] bg-soft p-1"
           >
             {SPEEDS.map((s) => {
-              const on = s === snapshot.speed
+              const on = s === chosenSpeed
               return (
                 <button
                   key={s}

@@ -54,3 +54,12 @@ describe('electron-builder.yml', () => {
     expect(yml).not.toContain('model_quantized')
   })
 })
+
+describe('charsPerSec', () => {
+  it('every voice has a measured rate between 8 and 25', () => {
+    for (const v of VOICES) {
+      expect(v.charsPerSec, v.id).toBeGreaterThanOrEqual(8)
+      expect(v.charsPerSec, v.id).toBeLessThanOrEqual(25)
+    }
+  })
+})

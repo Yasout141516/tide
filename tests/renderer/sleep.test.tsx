@@ -27,6 +27,7 @@ async function open(extra = false): Promise<{
                 lastOpenedAt: null,
                 finished: false,
                 readEverything: false,
+                finishIn: null,
                 fileName: 'r2.pdf',
                 missing: false
               }
@@ -42,6 +43,7 @@ async function open(extra = false): Promise<{
           lastOpenedAt: null,
           finished: false,
           readEverything: false,
+          finishIn: null,
           fileName: 'r1.pdf',
           missing: false
         }

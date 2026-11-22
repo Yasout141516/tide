@@ -62,7 +62,11 @@ async function main(): Promise<void> {
     }
     const pcm = concatPcm(parts)
     await encodeMp3(pcm, join(OUT_DIR, `${v.id}.mp3`))
-    process.stderr.write(`${v.id}.mp3: ${(pcm.length / SAMPLE_RATE).toFixed(1)} s\n`)
+    const sec = pcm.length / SAMPLE_RATE
+    // Copy charsPerSec into VOICES (src/shared/voices.ts).
+    process.stderr.write(
+      `${v.id}.mp3: ${sec.toFixed(1)} s, charsPerSec ${(PREVIEW_SENTENCE.length / sec).toFixed(1)}\n`
+    )
   }
   rmSync(join(OUT_DIR, '.tmp.s16le'), { force: true })
 }

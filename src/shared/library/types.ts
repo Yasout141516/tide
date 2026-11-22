@@ -24,6 +24,8 @@ export interface Reading {
   lastOpenedAt: number | null
   finished: boolean
   readEverything: boolean
+  /** Finish the reading within this many minutes (speed up only), or null for no limit. */
+  finishIn: number | null
 }
 
 /** `zoom` is 0.8 to 2.0, default 1. `voice` is one of VOICE_IDS; `speed` one of SPEEDS. */
@@ -81,6 +83,7 @@ export interface ReadingPatch {
   title?: string
   position?: Anchor
   readEverything?: boolean
+  finishIn?: number | null
   opened?: true
   pageCount?: number
   finished?: boolean

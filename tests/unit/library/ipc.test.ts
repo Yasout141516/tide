@@ -132,6 +132,8 @@ describe('library IPC', () => {
       { position: { page: 1.5, ...pos } },
       { position: { page: 1, textItemIndex: -1, charOffset: 0 } },
       { title: 5 },
+      { finishIn: 50 },
+      { finishIn: '60' },
       { pageCount: -1 },
       { opened: false },
       { finished: 'yes' },
@@ -145,6 +147,9 @@ describe('library IPC', () => {
     expect(lib.update).not.toHaveBeenCalled()
     call('library:update', 'r1', { title: 'T', position: { page: 2, ...pos }, opened: true })
     expect(lib.update).toHaveBeenCalledTimes(1)
+    call('library:update', 'r1', { finishIn: 60 })
+    call('library:update', 'r1', { finishIn: null })
+    expect(lib.update).toHaveBeenCalledTimes(3)
   })
 
   it('library:read rejects a ref that is neither {readingId} nor {pickId}', () => {

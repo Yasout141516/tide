@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import * as Menu from '@radix-ui/react-dropdown-menu'
+import { FINISH_IN_CHOICES } from '../../../shared/voices'
 import type { ReadingView } from '../../../shared/library/types'
 
 type Props = {
@@ -56,5 +57,48 @@ export function ReadEverythingItem({
       </span>
       Read everything
     </Menu.CheckboxItem>
+  )
+}
+
+const finishName = (m: number): string => (m === 120 ? '2 hours' : `${m} min`)
+
+/** "Finish in…": speed up (never slow down) so the whole reading ends within the chosen time. */
+export function FinishInItem({
+  value,
+  onChange
+}: {
+  value: number | null
+  onChange(m: number | null): void
+}): React.JSX.Element {
+  return (
+    <Menu.Sub>
+      <Menu.SubTrigger className={`${item} justify-between gap-3`}>
+        <span>Finish in…</span>
+        <span className="font-semibold text-muted">
+          {value === null ? 'Off' : finishName(value)}
+        </span>
+      </Menu.SubTrigger>
+      <Menu.Portal>
+        <Menu.SubContent
+          sideOffset={6}
+          collisionPadding={12}
+          className="z-50 min-w-[160px] rounded-2xl border border-border bg-surface p-1.5 shadow-[0_12px_30px_var(--shadow)]"
+        >
+          <Menu.RadioGroup
+            value={value === null ? 'off' : String(value)}
+            onValueChange={(v) => onChange(v === 'off' ? null : Number(v))}
+          >
+            {['off', ...FINISH_IN_CHOICES.map(String)].map((v) => (
+              <Menu.RadioItem key={v} value={v} className={`${item} gap-2`}>
+                <span aria-hidden="true" className="w-4 text-primary">
+                  <Menu.ItemIndicator>✓</Menu.ItemIndicator>
+                </span>
+                {v === 'off' ? 'Off' : finishName(Number(v))}
+              </Menu.RadioItem>
+            ))}
+          </Menu.RadioGroup>
+        </Menu.SubContent>
+      </Menu.Portal>
+    </Menu.Sub>
   )
 }

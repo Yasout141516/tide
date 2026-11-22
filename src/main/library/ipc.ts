@@ -15,7 +15,7 @@ import type {
   ReadingPatch,
   RelinkResult
 } from '../../shared/library/types'
-import { SPEEDS, VOICE_IDS } from '../../shared/voices'
+import { SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import type { Library } from './library'
 
 const FOCUS_CHECK_MS = 5000
@@ -90,6 +90,9 @@ function validPatch(p: unknown): p is ReadingPatch {
       case 'readEverything':
       case 'finished':
         if (typeof v !== 'boolean') return false
+        break
+      case 'finishIn':
+        if (!(v === null || (typeof v === 'number' && isFinishInChoice(v)))) return false
         break
       case 'opened':
         if (v !== true) return false
@@ -192,7 +195,7 @@ export function registerLibraryIpc(
     if (!isStr(id) || !validPatch(patch))
       bad(
         'library:update',
-        '(id: string, patch of title, position, readEverything, opened, pageCount, finished)'
+        '(id: string, patch of title, position, readEverything, finishIn, opened, pageCount, finished)'
       )
     lib.update(id, patch)
   })

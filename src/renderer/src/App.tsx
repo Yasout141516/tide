@@ -11,7 +11,7 @@ import { tide } from './lib/tide'
 import { useAddReading } from './add/useAddReading'
 import { MessageDialog } from './add/MessageDialog'
 import { ReaderHeader } from './reading/ReaderHeader'
-import { ReadingMenu, ReadEverythingItem } from './reading/ReadingMenu'
+import { ReadingMenu, ReadEverythingItem, FinishInItem } from './reading/ReadingMenu'
 import { ReaderView } from './reader/ReaderView'
 import { ReaderStateProvider, useReaderState } from './reader/ReaderState'
 import { FileMovedDialog } from './reading/FileMovedDialog'
@@ -190,6 +190,7 @@ function App(): React.JSX.Element {
           onRename={() => setDialog({ kind: 'rename', id: selected.id })}
           onRemove={() => setDialog({ kind: 'remove', id: selected.id })}
           onReadEverything={(on) => void tide().library.update(selected.id, { readEverything: on })}
+          onFinishIn={(m) => void tide().library.update(selected.id, { finishIn: m })}
         />
         <div className="min-h-0 flex-1">
           <ReaderView
@@ -252,6 +253,7 @@ type HeaderProps = {
   onRename(): void
   onRemove(): void
   onReadEverything(on: boolean): void
+  onFinishIn(minutes: number | null): void
 }
 
 function ReadingHeader({
@@ -259,7 +261,8 @@ function ReadingHeader({
   courseName,
   onRename,
   onRemove,
-  onReadEverything
+  onReadEverything,
+  onFinishIn
 }: HeaderProps): React.JSX.Element {
   const { page, numPages } = useReaderState()
   return (
@@ -274,7 +277,10 @@ function ReadingHeader({
           onRename={onRename}
           onRemove={onRemove}
           extraItems={
-            <ReadEverythingItem checked={reading.readEverything} onChange={onReadEverything} />
+            <>
+              <ReadEverythingItem checked={reading.readEverything} onChange={onReadEverything} />
+              <FinishInItem value={reading.finishIn} onChange={onFinishIn} />
+            </>
           }
         />
       }

@@ -44,6 +44,7 @@ const reading = (id: string, title: string, pageCount: number): ReadingView => (
   lastOpenedAt: null,
   finished: false,
   readEverything: false,
+  finishIn: null,
   fileName: `${id}.pdf`,
   missing: false
 })

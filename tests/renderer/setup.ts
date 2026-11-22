@@ -161,6 +161,7 @@ export function fakeTide(
               lastOpenedAt: null,
               finished: false,
               readEverything: false,
+              finishIn: null,
               fileName: `${id}.pdf`,
               missing: false
             }

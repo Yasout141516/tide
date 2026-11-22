@@ -18,6 +18,7 @@ function reading(over: Partial<ReadingView> & { id: string }): ReadingView {
     lastOpenedAt: null,
     finished: false,
     readEverything: false,
+    finishIn: null,
     fileName: `${over.id}.pdf`,
     missing: false,
     ...over

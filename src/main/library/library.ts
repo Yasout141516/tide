@@ -195,7 +195,8 @@ export class Library {
           addedAt: this.now(),
           lastOpenedAt: null,
           finished: false,
-          readEverything: false
+          readEverything: false,
+          finishIn: null
         })
       },
       { urgent: true }
@@ -218,6 +219,7 @@ export class Library {
       title !== null ||
       patch.position !== undefined ||
       patch.readEverything !== undefined ||
+      patch.finishIn !== undefined ||
       patch.opened !== undefined ||
       patch.pageCount !== undefined ||
       patch.finished !== undefined
@@ -225,6 +227,7 @@ export class Library {
     const urgent =
       title !== null ||
       patch.readEverything !== undefined ||
+      patch.finishIn !== undefined ||
       patch.opened !== undefined ||
       patch.pageCount !== undefined ||
       patch.finished !== undefined
@@ -233,6 +236,7 @@ export class Library {
         if (title !== null) reading.title = title
         if (patch.position) reading.position = { ...patch.position }
         if (patch.readEverything !== undefined) reading.readEverything = patch.readEverything
+        if (patch.finishIn !== undefined) reading.finishIn = patch.finishIn
         if (patch.opened) reading.lastOpenedAt = this.now()
         if (patch.pageCount !== undefined) reading.pageCount = patch.pageCount
         if (patch.finished !== undefined) reading.finished = patch.finished

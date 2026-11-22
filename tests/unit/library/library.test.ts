@@ -121,7 +121,8 @@ describe('Library', () => {
       position: null,
       lastOpenedAt: null,
       finished: false,
-      readEverything: false
+      readEverything: false,
+      finishIn: null
     })
   })
 
@@ -315,6 +316,20 @@ describe('Library', () => {
     lib.tipSeen('other')
     expect(lib.snapshot().ui.tipsSeen).toEqual(['voice-tip', 'other'])
     expect(cb).toHaveBeenCalledTimes(2)
+  })
+
+  it('finishIn defaults to null, validates choices, persists', async () => {
+    const lib = await open()
+    const id = await addFrom(lib, await pdf('a.pdf'))
+    expect(lib.snapshot().readings[0].finishIn).toBeNull()
+    lib.update(id, { finishIn: 60 })
+    expect(lib.snapshot().readings[0].finishIn).toBe(60)
+    lib.update(id, { finishIn: null })
+    expect(lib.snapshot().readings[0].finishIn).toBeNull()
+    lib.update(id, { finishIn: 45 })
+    await lib.flush()
+    const again = await open()
+    expect(again.snapshot().readings[0].finishIn).toBe(45)
   })
 
   it('tells listeners when a change touched only the position', async () => {
