@@ -70,5 +70,10 @@
     "vitest": "^5.1.0"
   },
   "productName": "Tide",
-  "license": "GPL-3.0-only"
+  "license": "GPL-3.0-only",
+  "overrides": {
+    "@electron/osx-sign": {
+      "isbinaryfile": "5.0.7"
+    }
+  }
 }
