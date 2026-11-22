@@ -5,7 +5,8 @@ import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
 import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
-import { leavesKeysAlone, usePlayer } from '../player/PlayerContext'
+import { focusOwnsKeys } from '../lib/keys'
+import { usePlayer } from '../player/PlayerContext'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
 import { FileMovedDialog } from '../reading/FileMovedDialog'
@@ -34,6 +35,10 @@ type Open =
   | { kind: 'ready'; doc: PdfDoc }
 
 type Size = { width: number; height: number }
+
+/** The one definition of "the read line is in view": wholly inside the stage. */
+const fullyInView = (b: { r: DOMRect; s: DOMRect }): boolean =>
+  b.r.top >= b.s.top && b.r.bottom <= b.s.bottom
 
 const GUTTER = 28
 const MAX_PAGE_WIDTH = 820
@@ -393,7 +398,7 @@ function ReaderSession({
   }
   const lineInView = (): boolean => {
     const b = lineBox()
-    return !!b && b.r.top >= b.s.top && b.r.bottom <= b.s.bottom
+    return !!b && fullyInView(b)
   }
   /** Instant, never smooth: the read line to the middle of the stage. */
   const centreLine = (): void => {
@@ -406,7 +411,7 @@ function ReaderSession({
     }
     const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown'])
     const onKey = (e: KeyboardEvent): void => {
-      if (SCROLL_KEYS.has(e.key) && !leavesKeysAlone(e, '')) pause()
+      if (SCROLL_KEYS.has(e.key) && !focusOwnsKeys(e)) pause()
     }
     const el = scroller.current
     document.addEventListener('keydown', onKey)
@@ -434,7 +439,7 @@ function ReaderSession({
     jump.current = null
     if (!force && !followingRef.current) {
       // Playback moved on while she is away: the line leaving view counts as out of view.
-      if (b.r.top < b.s.top || b.r.bottom > b.s.bottom) noteLeft()
+      if (!fullyInView(b)) noteLeft()
       return
     }
     const third = (b.s.bottom - b.s.top) / 3

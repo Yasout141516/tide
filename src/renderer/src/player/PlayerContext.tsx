@@ -12,6 +12,7 @@ import type { TtsStatus } from '../../../shared/ipc-types'
 import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/library/types'
 import { DEFAULT_VOICE, voiceRate } from '../../../shared/voices'
 import { nextReading } from '../../../shared/library/shelf'
+import { leavesKeysAlone } from '../lib/keys'
 import { tide } from '../lib/tide'
 import { useReaderState } from '../reader/ReaderState'
 import { useToast } from '../shell/Toast'
@@ -146,17 +147,6 @@ function createTtsClient(): { client: TtsClient; dispose(): void } {
     }
   }
   return { client, dispose: unsub }
-}
-
-/** Keys that belong to a dialog, a field or a menu are never the player's. */
-// eslint-disable-next-line react-refresh/only-export-components -- shared with the reader's scroll keys
-export function leavesKeysAlone(e: KeyboardEvent, own: string): boolean {
-  if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return true
-  if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return true
-  const t = e.target as HTMLElement | null
-  return !!t?.closest(
-    `input, textarea, select, [contenteditable], [role="menu"], [role="listbox"]${own}`
-  )
 }
 
 type Props = {

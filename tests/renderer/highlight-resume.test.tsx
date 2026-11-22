@@ -230,6 +230,8 @@ describe('Reader highlight, stepping and resume', () => {
     }
     await openWith(bodyPages(2))
     await waitForId('0')
+    // Opening centres the saved place once: wait for that scroll, then count only what the click does.
+    await waitFor(() => expect(scrolls.length).toBeGreaterThan(0), { timeout: 10_000 })
     scrolls.length = 0
     fireEvent.click(document.querySelector('[data-page="1"]')!, {
       clientX: 100 * SCALE,

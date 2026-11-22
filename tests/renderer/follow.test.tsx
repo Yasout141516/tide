@@ -241,6 +241,16 @@ describe('Following the read line', () => {
     expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
   })
 
+  it('Ctrl+End and Shift+PageDown pause following', async () => {
+    await open(bodyPages(4))
+    fireEvent.keyDown(document.body, { key: 'End', ctrlKey: true })
+    expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: /^Back to reading/ }))
+    await waitFor(() => expect(pill()).toBeNull())
+    fireEvent.keyDown(document.body, { key: 'PageDown', shiftKey: true })
+    expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
+  })
+
   it('Space on the focused pill activates it', async () => {
     await open(bodyPages(4))
     fireEvent.wheel(stage())
