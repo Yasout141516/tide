@@ -2,7 +2,14 @@
 // answers TtsRequests from the main process. Never touches the network.
 import type { KokoroTTS } from 'kokoro-js'
 import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
-import { blockNetwork, configureOffline, MODEL_ID, speechChunks } from './engine'
+import {
+  blockNetwork,
+  chunkLimit,
+  configureOffline,
+  LIVE_MAX_TOKENS,
+  MODEL_ID,
+  speechChunks
+} from './engine'
 import { JobQueue } from './queue'
 import type { TtsRequest, TtsResponse } from './protocol'
 
@@ -19,6 +26,16 @@ type Voice = NonNullable<Parameters<KokoroTTS['generate']>[1]>['voice']
 
 /** Generations the main process cancelled; a running job of one stops between chunks. */
 const cancelledGens = new Set<string>()
+/** Gens are unique per request, so the set would only grow; the oldest are long finished. */
+const MAX_CANCELLED = 512
+
+function rememberCancelled(gen: string): void {
+  cancelledGens.add(gen)
+  for (const old of cancelledGens) {
+    if (cancelledGens.size <= MAX_CANCELLED) break
+    cancelledGens.delete(old)
+  }
+}
 
 async function load(msg: LoadJob): Promise<TtsResponse> {
   const t0 = performance.now()
@@ -29,18 +46,21 @@ async function load(msg: LoadJob): Promise<TtsResponse> {
   // Warm-up: the first inference pays one-off costs, so pay them now and drop the audio.
   const t1 = performance.now()
   await tts.generate('Ready.', { voice: msg.warmVoice as Voice, speed: 1 })
+  // Counting tokens loads the phonemizer on first use (seconds); sentences with digits or acronyms need it.
+  await speechChunks('Ready in 1984, OK.', LIVE_MAX_TOKENS)
   return { id: msg.id, type: 'loaded', loadMs, warmMs: Math.round(performance.now() - t1) }
 }
 
 async function synthesize(msg: SynthJob): Promise<TtsResponse> {
   if (!tts) throw new Error('voice engine is not loaded')
   const t0 = performance.now()
-  // Kokoro truncates silently past ~510 tokens, so synthesize chunks of at most 400 and join.
+  // Kokoro truncates silently past ~510 tokens, so synthesize short chunks and join (live: smaller, so a cancel lands sooner).
   // kokoro-js validates the voice id itself and throws a readable error for unknown ones.
   const voice = msg.voice as Voice
-  const chunks = await speechChunks(msg.text)
+  const chunks = await speechChunks(msg.text, chunkLimit(msg.priority))
   const parts: Float32Array[] = []
   for (const chunk of chunks) {
+    await yieldToMessages()
     if (cancelledGens.has(msg.gen)) return { id: msg.id, type: 'cancelled' }
     const audio = await tts.generate(chunk, { voice, speed: msg.speed })
     parts.push(audio.audio)
@@ -55,6 +75,12 @@ async function synthesize(msg: SynthJob): Promise<TtsResponse> {
     chunks: chunks.length
   }
 }
+
+/**
+ * Inference keeps the thread busy, so a queued `cancel` message is only delivered if the loop gets
+ * a turn. Taking one between chunks and between jobs is what lets a cancel land within one chunk.
+ */
+const yieldToMessages = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 function reply(res: TtsResponse): void {
   process.parentPort.postMessage(res)
@@ -75,6 +101,7 @@ async function pump(): Promise<void> {
   running = true
   try {
     for (let job = queue.next(); job; job = queue.next()) {
+      await yieldToMessages()
       if (cancelledGens.has(job.gen)) {
         reply({ id: job.id, type: 'cancelled' })
         continue
@@ -110,7 +137,7 @@ process.parentPort.on('message', (e) => {
       break
     case 'cancel':
       for (const job of queue.cancel(msg.gen)) reply({ id: job.id, type: 'cancelled' })
-      cancelledGens.add(msg.gen)
+      rememberCancelled(msg.gen)
       break
     default:
       replyError((msg as { id?: number } | undefined)?.id ?? -1, new Error('unknown request'))

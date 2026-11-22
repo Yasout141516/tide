@@ -25,10 +25,27 @@ export async function configureOffline(modelDir: string): Promise<void> {
   env.useBrowserCache = false
 }
 
+/** Kokoro truncates silently past ~510 tokens; chunks stay well under that. */
+export const MAX_CHUNK_TOKENS = 400
+/**
+ * Live (playback) jobs use smaller chunks: a cancel is only noticed between chunks, so a cancelled
+ * job frees the engine within one short chunk.
+ */
+export const LIVE_MAX_TOKENS = 120
+
+/** The largest chunk to synthesize for a job of this priority. */
+export function chunkLimit(priority: 'live' | 'preview' | 'export'): number {
+  return priority === 'live' ? LIVE_MAX_TOKENS : MAX_CHUNK_TOKENS
+}
+
 /**
  * The chunks to synthesize for `text`: Kokoro truncates silently past ~510 tokens, so text is split
  * into chunks of at most 400, trimmed, with empty chunks dropped.
  */
-export async function speechChunks(text: string): Promise<string[]> {
-  return (await splitForSpeech(text, countTokens)).map((c) => c.trim()).filter((c) => c.length > 0)
+export async function speechChunks(
+  text: string,
+  maxTokens = MAX_CHUNK_TOKENS,
+  count: (s: string) => Promise<number> = countTokens
+): Promise<string[]> {
+  return (await splitForSpeech(text, count, maxTokens)).map((c) => c.trim()).filter((c) => c.length > 0)
 }

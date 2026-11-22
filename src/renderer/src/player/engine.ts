@@ -47,13 +47,24 @@ export interface EngineDeps {
 }
 
 const AHEAD = 3
+/** Sentences of made audio kept (the current one, those ahead, and those just played). */
+const CACHE_MAX = 8
+/** The first clip after play, a seek or a voice change is cut at a clause boundary this early. */
+const FIRST_CLIP_WORDS = 8
 const SAMPLE_RATE = 24000
 
 /** Never reused for the life of the app: the TTS worker never forgets a cancelled gen. */
 let genCounter = 0
 
+/** Audio for one sentence, made for one voice and speed (a change of either empties the cache). */
 interface Entry {
-  /** Object URL per clip; undefined when not arrived yet or already played and revoked. */
+  /** Unique per request, so cancelling one sentence never touches another. */
+  gen: string
+  voice: string
+  speed: number
+  /** Clips not arrived yet; the entry is still in flight while this is above zero. */
+  pending: number
+  /** Object URL per clip; undefined when not arrived yet. Kept after playing, revoked on eviction. */
   urls: (string | undefined)[]
   /** Real duration per clip once arrived. */
   secs: (number | undefined)[]
@@ -76,8 +87,8 @@ export class PlayerEngine {
   private index: number | null = null
   private phase: PlayerPhase = 'idle'
   private wantPlay = false
-  private gen: string | null = null
-  private genStart = 0
+  /** The sentence whose request is cut into short first clips (set on play, seek, voice change). */
+  private firstIdx = 0
   private entries = new Map<number, Entry>()
   /** Next (or currently playing) clip: sentence i, clip p. */
   private cur = { i: 0, p: 0 }
@@ -113,7 +124,8 @@ export class PlayerEngine {
     this.tl = new Timeline(texts)
     this.index = index === null || texts.length === 0 ? null : clamp(index, texts.length)
     this.restartPending = false
-    this.newGeneration()
+    this.dropAll()
+    this.resetCursor()
     this.phase = 'idle'
     this.emit()
   }
@@ -122,7 +134,7 @@ export class PlayerEngine {
     if (this.disposed || this.texts.length === 0) return
     this.index = clamp(i, this.texts.length)
     if (this.phase === 'finished' || this.phase === 'error') this.phase = 'paused'
-    this.restart()
+    this.seek()
   }
 
   play(): void {
@@ -208,35 +220,70 @@ export class PlayerEngine {
     this.disposed = true
     this.wantPlay = false
     this.deps.sink.pause()
-    this.dropGeneration()
+    this.dropAll()
     this.unsubStatus()
     this.listeners.clear()
   }
 
   // ---- internals ----
 
-  private dropGeneration(): void {
-    if (this.gen !== null) this.deps.tts.cancel(this.gen)
-    this.gen = null
-    for (const e of this.entries.values()) {
-      for (const u of e.urls) if (u !== undefined) this.deps.revokeUrl(u)
-    }
-    this.entries.clear()
+  private dropAll(): void {
+    for (const k of [...this.entries.keys()]) this.evict(k)
     this.clipLoaded = false
   }
 
-  private newGeneration(): void {
-    this.dropGeneration()
-    genCounter += 1
-    this.gen = `live-${genCounter}`
-    this.genStart = this.index ?? 0
-    this.cur = { i: this.genStart, p: 0 }
+  /** Forget sentence k: cancel it if still in flight, revoke every URL made for it. */
+  private evict(k: number): void {
+    const e = this.entries.get(k)
+    if (!e) return
+    if (e.pending > 0) this.deps.tts.cancel(e.gen)
+    for (const u of e.urls) if (u !== undefined) this.deps.revokeUrl(u)
+    this.entries.delete(k)
   }
 
-  /** New generation from the current index; keeps playing if it was playing. */
+  private resetCursor(): void {
+    this.firstIdx = this.index ?? 0
+    this.cur = { i: this.firstIdx, p: 0 }
+  }
+
+  /** Audio for sentence i, only if it was made for the current voice and speed. */
+  private entryFor(i: number): Entry | undefined {
+    const e = this.entries.get(i)
+    if (e && (e.voice !== this.voice || e.speed !== this.speed)) {
+      this.evict(i)
+      return undefined
+    }
+    return e
+  }
+
+  /** Voice, speed or engine restart: nothing made so far can be used; start again from the index. */
   private restart(): void {
     this.deps.sink.pause()
-    this.newGeneration()
+    this.dropAll()
+    this.resetCursor()
+    this.resume()
+  }
+
+  /**
+   * Move to the current index keeping the audio already made. Only jobs outside the new window are
+   * cancelled; if the target itself is missing, every job still in flight is cancelled and asked
+   * again in order, so the target is not queued behind them.
+   */
+  private seek(): void {
+    if (this.index === null) return
+    this.deps.sink.pause()
+    this.clipLoaded = false
+    this.resetCursor()
+    const lo = this.index
+    const hi = this.index + AHEAD
+    const targetMissing = this.entryFor(lo) === undefined
+    for (const [k, e] of [...this.entries]) {
+      if (e.pending > 0 && (targetMissing || k < lo || k > hi)) this.evict(k)
+    }
+    this.resume()
+  }
+
+  private resume(): void {
     if (this.wantPlay) {
       this.fill()
       this.tryStart()
@@ -245,54 +292,87 @@ export class PlayerEngine {
     }
   }
 
+  /** Keep at most CACHE_MAX sentences, dropping those farthest from the current one (behind first). */
+  private trim(): void {
+    const at = this.index ?? 0
+    while (this.entries.size > CACHE_MAX) {
+      let victim: number | null = null
+      for (const k of this.entries.keys()) {
+        if (k === at || k === this.cur.i) continue
+        if (victim === null) victim = k
+        else {
+          const dv = Math.abs(victim - at)
+          const dk = Math.abs(k - at)
+          if (dk > dv || (dk === dv && k < victim)) victim = k
+        }
+      }
+      if (victim === null) return
+      this.evict(victim)
+    }
+  }
+
   /** Keep the current sentence and AHEAD more requested. */
   private fill(): void {
-    if (this.index === null || this.gen === null) return
+    if (this.index === null) return
     const last = Math.min(this.texts.length - 1, this.index + AHEAD)
-    for (let i = this.index; i <= last; i++) if (!this.entries.has(i)) this.request(i)
+    for (let i = this.index; i <= last; i++) if (this.entryFor(i) === undefined) this.request(i)
+    this.trim()
   }
 
   private request(i: number): void {
-    const gen = this.gen
-    if (gen === null) return
-    const pieces = i === this.genStart ? firstClips(this.texts[i]) : [this.texts[i]]
-    this.entries.set(i, {
+    const pieces =
+      i === this.firstIdx
+        ? firstClips(this.texts[i], { maxFirstWords: FIRST_CLIP_WORDS })
+        : [this.texts[i]]
+    genCounter += 1
+    const entry: Entry = {
+      gen: `live-${genCounter}`,
+      voice: this.voice,
+      speed: this.speed,
+      pending: pieces.length,
       urls: new Array<string | undefined>(pieces.length).fill(undefined),
       secs: new Array<number | undefined>(pieces.length).fill(undefined)
-    })
-    const speed = this.speed
+    }
+    this.entries.set(i, entry)
     pieces.forEach((text, p) => {
-      void this.deps.tts.synthesize(text, { voice: this.voice, speed, priority: 'live', gen }).then(
-        (audio) => this.onAudio(gen, i, p, audio, speed),
-        (err: unknown) => this.onFail(gen, err)
-      )
+      void this.deps.tts
+        .synthesize(text, {
+          voice: entry.voice,
+          speed: entry.speed,
+          priority: 'live',
+          gen: entry.gen
+        })
+        .then(
+          (audio) => this.onAudio(i, entry, p, audio),
+          (err: unknown) => this.onFail(i, entry, err)
+        )
     })
   }
 
-  private onAudio(gen: string, i: number, p: number, audio: TtsAudio, speed: number): void {
-    if (this.disposed || gen !== this.gen) return
-    const entry = this.entries.get(i)
-    if (!entry) return
+  private onAudio(i: number, entry: Entry, p: number, audio: TtsAudio): void {
+    // Dropped when the entry was evicted meanwhile (seek, voice or speed change): never played.
+    if (this.disposed || this.entries.get(i) !== entry) return
+    entry.pending -= 1
     entry.secs[p] = audio.pcm.length / SAMPLE_RATE
     entry.urls[p] = this.deps.makeUrl(pcmToWav(audio.pcm, SAMPLE_RATE))
     if (entry.secs.every((s) => s !== undefined)) {
       this.tl.record(
         i,
         entry.secs.reduce<number>((a, b) => a + (b ?? 0), 0),
-        speed
+        entry.speed
       )
     }
     this.tryStart()
     this.emit()
   }
 
-  private onFail(gen: string, err: unknown): void {
-    if (isAbort(err) || this.disposed || gen !== this.gen) return
+  private onFail(i: number, entry: Entry, err: unknown): void {
+    if (isAbort(err) || this.disposed || this.entries.get(i) !== entry) return
     void this.deps.tts
       .status()
       .catch((): TtsStatus => 'failed')
       .then((s) => {
-        if (this.disposed || gen !== this.gen) return
+        if (this.disposed || this.entries.get(i) !== entry) return
         if (s === 'restarting' || this.restartPending) {
           this.restartPending = true
           this.status = 'restarting'
@@ -330,7 +410,7 @@ export class PlayerEngine {
   private tryStart(): void {
     if (!this.wantPlay || this.clipLoaded) return
     const { i, p } = this.cur
-    const url = this.entries.get(i)?.urls[p]
+    const url = this.entryFor(i)?.urls[p]
     if (url === undefined) {
       this.phase = this.waitPhase()
       this.emit()
@@ -342,28 +422,15 @@ export class PlayerEngine {
     this.phase = 'playing'
     if (i !== this.index) {
       this.index = i
-      for (const k of [...this.entries.keys()]) if (k < i) this.discard(k)
       this.fill()
     }
     this.emit()
-  }
-
-  private discard(k: number): void {
-    const e = this.entries.get(k)
-    if (!e) return
-    for (const u of e.urls) if (u !== undefined) this.deps.revokeUrl(u)
-    this.entries.delete(k)
   }
 
   private handleEnded(): void {
     if (this.disposed || !this.clipLoaded) return
     const { i, p } = this.cur
     const entry = this.entries.get(i)
-    const url = entry?.urls[p]
-    if (entry && url !== undefined) {
-      this.deps.revokeUrl(url)
-      entry.urls[p] = undefined
-    }
     this.clipLoaded = false
     if (entry && p + 1 < entry.urls.length) {
       this.cur = { i, p: p + 1 }

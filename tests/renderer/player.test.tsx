@@ -186,13 +186,14 @@ describe('Player bar', () => {
   })
 
   it('clicking a sentence while playing continues from that sentence', async () => {
-    const { t, sink } = await open()
+    const { sink } = await open()
     await userEvent.click(button('Play'))
     await waitFor(() => expect(sink.playing).toBe(true))
-    const cancelled = (t.calls['tts.cancel'] ?? []).length
+    const plays = sink.plays
     clickLine(1, 1)
     await waitForId('1')
-    await waitFor(() => expect((t.calls['tts.cancel'] ?? []).length).toBeGreaterThan(cancelled))
+    // Sentence 1 was already made, so the seek restarts the sink without a new synthesis.
+    await waitFor(() => expect(sink.plays).toBeGreaterThan(plays))
     // Still playing, and it carries on from the clicked sentence.
     await waitFor(() => expect(button('Pause')).toBeTruthy())
     await waitFor(() => expect(sink.playing).toBe(true))

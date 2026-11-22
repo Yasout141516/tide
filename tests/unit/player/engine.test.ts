@@ -135,7 +135,7 @@ describe('PlayerEngine', () => {
     const { engine, sink, tts } = setup(S)
     engine.play()
     expect(tts.texts()).toEqual(S.slice(0, 4))
-    expect(new Set(tts.calls.map((c) => c.gen)).size).toBe(1)
+    expect(new Set(tts.calls.map((c) => c.gen)).size).toBe(4) // one gen per sentence
     expect(tts.calls[0].gen).toMatch(/^live-\d+$/)
     expect(tts.calls[0]).toMatchObject({ voice: 'v1', speed: 1 })
     tts.calls[0].resolve(audio(1))
@@ -206,15 +206,22 @@ describe('PlayerEngine', () => {
     const first = [...tts.calls]
     engine.setIndex(3)
     engine.setIndex(4)
-    const gens = new Set(tts.calls.map((c) => c.gen))
-    expect(gens.size).toBe(3)
-    expect(tts.cancels).toHaveLength(2)
+    // 0..2 left the window at the first seek, 3 at the second; only 3..6 then 4..7 were asked
+    expect(tts.cancels).toHaveLength(4)
     for (const c of first) c.resolve(audio(1))
     await flush()
     expect(sink.sources).toHaveLength(0)
     expect(engine.snapshot().phase).toBe('buffering')
+    expect(made).toHaveLength(0) // none of the late audio was even turned into a URL
+    // a voice change throws away audio that did arrive for the old voice
+    const fresh = tts.calls.filter((c) => !first.includes(c))
+    for (const c of fresh) c.resolve(audio(1))
+    await flush()
+    const arrived = made.length
+    expect(arrived).toBeGreaterThan(0)
+    engine.setVoice('v2')
+    expect(revoked).toHaveLength(arrived)
     expect(made.every((u) => revoked.includes(u))).toBe(true)
-    expect(made.length).toBe(revoked.length)
   })
 
   it('an AbortError from a cancelled generation is ignored', async () => {
@@ -234,13 +241,13 @@ describe('PlayerEngine', () => {
     await flush()
     sink.triggerEnded()
     expect(engine.snapshot().index).toBe(1)
-    const oldGen = tts.calls[0].gen
+    const inFlight = tts.calls[tts.calls.length - 1] // sentence 4, requested when 1 became current
     const n = tts.calls.length
     engine.setSpeed(1.5)
-    expect(tts.cancels).toContain(oldGen)
+    expect(tts.cancels).toEqual([inFlight.gen]) // finished audio needs no cancel
     const fresh = tts.calls.slice(n)
     expect(fresh.map((c) => c.text)).toEqual(S.slice(1, 5))
-    expect(fresh.every((c) => c.speed === 1.5 && c.gen !== oldGen)).toBe(true)
+    expect(fresh.every((c) => c.speed === 1.5 && c.gen !== inFlight.gen)).toBe(true)
     expect(engine.snapshot().speed).toBe(1.5)
     const m = tts.calls.length
     engine.setVoice('v2')
@@ -253,11 +260,12 @@ describe('PlayerEngine', () => {
     const { engine, tts } = setup(S)
     engine.play()
     engine.setIndex(1)
-    engine.setIndex(2)
+    engine.setIndex(5)
     engine.setSentences(S, 0)
     engine.play()
-    const gens = [...new Set(tts.calls.map((c) => c.gen))]
-    expect(gens).toHaveLength(4)
+    engine.setVoice('v2')
+    const gens = tts.calls.map((c) => c.gen)
+    expect(new Set(gens).size).toBe(gens.length)
   })
 
   it('skip uses the timeline target and keeps playing', async () => {
@@ -268,13 +276,8 @@ describe('PlayerEngine', () => {
     // each sentence is 2s at 1x: +5s from 0 lands in sentence 2
     engine.skip(5)
     expect(engine.snapshot().index).toBe(2)
-    expect(engine.snapshot().phase).toBe('buffering')
-    const last = tts.calls[tts.calls.length - 4]
-    expect(last.text).toBe(S[2])
-    sink.currentTime = 0
-    tts.calls[tts.calls.length - 4].resolve(audio(2))
-    await flush()
-    expect(engine.snapshot().phase).toBe('playing')
+    expect(engine.snapshot().phase).toBe('playing') // sentence 2 was already made
+    expect(sink.sources).toHaveLength(2)
   })
 
   it('secondsLeft follows the index and speed', async () => {
@@ -314,17 +317,111 @@ describe('PlayerEngine', () => {
     expect(sink.sources).toHaveLength(1)
   })
 
-  it('every URL made is revoked after it plays or is discarded', async () => {
+  it('every URL made is revoked when it is evicted or the engine is disposed', async () => {
     const { engine, sink, tts, made, revoked } = setup(S)
     engine.play()
     for (const c of tts.calls) c.resolve(audio(1))
     await flush()
     sink.triggerEnded()
-    expect(revoked).toHaveLength(1)
+    expect(revoked).toHaveLength(0) // a played sentence stays cached for a seek back
     engine.dispose()
     expect(made.length).toBeGreaterThan(1)
     expect([...revoked].sort()).toEqual([...made].sort())
     expect(new Set(revoked).size).toBe(revoked.length)
+  })
+
+  it('a seek within cached sentences plays at once without new synthesis', async () => {
+    const { engine, sink, tts } = setup(S)
+    engine.play()
+    for (const c of tts.calls) c.resolve(audio(1))
+    await flush()
+    const n = tts.calls.length
+    engine.setIndex(2)
+    expect(engine.snapshot()).toMatchObject({ index: 2, phase: 'playing' })
+    expect(sink.sources).toHaveLength(2)
+    expect(tts.calls.slice(n).map((c) => c.text)).toEqual([S[4], S[5]]) // only the window's missing
+    expect(tts.cancels).toHaveLength(0)
+    engine.setIndex(0) // back to one already played
+    expect(engine.snapshot()).toMatchObject({ index: 0, phase: 'playing' })
+    expect(sink.sources).toHaveLength(3)
+    expect(tts.calls).toHaveLength(n + 2)
+  })
+
+  it('a seek cancels only jobs outside the new window', async () => {
+    const texts = Array.from({ length: 12 }, (_, k) => `Sentence number ${k}.`)
+    const { engine, tts } = setup(texts)
+    engine.play() // 0..3 in flight, none arrived
+    const byText = (t: string): Call => tts.calls.find((c) => c.text === t) as Call
+    engine.setIndex(2) // window 2..5: 0 and 1 go, 2 and 3 stay
+    expect(tts.cancels).toEqual([byText(texts[0]).gen, byText(texts[1]).gen])
+    expect(tts.texts().slice(4)).toEqual([texts[4], texts[5]])
+  })
+
+  it('a seek to a missing sentence is not queued behind jobs still in flight', () => {
+    const texts = Array.from({ length: 12 }, (_, k) => `Sentence number ${k}.`)
+    const { engine, tts } = setup(texts, 5)
+    engine.play() // 5..8 in flight
+    const n = tts.calls.length
+    engine.setIndex(3) // 3 is missing: 5 and 6 are asked again after it
+    expect(tts.cancels).toHaveLength(4)
+    expect(tts.calls.slice(n).map((c) => c.text)).toEqual(texts.slice(3, 7))
+  })
+
+  it('the cache holds at most 8 sentences and revokes evicted URLs', async () => {
+    const texts = Array.from({ length: 20 }, (_, k) => `Sentence number ${k}.`)
+    const { engine, sink, tts, made, revoked } = setup(texts)
+    engine.play()
+    // play through 0..9, each made and played
+    for (let k = 0; k < 10; k++) {
+      for (const c of tts.calls) c.resolve(audio(1))
+      await flush()
+      sink.triggerEnded()
+    }
+    expect(engine.snapshot().index).toBe(10)
+    // made URLs: one per sentence 0..12; 8 entries kept (6..13, 13 not yet made), so 0..5 were revoked
+    expect(made).toHaveLength(13)
+    expect(revoked).toHaveLength(made.length - 7)
+    const live = made.filter((u) => !revoked.includes(u))
+    expect(live).toHaveLength(7)
+    engine.dispose()
+    expect([...revoked].sort()).toEqual([...made].sort())
+    expect(new Set(revoked).size).toBe(revoked.length)
+  })
+
+  it('a voice change still discards the cache', async () => {
+    const { engine, sink, tts, made, revoked } = setup(S)
+    engine.play()
+    for (const c of tts.calls) c.resolve(audio(1))
+    await flush()
+    const n = tts.calls.length
+    engine.setVoice('v2')
+    expect(revoked).toHaveLength(made.length)
+    const fresh = tts.calls.slice(n)
+    expect(fresh.map((c) => c.text)).toEqual(S.slice(0, 4))
+    expect(fresh.every((c) => c.voice === 'v2')).toBe(true)
+    // the old voice's audio can never be served: a seek must ask again
+    engine.setIndex(1)
+    expect(sink.sources).toHaveLength(1)
+    expect(engine.snapshot().phase).toBe('buffering')
+  })
+
+  it('the first sentence is cut into short clips after a seek, and a cached one needs no new request', async () => {
+    const long = 'Well then my friends, we shall go forth today.'
+    const { engine, tts } = setup([S[0], S[1], S[2], S[3], S[4], S[5], long, S[1]])
+    engine.play()
+    engine.setIndex(6)
+    expect(tts.texts().slice(-3)).toEqual([
+      'Well then my friends,',
+      ' we shall go forth today.',
+      S[1]
+    ])
+    for (const c of tts.calls) c.resolve(audio(1))
+    await flush()
+    const n = tts.calls.length
+    engine.setIndex(7)
+    engine.setIndex(6) // cached: plays from the made clips
+    expect(tts.calls).toHaveLength(n)
+    expect(engine.snapshot()).toMatchObject({ index: 6, phase: 'playing' })
   })
 
   it('a synthesis failure with a ready engine is an error', async () => {

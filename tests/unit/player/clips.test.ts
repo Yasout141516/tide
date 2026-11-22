@@ -31,4 +31,27 @@ describe('clips', () => {
       ' then walked to the old gate today'
     ])
   })
+
+  it('firstClips with maxFirstWords splits early at a clause boundary', () => {
+    const a = 'In fact, the farmers began to gather near the old well today.'
+    expect(firstClips(a)).toEqual([a]) // the usual rule wants 4 words first
+    expect(firstClips(a, { maxFirstWords: 8 })).toEqual([
+      'In fact,',
+      ' the farmers began to gather near the old well today.'
+    ])
+    // a boundary later than the limit falls back to the usual rule
+    const b = 'The farmers on the far side of the river, gathered near the old well today.'
+    expect(firstClips(b, { maxFirstWords: 5 })).toEqual(firstClips(b))
+    expect(firstClips(b, { maxFirstWords: 8 })).toEqual([
+      'The farmers on the far side of the river,',
+      ' gathered near the old well today.'
+    ])
+    // R5 still holds: never inside numbers or times
+    const c = 'About 1,000 people came at 12:30 to see the old harbour lights.'
+    expect(firstClips(c, { maxFirstWords: 8 })).toEqual([c])
+    // a one-word lead-in is too short to be a clip
+    const d = 'Well, that was a very fast and fun ride today.'
+    expect(firstClips(d, { maxFirstWords: 8 })).toEqual([d])
+    for (const t of [a, b, c, d]) expect(firstClips(t, { maxFirstWords: 8 }).join('')).toBe(t)
+  })
 })
