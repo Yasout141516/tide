@@ -435,6 +435,75 @@ electron-builder.yml                   fp32 model, voice pruning
 
 ---
 
+## M4 follow-ups from Yasin's listening check (2026-11-22): before M5
+
+Findings: (1) audio takes "a while" to start after a voice change or a jump to another paragraph; (2) ProQuest ebook stamps are read aloud (the header "Ebook pages 376-427 | Printed page 2 of 43", the footer citation "<Author>, et al. <Title>, <Publisher>, <year>. ProQuest Ebook Central, http://…. Created from <institution> on <date> <time>."); (3) new feature: finish a reading within a chosen time. His decisions for (3): speed up only (every sentence is still read); computed once for the **whole reading**; set from the reading's **More** menu; if even 2× can't make it, say so and play at 2×.
+
+### Task 10a: Faster restarts after a jump or a voice change
+
+**Files:** Modify `src/renderer/src/player/engine.ts`, `src/tts/worker.ts`, `src/tts/protocol.ts` (if needed), `src/renderer/src/player/clips.ts`; Test `tests/unit/player/engine.test.ts`, `tests/unit/player/clips.test.ts`, `tests/unit/tts-queue.test.ts`.
+
+**Interfaces:** `PlayerEngine` keeps its public API. New internal behaviour:
+- **Audio cache:** audio already made for (index, voice, speed) survives a seek. A seek re-uses cached sentences and only requests the missing ones. The cache keeps at most **8** sentences (current ±), and every evicted URL is revoked. A voice or speed change still discards everything.
+- **Prompt cancel:** a seek cancels only jobs outside the new window. The worker checks for cancellation between chunks, and live jobs use a smaller maximum chunk (`LIVE_MAX_TOKENS = 120`) so a cancelled job frees the engine within one short chunk.
+- **Short first clip:** the first clip after play, seek or voice change gets an earlier boundary: `firstClips(text, { maxFirstWords: 8 })` splits at the first clause boundary within the first 8 words, falling back to the existing rule.
+
+- [ ] **Step 1: Measure.** Before changing anything, add a temporary timing log (or a unit-level fake-clock trace) and record, in the task report, the time from seek to `playing` and from voice change to `playing` on this machine, using the packaged app or `tideTest`, and where the time goes (waiting for an in-flight job, synthesis of the first clip, other).
+- [ ] **Step 2: Failing tests:** `a seek within cached sentences plays at once without new synthesis`; `a seek cancels only jobs outside the new window`; `the cache holds at most 8 sentences and revokes evicted URLs`; `a voice change still discards the cache`; `firstClips with maxFirstWords splits early at a clause boundary`; worker/queue: `live jobs are split into chunks of at most LIVE_MAX_TOKENS so cancel lands within one chunk`.
+- [ ] **Step 3: Implement**, then re-measure as in Step 1. Report the before and after numbers. Target: first audio after a seek to an uncached sentence is ≤ 1.5 s on this machine (packaged, fp32), and a seek to a cached one is ≤ 0.3 s.
+- [ ] **Step 4: Verify:** `npx vitest run`, typecheck, lint, and `npm run build && npx playwright test tests/e2e/player.spec.ts`.
+- [ ] **Step 5: Commit.** `perf(player): keep made audio across seeks, cancel promptly, shorter first clip`.
+
+### Task 10b: Skip ebook vendor stamps
+
+**Files:** Modify `src/shared/text/filters.ts` (header/footer detection), `src/shared/text/pipeline.ts` if needed, `src/shared/text/types.ts` (`PIPELINE_VERSION` → **4**), `scripts/make-fixtures.ts` (new `ebook-stamps.pdf`, invented text); Test `tests/unit/text/filters.test.ts`, `tests/unit/text/pipeline.test.ts`, and a golden in `tests/fixtures/spoken/` written by hand.
+
+**Interfaces:** `isVendorStamp(line: Line): boolean` (exported from filters.ts), applied under `skipHeadersFooters`. It matches, case-insensitive:
+- `/\bProQuest Ebook Central\b/`;
+- `/\bCreated from \S+ on \d{4}-\d{2}-\d{2}\b/`;
+- `/^Ebook pages \d+\s*[-–]\s*\d+\s*\|\s*Printed page \d+ of \d+$/`;
+- `/^Copyright ©\s*\d{4}\.?\s.*All rights reserved\.?$/` (only in the top or bottom band of a page);
+- the EBSCOhost stamp `/\bEBSCO(host)? ?(Publishing|eBook Collection)\b.*printed on/`;
+- the JSTOR stamp `/^This content downloaded from .* on .* UTC$/`.
+
+A stamp line that wraps onto a second line, such as "…detail.action?docID=7210617." continuing with "Created from rochester on…", is dropped as one block: the following line in the same band is dropped when the stamp's text ends mid-citation. Separately, the running header/footer repeat check compares lines with **digits normalised** (`\d+` → `#`), so "Printed page 2 of 43" and "Printed page 10 of 43" count as the same header.
+
+- [ ] **Step 1: Failing tests** (invented author, title and institution in the vendor format; never her readings): `drops ProQuest header and footer stamps on every page`; `drops a stamp that wraps onto two lines`; `drops JSTOR and EBSCO download stamps`; `does not drop a body sentence that merely mentions ProQuest or copyright`; `headers differing only by page numbers repeat-match`; `Read everything keeps the stamps`; plus a pipeline golden for `ebook-stamps.pdf`.
+- [ ] **Step 2: Implement.** Bump `PIPELINE_VERSION` to 4.
+- [ ] **Step 3: Local check** (only when `local-fixtures/` exists): run `tests/unit/text/local-readings.test.ts` and report only aggregate numbers by reading index (sentences before and after, stamps dropped). No reading text in the report.
+- [ ] **Step 4: Verify** `npx vitest run`, typecheck, lint. **Commit.** `feat(text): skip ebook vendor stamps (ProQuest, EBSCO, JSTOR); header repeats ignore page numbers`.
+
+### Task 10c: Finish within a time limit
+
+**Files:** Modify `src/shared/library/types.ts` (Reading `finishIn: number | null`, minutes; ReadingPatch `finishIn?: number | null`), `src/main/library/{schema,library,ipc}.ts` (validate: null or one of `FINISH_IN_CHOICES`), `src/shared/voices.ts` (+ per-voice `charsPerSec` measured from the bundled previews, and `FINISH_IN_CHOICES = [30, 45, 60, 90, 120]`), `scripts/voice-previews.ts` (prints the measured rates), `src/renderer/src/player/finish-in.ts` (new, pure), `src/renderer/src/player/PlayerContext.tsx`, `src/renderer/src/player/PlayerBar.tsx`, `src/renderer/src/App.tsx` (More menu item), `src/renderer/src/reading/ReadingMenu.tsx` (a **Finish in…** submenu). Tests: `tests/unit/player/finish-in.test.ts`, `tests/unit/library/*.test.ts`, `tests/renderer/finish-in.test.tsx`.
+
+**Interfaces:**
+```ts
+// finish-in.ts
+export function readingSeconds(texts: string[], charsPerSec: number): number          // at 1×, whole reading
+export function finishInSpeed(totalSec: number, limitMin: number): { speed: number; fits: boolean; neededMinAt2x: number }
+// speed = clamp(ceil((totalSec / (limitMin*60)) * 20) / 20, 1, 2): steps of 0.05, never below 1×; fits = speed needed ≤ 2
+export function finishInLabel(r: ReturnType<typeof finishInSpeed>, limitMin: number): string
+// fits:  'Finishes in about 58 min at 1.3×'   (minutes at the chosen speed, rounded up)
+// !fits: 'Needs 1 h 30 min even at 2×'
+```
+Behaviour:
+- **Speed choice:** with `finishIn` set, the reading plays at `max(chosenSpeed, finishInSpeed.speed)`. If her own speed is already faster, it's kept. Computed once, when the limit is set or the reading opens, from the whole reading's text (spec: whole reading) and the current voice's `charsPerSec`.
+- **Display:** the player's voice label shows the effective speed (e.g. `Emma · 1.3×`). The status line under the wave shows `finishInLabel` for 5 s after the limit is set, and the More menu item shows the current choice.
+- **Menu:** More → **Finish in…** → Off / 30 min / 45 min / 60 min / 90 min / 2 hours, with a ✓ on the current one. The choice is saved per reading (`finishIn`).
+- **Voice:** changing voice recomputes with the new voice's `charsPerSec`.
+- **Constraints:** `tts:synthesize` already accepts any speed from 0.5 to 2. No new player control (still exactly five).
+
+- [ ] **Step 1: Failing tests:** `readingSeconds sums characters over the voice rate`; `finishInSpeed rounds up to 0.05 and never goes below 1×`; `finishInSpeed reports needed time at 2× when it does not fit`; `finishInLabel wording for fits and does not fit`; library: `finishIn defaults to null, validates choices, persists`; renderer: `choosing Finish in 60 min sets the effective speed and shows the estimate`; `a faster own speed is kept`; `Off restores her chosen speed`; `the More menu shows the current choice`.
+- [ ] **Step 2: Measure the voice rates.** Extend `scripts/voice-previews.ts` to print chars/sec for each bundled preview (`PREVIEW_SENTENCE.length / durationSec`), and copy the values into `VOICES[i].charsPerSec`. Add a voices test that every voice has `charsPerSec` between 8 and 25.
+- [ ] **Step 3: Implement. Step 4: Verify** `npx vitest run`, typecheck, lint, `npm run build`. **Commit.** `feat(player): finish a reading within a chosen time by raising the speed (max 2×)`.
+
+### Task 10d: Follow-up e2e and installer
+
+- [ ] Add e2e tests: `a jump to another paragraph starts speaking within 3 s` (packaged; logged in the report); `Finish in 60 min shows the estimate and the effective speed`. Run dev and packaged offline e2e and `npm run package`. Push the feature branch (approved by Yasin on 2026-11-22) and confirm CI is green on both OSes. **STOP** for Yasin to try the build again before M5.
+
+---
+
 ## M5: Save as audio
 
 ### Task 11: Selectable pages: pdf.js text layer and selection → sentences
