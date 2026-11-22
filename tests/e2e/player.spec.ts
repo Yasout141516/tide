@@ -196,3 +196,83 @@ test('reaching the end offers the next reading', async () => {
   await expect.poll(() => phase(win), { timeout: LOAD_MS }).toBe('playing')
   await app.close()
 })
+
+/** Writes the jump timing next to first-audio.json (the only writer of jump-audio.json). */
+function logJump(jumpMs: number): void {
+  const dir = resolve(__dirname, '..', '..', 'test-results')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, 'jump-audio.json'),
+    JSON.stringify({
+      measured: 'click on a sentence outside the prefetch window to playing',
+      packaged: process.env.TIDE_PACKAGED === '1',
+      jumpMs
+    })
+  )
+}
+
+test('a jump to another paragraph starts speaking within 3 s', async () => {
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  const win = await openListen(app)
+  expect(await ids(win)).toBe('0')
+  await playAndTime(win)
+  // Warm: let the voice settle on the first paragraph, as a listener who has been reading a while.
+  await expect.poll(() => idNumber(win), { timeout: ADVANCE_MS }).toBeGreaterThanOrEqual(1)
+
+  // The last sentence is on page 3: far outside the cached window, so it is not synthesised yet.
+  const target = 19
+  const at = await win.evaluate(
+    (i) =>
+      (
+        window as unknown as {
+          __tideSentenceCentre?: (i: number) => { page: number; fx: number; fy: number } | null
+        }
+      ).__tideSentenceCentre?.(i) ?? null,
+    target
+  )
+  if (!at) throw new Error(`sentence ${target} has no place on a page`)
+  const page = win.locator(`[data-page="${at.page}"]`)
+  await page.scrollIntoViewIfNeeded()
+  const box = await page.boundingBox()
+  if (!box) throw new Error(`page ${at.page} is not on screen`)
+
+  const t0 = Date.now()
+  await page.click({ position: { x: box.width * at.fx, y: box.height * at.fy } })
+  let sawBuffering = false
+  await expect
+    .poll(
+      async () => {
+        const p = await phase(win)
+        if (p === 'buffering') sawBuffering = true
+        // The highlight moves on the click while the old clip may still show 'playing' for a frame, so
+        // only a 'playing' that follows 'buffering' is the target's own audio.
+        return sawBuffering && (await ids(win)) === String(target) && p === 'playing'
+      },
+      { timeout: 15_000, intervals: [20] }
+    )
+    .toBe(true)
+  const jumpMs = Date.now() - t0
+  console.log(`jump: ${jumpMs} ms from click to playing`)
+  logJump(jumpMs)
+  expect(jumpMs).toBeLessThanOrEqual(process.env.CI ? 6000 : 3000)
+  await app.close()
+})
+
+test('Finish in 60 min shows the estimate and the effective speed', async () => {
+  // Each launch has its own throw-away user data dir, so the reading's finishIn never outlives the test.
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  const win = await openListen(app)
+  await win.getByRole('button', { name: 'More options for Harbour Tides Week 2' }).click()
+  await win.getByRole('menuitem', { name: /Finish in/ }).click()
+  // Keyboard: a pointer click on the submenu item does not register under Playwright here.
+  const sixty = win.getByRole('menuitemradio', { name: '60 min' })
+  await expect(sixty).toBeVisible()
+  await win.keyboard.press('ArrowRight')
+  for (let i = 0; i < 6 && (await sixty.getAttribute('data-highlighted')) === null; i++)
+    await win.keyboard.press('ArrowDown')
+  await win.keyboard.press('Enter')
+  // A short reading fits in an hour at 1×, so the speed stays 1×, and the estimate names it.
+  await expect(win.getByText(/^Finishes in about \d+ min at 1×$/)).toBeVisible()
+  await expect(win.getByRole('button', { name: 'Emma · 1×' })).toBeVisible()
+  await app.close()
+})

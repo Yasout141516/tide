@@ -1214,7 +1214,7 @@ function listen(): Fixture {
   return listenFixture(
     'listen',
     'Harbour Tides Week 2',
-    '2 pages, 12 short invented sentences in plain paragraphs; the first sentence has a clause comma near its start. For the player end-to-end tests.',
+    '3 pages, 20 short invented sentences in plain paragraphs; the first sentence has a clause comma near its start. For the player end-to-end tests.',
     [
       [
         'When the morning fog lifted, the fishing boats slid out of the harbour one by one. Gulls followed them past the lighthouse. The first boat carried nets and a small red stove. Its captain hummed an old song as she steered. Nobody on the pier spoke for a while. The water was flat and bright.',
@@ -1223,6 +1223,10 @@ function listen(): Fixture {
       [
         'Children gathered on the stones to watch the unloading. A boy counted the crates twice. His sister drew the gulls in a notebook. The market opened at one and the fish were gone by two.',
         'That evening the harbour was quiet again. The lamps came on along the wall, and the water turned dark.'
+      ],
+      [
+        'On the third morning a thin wind came in from the north. The nets were mended on the quay. An old man sorted the floats by colour. A girl swept the salt from the steps.',
+        'The ferry crossed twice before lunch. Its horn sounded over the roofs. A cat watched from a window sill. Nothing else moved until the bell rang at four.'
       ]
     ]
   )

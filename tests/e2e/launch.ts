@@ -8,6 +8,8 @@ const root = resolve(__dirname, '..', '..')
 
 /** The packaged binary electron-builder writes to release/ (see electron-builder.yml). */
 export function packagedExecutable(): string {
+  // TIDE_PACKAGED_EXE points at a build in another folder (e.g. when release/ holds a running Tide).
+  if (process.env.TIDE_PACKAGED_EXE) return resolve(root, process.env.TIDE_PACKAGED_EXE)
   switch (process.platform) {
     case 'darwin':
       return resolve(root, 'release/mac-arm64/Tide.app/Contents/MacOS/Tide')
