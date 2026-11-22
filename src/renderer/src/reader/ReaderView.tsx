@@ -5,7 +5,7 @@ import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
 import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
-import { usePlayer } from '../player/PlayerContext'
+import { leavesKeysAlone, usePlayer } from '../player/PlayerContext'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
 import { FileMovedDialog } from '../reading/FileMovedDialog'
@@ -101,6 +101,9 @@ function ReaderSession({
   const [removing, setRemoving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
+  const followingRef = useRef(true)
+  /** During a pause: has the line been out of view yet? Only then does coming back resume following. */
+  const leftView = useRef(false)
 
   // --- Open the PDF -------------------------------------------------------------------------
   const tryOpen = useCallback(
@@ -230,7 +233,10 @@ function ReaderSession({
     const el = scroller.current
     if (el && el.scrollHeight > 0) place.current = el.scrollTop / el.scrollHeight
     // The read line came back into view through her own scrolling: follow again.
-    if (!followingRef.current && lineInView()) follow(true)
+    if (!followingRef.current) {
+      if (!lineInView()) leftView.current = true
+      else if (leftView.current) follow(true)
+    }
   }
   useLayoutEffect(() => {
     if (lastZoom.current === zoom && lastWidth.current === colWidth) return
@@ -367,9 +373,12 @@ function ReaderSession({
   // scrollbar) pauses that and shows "Back to reading". Tide's own scrollIntoView never counts: it
   // fires `scroll`, which only ever resumes following, and the pause signals above are not `scroll`.
   const [following, setFollowing] = useState(true)
-  const followingRef = useRef(true)
+  const noteLeft = useCallback(() => {
+    leftView.current = true
+  }, [])
   const follow = useCallback((on: boolean) => {
     followingRef.current = on
+    leftView.current = false
     setFollowing(on)
   }, [])
   const phase = usePlayer().snapshot.phase
@@ -397,17 +406,15 @@ function ReaderSession({
     }
     const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown'])
     const onKey = (e: KeyboardEvent): void => {
-      const t = e.target as HTMLElement | null
-      if (t?.closest('input, textarea, select, [contenteditable]')) return
-      if (SCROLL_KEYS.has(e.key)) pause()
+      if (SCROLL_KEYS.has(e.key) && !leavesKeysAlone(e, '')) pause()
     }
     const el = scroller.current
     document.addEventListener('keydown', onKey)
     el?.addEventListener('wheel', pause, { passive: true })
     el?.addEventListener('touchmove', pause, { passive: true })
     const onDown = (e: PointerEvent): void => {
-      // A press on the scroller itself (not on a page) is the scrollbar.
-      if (e.target === el) pause()
+      // A press on the scroller itself (not on a page) is the scrollbar; the middle button autoscrolls.
+      if (e.target === el || e.button === 1) pause()
     }
     el?.addEventListener('pointerdown', onDown)
     return () => {
@@ -425,7 +432,11 @@ function ReaderSession({
     if (!b) return
     const force = jump.current !== null
     jump.current = null
-    if (!force && !followingRef.current) return
+    if (!force && !followingRef.current) {
+      // Playback moved on while she is away: the line leaving view counts as out of view.
+      if (b.r.top < b.s.top || b.r.bottom > b.s.bottom) noteLeft()
+      return
+    }
     const third = (b.s.bottom - b.s.top) / 3
     const mid = (b.r.top + b.r.bottom) / 2
     if (!force && mid >= b.s.top + third && mid <= b.s.bottom - third) return

@@ -149,7 +149,8 @@ function createTtsClient(): { client: TtsClient; dispose(): void } {
 }
 
 /** Keys that belong to a dialog, a field or a menu are never the player's. */
-function leavesKeysAlone(e: KeyboardEvent, own: string): boolean {
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the reader's scroll keys
+export function leavesKeysAlone(e: KeyboardEvent, own: string): boolean {
   if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return true
   if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return true
   const t = e.target as HTMLElement | null

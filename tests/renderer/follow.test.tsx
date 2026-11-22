@@ -181,6 +181,66 @@ describe('Following the read line', () => {
     await waitFor(() => expect(pill()).toBeNull())
   })
 
+  it('a small scroll that keeps the line visible pauses following and shows the pill', async () => {
+    await open(bodyPages(4))
+    lineTop = 450
+    fireEvent.wheel(stage())
+    act(() => void fireEvent.scroll(stage()))
+    expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
+    scrolls.length = 0
+    lineTop = 20 // would be recentred if following
+    clickPage(2)
+    await waitFor(() => expect(highlightId()).not.toBe('0'))
+    expect(scrolls).toEqual([])
+    expect(pill()).toBeTruthy()
+  })
+
+  it('following resumes only after the line has left view and come back', async () => {
+    await open(bodyPages(4))
+    fireEvent.wheel(stage())
+    await screen.findByRole('button', { name: /^Back to reading/ })
+    act(() => void fireEvent.scroll(stage())) // still visible: no resume
+    expect(pill()).toBeTruthy()
+    lineTop = 2000
+    act(() => void fireEvent.scroll(stage())) // gone
+    lineTop = 300
+    act(() => void fireEvent.scroll(stage())) // back
+    await waitFor(() => expect(pill()).toBeNull())
+  })
+
+  it('a line that leaves view because playback moved on counts as out of view', async () => {
+    await open(bodyPages(4))
+    fireEvent.wheel(stage())
+    await screen.findByRole('button', { name: /^Back to reading/ })
+    lineTop = 2000
+    clickPage(2)
+    await waitFor(() => expect(highlightId()).not.toBe('0'))
+    lineTop = 300
+    act(() => void fireEvent.scroll(stage()))
+    await waitFor(() => expect(pill()).toBeNull())
+  })
+
+  it('a middle-click anywhere in the stage counts as her scrolling', async () => {
+    await open(bodyPages(4))
+    fireEvent.pointerDown(document.querySelector('[data-page="1"]')!, { button: 1 })
+    expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
+  })
+
+  it('scroll keys while a dialog has focus do not pause following', async () => {
+    await open(bodyPages(4))
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.append(dialog)
+    try {
+      fireEvent.keyDown(dialog, { key: 'PageDown' })
+      expect(pill()).toBeNull()
+    } finally {
+      dialog.remove()
+    }
+    fireEvent.keyDown(document.body, { key: 'PageDown' })
+    expect(await screen.findByRole('button', { name: /^Back to reading/ })).toBeTruthy()
+  })
+
   it('Space on the focused pill activates it', async () => {
     await open(bodyPages(4))
     fireEvent.wheel(stage())
