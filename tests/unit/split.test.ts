@@ -8,6 +8,18 @@ describe('splitForSpeech', () => {
   it('keeps short text whole', async () =>
     expect(await splitForSpeech('Hi there.', c, 400)).toEqual(['Hi there.']))
 
+  it('estimates plain text by length: up to maxTokens / 1.25 characters is not counted', async () => {
+    const count = vi.fn(c)
+    const plain = 'a plain sentence of english words '.repeat(3).trim() // 101 characters
+    expect(await splitForSpeech(plain.slice(0, 96), count, 120)).toHaveLength(1)
+    expect(count).not.toHaveBeenCalled()
+    await splitForSpeech(plain, count, 120)
+    expect(count).toHaveBeenCalled() // over the estimate: counted, and split if over the limit
+    const long = (plain + ', ').repeat(2) + plain
+    for (const chunk of await splitForSpeech(long, c, 120))
+      expect(chunk.length).toBeLessThanOrEqual(120)
+  })
+
   it('does not phonemize a short digit-free sentence, but counts one with digits', async () => {
     const count = vi.fn(c)
     expect(await splitForSpeech('Most adults keep about four items in mind.', count)).toEqual([

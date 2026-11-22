@@ -59,14 +59,17 @@ async function splitLevel(
  */
 const NEEDS_COUNTING = /[\d%&$#@+=<>/\\^~|€£§°Ͱ-Ͽ∀-⋿]|[A-Z]{2}/
 
+const PLAIN_TOKENS_PER_CHAR = 1.25
+
 export async function splitForSpeech(
   text: string,
   countTokens: TokenCounter,
   maxTokens = 400
 ): Promise<string[]> {
-  // Phonemizing is slow. Plain English of at most half `maxTokens` characters (200 for 400) phonemizes to well under the limit,
-  // so it is not counted (see `NEEDS_COUNTING` for what is not plain).
-  if (text.length <= maxTokens / 2 && !NEEDS_COUNTING.test(text)) return [text]
+  // Phonemizing costs tens of ms. Plain English phonemizes to about 1.0-1.1 tokens per character
+  // (measured), so with a 25% margin text of at most `maxTokens / 1.25` characters is not counted
+  // (see `NEEDS_COUNTING` for what is not plain).
+  if (text.length <= maxTokens / PLAIN_TOKENS_PER_CHAR && !NEEDS_COUNTING.test(text)) return [text]
   if ((await countTokens(text)) <= maxTokens) return [text]
   return splitLevel(text, countTokens, maxTokens, [';:', ','])
 }

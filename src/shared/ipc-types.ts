@@ -8,6 +8,8 @@ export interface SynthesizeOptions {
   priority?: 'live' | 'preview'
   /** Cancellation group (at most 64 characters). */
   gen?: string
+  /** Queue ahead of jobs already waiting in the same priority (a seek target). */
+  front?: boolean
 }
 
 export interface TtsAudio {

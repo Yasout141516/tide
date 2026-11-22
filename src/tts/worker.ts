@@ -132,7 +132,8 @@ process.parentPort.on('message', (e) => {
       break
     case 'synthesize':
       // Generations are unique per play session: a cancelled gen is never reused.
-      queue.push(msg)
+      if (msg.front) queue.pushFront(msg)
+      else queue.push(msg)
       void loading.then(pump)
       break
     case 'cancel':

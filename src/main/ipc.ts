@@ -23,11 +23,12 @@ export function registerIpc(
   }
 
   ipcMain.handle('tts:synthesize', (_e, text: unknown, o: unknown) => {
-    const { voice, speed, priority, gen } = (o ?? {}) as {
+    const { voice, speed, priority, gen, front } = (o ?? {}) as {
       voice?: unknown
       speed?: unknown
       priority?: unknown
       gen?: unknown
+      front?: unknown
     }
     // Speed steps are 0.8x-2x; 0.5 leaves room for previews. NaN, 0 or negative must not reach Kokoro.
     if (
@@ -36,20 +37,22 @@ export function registerIpc(
       !VOICE_IDS.has(voice) ||
       (priority !== undefined && priority !== 'live' && priority !== 'preview') ||
       (gen !== undefined && (typeof gen !== 'string' || gen.length > 64)) ||
+      (front !== undefined && typeof front !== 'boolean') ||
       typeof speed !== 'number' ||
       !Number.isFinite(speed) ||
       speed < 0.5 ||
       speed > 2
     ) {
       throw new Error(
-        'tts:synthesize expects (text: string, { voice: one of the ten voices, speed: a number from 0.5 to 2, priority?: live | preview, gen?: string up to 64 characters })'
+        'tts:synthesize expects (text: string, { voice: one of the ten voices, speed: a number from 0.5 to 2, priority?: live | preview, gen?: string up to 64 characters, front?: boolean })'
       )
     }
     return host.synthesize(text, {
       voice,
       speed,
       ...(priority !== undefined && { priority }),
-      ...(gen !== undefined && { gen })
+      ...(gen !== undefined && { gen }),
+      ...(front === true && { front })
     })
   })
 

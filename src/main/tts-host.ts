@@ -120,7 +120,8 @@ export class TtsHost {
         voice: o.voice,
         speed: o.speed,
         priority: o.priority ?? 'live',
-        gen: o.gen ?? 'default'
+        gen: o.gen ?? 'default',
+        ...(o.front === true && { front: true })
       },
       {
         timeoutMs: this.opts.timeoutMs ?? jobTimeoutMs(text),

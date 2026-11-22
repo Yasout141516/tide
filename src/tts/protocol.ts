@@ -15,6 +15,8 @@ export type TtsRequest =
       speed: number
       priority: Priority
       gen: string
+      /** Run before the jobs already queued at the same priority. */
+      front?: boolean
     }
   | { id: number; type: 'cancel'; gen: string }
 

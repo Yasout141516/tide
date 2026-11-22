@@ -42,6 +42,7 @@ class FakeSink implements AudioSink {
 interface Call {
   text: string
   gen: string
+  front?: boolean
   voice: string
   speed: number
   resolve(a: TtsAudio): void
@@ -55,10 +56,18 @@ class FakeTts implements TtsClient {
   private cbs = new Set<(s: TtsStatus) => void>()
   synthesize(
     text: string,
-    o: { voice: string; speed: number; priority: 'live'; gen: string }
+    o: { voice: string; speed: number; priority: 'live'; gen: string; front?: boolean }
   ): Promise<TtsAudio> {
     return new Promise<TtsAudio>((resolve, reject) => {
-      this.calls.push({ text, gen: o.gen, voice: o.voice, speed: o.speed, resolve, reject })
+      this.calls.push({
+        text,
+        gen: o.gen,
+        front: o.front,
+        voice: o.voice,
+        speed: o.speed,
+        resolve,
+        reject
+      })
     })
   }
   cancel(gen: string): void {
@@ -357,14 +366,34 @@ describe('PlayerEngine', () => {
     expect(tts.texts().slice(4)).toEqual([texts[4], texts[5]])
   })
 
-  it('a seek to a missing sentence is not queued behind jobs still in flight', () => {
+  it('a seek to an uncached target keeps in-window in-flight jobs and queues the target first', () => {
     const texts = Array.from({ length: 12 }, (_, k) => `Sentence number ${k}.`)
     const { engine, tts } = setup(texts, 5)
     engine.play() // 5..8 in flight
     const n = tts.calls.length
-    engine.setIndex(3) // 3 is missing: 5 and 6 are asked again after it
-    expect(tts.cancels).toHaveLength(4)
-    expect(tts.calls.slice(n).map((c) => c.text)).toEqual(texts.slice(3, 7))
+    const inFlight = (t: string): Call => tts.calls.find((c) => c.text === t) as Call
+    engine.setIndex(3) // window 3..6: 5 and 6 stay, 7 and 8 go, 3 and 4 are new
+    expect(tts.cancels).toEqual([inFlight(texts[7]).gen, inFlight(texts[8]).gen])
+    const fresh = tts.calls.slice(n)
+    expect(fresh.map((c) => c.text)).toEqual([texts[3], texts[4]])
+    expect(fresh[0].front).toBe(true) // the target goes ahead of the kept jobs
+    expect(fresh[1].front).toBeUndefined()
+  })
+
+  it('a first-clip target is queued at the front with its clips still in order', () => {
+    const long = 'Well then my friends, we shall go forth today.'
+    const texts = [S[0], S[1], long, S[3], S[4], S[5], S[0], S[1]]
+    const { engine, tts } = setup(texts, 6)
+    engine.play()
+    const n = tts.calls.length
+    engine.setIndex(2)
+    const fresh = tts.calls.slice(n)
+    // each front job runs before the one asked earlier, so clip 2 is asked first to run second
+    expect(fresh.slice(0, 2).map((c) => c.text)).toEqual([
+      ' we shall go forth today.',
+      'Well then my friends,'
+    ])
+    expect(fresh.slice(0, 2).every((c) => c.front === true)).toBe(true)
   })
 
   it('the cache holds at most 8 sentences and revokes evicted URLs', async () => {
@@ -383,6 +412,7 @@ describe('PlayerEngine', () => {
     expect(revoked).toHaveLength(made.length - 7)
     const live = made.filter((u) => !revoked.includes(u))
     expect(live).toHaveLength(7)
+    expect((engine as unknown as { entries: Map<number, unknown> }).entries.size).toBe(8)
     engine.dispose()
     expect([...revoked].sort()).toEqual([...made].sort())
     expect(new Set(revoked).size).toBe(revoked.length)
@@ -411,8 +441,8 @@ describe('PlayerEngine', () => {
     engine.play()
     engine.setIndex(6)
     expect(tts.texts().slice(-3)).toEqual([
+      ' we shall go forth today.', // front jobs are asked in reverse to run in clip order
       'Well then my friends,',
-      ' we shall go forth today.',
       S[1]
     ])
     for (const c of tts.calls) c.resolve(audio(1))

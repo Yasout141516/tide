@@ -21,6 +21,16 @@ describe('JobQueue', () => {
     expect(q.size).toBe(0)
   })
 
+  it('pushFront runs ahead of waiting jobs of the same priority only', () => {
+    const q = new JobQueue<Job>()
+    q.push(job('l1', 'live'))
+    q.push(job('p1', 'preview'))
+    q.pushFront(job('l0', 'live'))
+    const order: string[] = []
+    for (let j = q.next(); j; j = q.next()) order.push(j.n)
+    expect(order).toEqual(['l0', 'l1', 'p1'])
+  })
+
   it("cancel(gen) removes only that generation's queued jobs and returns them", () => {
     const q = new JobQueue<Job>()
     q.push(job('a1', 'live', 'a'))

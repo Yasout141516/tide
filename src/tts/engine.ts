@@ -47,5 +47,6 @@ export async function speechChunks(
   maxTokens = MAX_CHUNK_TOKENS,
   count: (s: string) => Promise<number> = countTokens
 ): Promise<string[]> {
-  return (await splitForSpeech(text, count, maxTokens)).map((c) => c.trim()).filter((c) => c.length > 0)
+  const chunks = await splitForSpeech(text, count, maxTokens)
+  return chunks.map((c) => c.trim()).filter((c) => c.length > 0)
 }

@@ -10,6 +10,11 @@ export class JobQueue<T extends { priority: Priority; gen: string }> {
     this.lanes[job.priority].push(job)
   }
 
+  /** Queue ahead of the jobs already waiting at this priority. */
+  pushFront(job: T): void {
+    this.lanes[job.priority].unshift(job)
+  }
+
   next(): T | undefined {
     for (const p of ORDER) {
       const job = this.lanes[p].shift()

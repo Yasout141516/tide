@@ -16,7 +16,7 @@ export interface AudioSink {
 export interface TtsClient {
   synthesize(
     text: string,
-    o: { voice: string; speed: number; priority: 'live'; gen: string }
+    o: { voice: string; speed: number; priority: 'live'; gen: string; front?: boolean }
   ): Promise<TtsAudio>
   cancel(gen: string): void
   status(): Promise<TtsStatus>
@@ -266,8 +266,7 @@ export class PlayerEngine {
 
   /**
    * Move to the current index keeping the audio already made. Only jobs outside the new window are
-   * cancelled; if the target itself is missing, every job still in flight is cancelled and asked
-   * again in order, so the target is not queued behind them.
+   * cancelled; a missing target is queued at the front so it does not wait behind kept jobs.
    */
   private seek(): void {
     if (this.index === null) return
@@ -276,10 +275,10 @@ export class PlayerEngine {
     this.resetCursor()
     const lo = this.index
     const hi = this.index + AHEAD
-    const targetMissing = this.entryFor(lo) === undefined
     for (const [k, e] of [...this.entries]) {
-      if (e.pending > 0 && (targetMissing || k < lo || k > hi)) this.evict(k)
+      if (e.pending > 0 && (k < lo || k > hi)) this.evict(k)
     }
+    if (this.wantPlay && this.entryFor(lo) === undefined) this.request(lo, true)
     this.resume()
   }
 
@@ -319,7 +318,7 @@ export class PlayerEngine {
     this.trim()
   }
 
-  private request(i: number): void {
+  private request(i: number, front = false): void {
     const pieces =
       i === this.firstIdx
         ? firstClips(this.texts[i], { maxFirstWords: FIRST_CLIP_WORDS })
@@ -334,19 +333,23 @@ export class PlayerEngine {
       secs: new Array<number | undefined>(pieces.length).fill(undefined)
     }
     this.entries.set(i, entry)
-    pieces.forEach((text, p) => {
+    // Queued at the front, each clip goes ahead of the last, so ask in reverse to keep clip order.
+    const order = pieces.map((_, p) => p)
+    if (front) order.reverse()
+    for (const p of order) {
       void this.deps.tts
-        .synthesize(text, {
+        .synthesize(pieces[p], {
           voice: entry.voice,
           speed: entry.speed,
           priority: 'live',
-          gen: entry.gen
+          gen: entry.gen,
+          ...(front && { front })
         })
         .then(
           (audio) => this.onAudio(i, entry, p, audio),
           (err: unknown) => this.onFail(i, entry, err)
         )
-    })
+    }
   }
 
   private onAudio(i: number, entry: Entry, p: number, audio: TtsAudio): void {
