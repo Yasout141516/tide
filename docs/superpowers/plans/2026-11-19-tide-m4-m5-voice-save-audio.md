@@ -498,6 +498,21 @@ Behaviour:
 - [ ] **Step 2: Measure the voice rates.** Extend `scripts/voice-previews.ts` to print chars/sec for each bundled preview (`PREVIEW_SENTENCE.length / durationSec`), and copy the values into `VOICES[i].charsPerSec`. Add a voices test that every voice has `charsPerSec` between 8 and 25.
 - [ ] **Step 3: Implement. Step 4: Verify** `npx vitest run`, typecheck, lint, `npm run build`. **Commit.** `feat(player): finish a reading within a chosen time by raising the speed (max 2×)`.
 
+### Task 10e: Always know where it's reading
+
+Finding (4): she loses the line being read. Decision: the page follows instantly, and a "Back to reading" pill appears when she scrolls away.
+
+**Files:** Modify `src/renderer/src/reader/ReaderView.tsx`; Create `src/renderer/src/reader/BackToReading.tsx`; Test `tests/renderer/highlight-resume.test.tsx` (or a new `tests/renderer/follow.test.tsx`).
+
+**Behaviour:**
+- **Following:** while following (the default), every change of the current sentence scrolls with `behavior: 'auto'` (instant, never smooth) so that the read line sits in the middle third of the stage. This includes moving to another page. The page no longer waits for the line to leave the screen.
+- **Scrolling away:** when she scrolls herself (the existing `userScrollAt` signals), following pauses and a pill appears, bottom-centre above the player: **Back to reading · Page N**, where N is the current sentence's page. It is a button labelled in words.
+- **Coming back:** clicking the pill jumps instantly to the read line and resumes following. Following also resumes by itself when the read line comes back into view through her own scrolling, or on Play after a pause. The old 5 s timer is replaced by this rule (`HANDS_OFF_MS` is removed).
+- **When the pill shows:** only while a reading is open, there is a current sentence, and it is off screen or following is paused.
+
+- [ ] **Step 1: Failing tests:** `a new current sentence on another page scrolls there instantly`; `a new current sentence already in the middle third does not scroll`; `scrolling away pauses following and shows Back to reading with the page`; `clicking Back to reading jumps to the line and resumes following`; `following resumes when the read line scrolls back into view`.
+- [ ] **Step 2: Implement. Step 3: Verify** `npx vitest run`, typecheck, lint. **Commit.** `feat(reader): follow the read line instantly, Back to reading pill when she scrolls away`.
+
 ### Task 10d: Follow-up e2e and installer
 
 - [ ] Add e2e tests: `a jump to another paragraph starts speaking within 3 s` (packaged; logged in the report); `Finish in 60 min shows the estimate and the effective speed`. Run dev and packaged offline e2e and `npm run package`. Push the feature branch (approved by Yasin on 2026-11-22) and confirm CI is green on both OSes. **STOP** for Yasin to try the build again before M5.
