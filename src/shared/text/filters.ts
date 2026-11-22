@@ -74,9 +74,9 @@ const ENDS_COMPLETE = /[.!?]$|\bUTC$/
  * Only lines in the top or bottom 8% of their page (by baseline) are candidates for the repeat rule. A
  * candidate goes if its digit-normalized key appears in the same zone on at least
  * max(2, min(3, ceil(pageCount / 2))) pages, or if it is a page number on its own (see
- * `PAGE_NUMBER`, any page count). A vendor stamp (see `isVendorStamp`) goes wherever it is, on any
- * page count; when a stamp in the band ends mid-citation, the next line in the same band goes with
- * it. Kept lines are returned as-is, in order.
+ * `PAGE_NUMBER`, any page count). A vendor stamp (see `isVendorStamp`) goes on any page count when it is in the band, and
+ * outside the band only when the same normalized line repeats on enough pages; when a band stamp ends
+ * mid-citation, the next line in the same band (no larger than the stamp) goes with it. Kept lines are returned as-is, in order.
  *
  * @param pagesLines the lines of every page, in page order
  * @param pageHeights the height of each page, same order
@@ -92,7 +92,7 @@ export function dropHeadersFooters(pagesLines: Line[][], pageHeights: number[]):
     const seen = new Set<string>()
     lines.forEach((l, i) => {
       const zone = zones[p][i]
-      if (zone) seen.add(`${zone}\u0000${headerKey(l.text)}`)
+      seen.add(`${zone ?? 'mid'}\u0000${headerKey(l.text)}`)
     })
     for (const k of seen) pagesWith.set(k, (pagesWith.get(k) ?? 0) + 1)
   })
@@ -101,16 +101,23 @@ export function dropHeadersFooters(pagesLines: Line[][], pageHeights: number[]):
     // Stamp lines, plus the wrapped continuation of a stamp that ends mid-citation.
     const stamped = new Set<number>()
     lines.forEach((l, i) => {
-      if (!isVendorStamp(l, zones[p][i] !== null)) return
+      const zone = zones[p][i]
+      if (!isVendorStamp(l, zone !== null)) return
+      // Outside the band a stamp-like line goes only when it repeats across pages, so body text that
+      // merely mentions a vendor is spoken.
+      if (!zone && (pagesWith.get(`mid\u0000${headerKey(l.text)}`) ?? 0) < threshold) return
       stamped.add(i)
-      const next = i + 1
+      // A stamp that ends mid-URL/mid-citation wraps: its continuation goes if it is in the same band,
+      // and is no larger than the stamp (a heading or body line in the band stays).
+      const next = lines[i + 1]
       if (
-        next < lines.length &&
-        zones[p][next] !== null &&
-        zones[p][next] === zones[p][i] &&
+        zone &&
+        next &&
+        zones[p][i + 1] === zone &&
+        next.fontSize <= l.fontSize + 0.5 &&
         !ENDS_COMPLETE.test(l.text.trim())
       )
-        stamped.add(next)
+        stamped.add(i + 1)
     })
     return lines.filter((l, i) => {
       if (stamped.has(i)) return false

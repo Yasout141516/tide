@@ -228,6 +228,22 @@ describe('ebook vendor stamps', () => {
     expect(out).toContain('Copyright ©2021 Orchard Row Books. All rights reserved.')
   })
 
+  it('keeps a mid-page body line that mentions a vendor, unless it repeats on pages', () => {
+    const mention = 'Our ebooks are available through ProQuest Ebook Central for members.'
+    const once = one([{ str: mention, x: 72, y: 200 }])
+    expect(once).toContain(mention)
+    const everywhere = doc(3, () => [{ str: mention, x: 72, y: 200 }]).flat()
+    expect(everywhere).not.toContain(mention)
+    const some = doc(3, (k) => (k === 1 ? [{ str: mention, x: 72, y: 200 }] : [])).flat()
+    expect(some).toContain(mention)
+  })
+
+  it('keeps a larger line in the band after a stamp that ends mid-citation', () => {
+    const out = one([stamp(A, 28), { str: 'Chapter Title', x: 72, y: 44, fontSize: 14 }])
+    expect(out).toContain('Chapter Title')
+    expect(out).not.toContain(A)
+  })
+
   it('isVendorStamp matches the vendor patterns', () => {
     const l = (s: string): Line => lineOf([{ str: s, x: 72, y: 30 }])
     expect(isVendorStamp(l('Created from northfield on 2026-04-01 09:15:00.'))).toBe(true)
