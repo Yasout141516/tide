@@ -69,28 +69,26 @@ export async function closeShelf(win: Page): Promise<void> {
 }
 
 /**
- * Clicks into the body text of page `n` until the highlight moves to another sentence, and returns the
- * id it landed on. A click picks the sentence under it (the player keeps its keys for skipping 15 s, so
- * there is no key that steps one sentence).
+ * Clicks the centre of sentence `id` (the app, under TIDE_E2E, says where it is) and waits for it to be
+ * the highlighted one. A click picks the sentence under it; there is no key that steps one sentence now
+ * (← / → skip 15 s).
  */
-export async function clickToChangeSentence(win: Page, n = 1): Promise<string> {
-  const before = (await highlightIds(win)).join()
-  const page = win.locator(`[data-page="${n}"]`)
+export async function clickSentence(win: Page, id: number): Promise<void> {
+  const at = await win.evaluate(
+    (i) =>
+      (
+        window as unknown as {
+          __tideSentenceCentre?: (i: number) => { page: number; fx: number; fy: number } | null
+        }
+      ).__tideSentenceCentre?.(i) ?? null,
+    id
+  )
+  if (!at) throw new Error(`sentence ${id} has no place on a page`)
+  const page = win.locator(`[data-page="${at.page}"]`)
   const box = await page.boundingBox()
-  if (!box) throw new Error(`page ${n} is not on screen`)
-  for (let f = 0.2; f <= 0.9; f += 0.04) {
-    await page.click({ position: { x: box.width * 0.3, y: box.height * f } })
-    try {
-      await expect
-        .poll(async () => (await highlightIds(win)).join(), { timeout: 600 })
-        .not.toBe(before)
-      const ids = await highlightIds(win)
-      if (ids.length === 1) return ids[0]
-    } catch {
-      // That click landed between sentences; try a little lower.
-    }
-  }
-  throw new Error('no click moved the highlight')
+  if (!box) throw new Error(`page ${at.page} is not on screen`)
+  await page.click({ position: { x: box.width * at.fx, y: box.height * at.fy } })
+  await expect.poll(() => highlightIds(win), { timeout: 5_000 }).toEqual([String(id)])
 }
 
 /**

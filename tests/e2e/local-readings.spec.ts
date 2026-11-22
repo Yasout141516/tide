@@ -13,7 +13,7 @@ import { join, resolve } from 'path'
 import { test, expect } from '@playwright/test'
 import {
   boxesInsideCanvas as insideCanvas,
-  clickToChangeSentence,
+  clickSentence,
   clickAddReading,
   closeShelf,
   highlightIds as current,
@@ -71,13 +71,13 @@ pdfs.forEach((file, i) => {
     })
     const first = Number((await current(win))[0])
     expect(await insideCanvas(win)).toBe(true)
-    let at = String(first)
     for (let step = 1; step <= 3; step++) {
-      // ← / → skip 15 s now, so a click on the page picks the next sentence.
-      at = await clickToChangeSentence(win)
-      await expect.poll(() => current(win)).toEqual([at])
+      // ← / → skip 15 s now, so a click on the sentence picks it.
+      await clickSentence(win, first + step)
+      await expect.poll(() => current(win)).toEqual([String(first + step)])
       expect(await insideCanvas(win)).toBe(true)
     }
+    const at = String(first + 3)
 
     // Resumes: the same sentence after a quit and relaunch.
     await app.close()

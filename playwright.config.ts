@@ -10,6 +10,9 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,
   reporter: 'list',
+  // Each test launches Electron plus the fp32 voice engine; parallel workers time out on voice load.
+  workers: 1,
+  fullyParallel: false,
   projects: [
     packaged
       ? // First launch of a freshly packaged app (signature checks, cold disk cache) is slower.

@@ -412,6 +412,23 @@ function ReaderSession({
     const hit = sentenceAt(bySentence, n, x, y)
     if (hit !== null) setCurrent(hit)
   }
+  // Test-only (TIDE_E2E exposes window.tideTest): where a click picks sentence i, as fractions of its
+  // page, so Playwright can click a chosen sentence instead of searching for one.
+  useEffect(() => {
+    if (!window.tideTest || !sentences) return
+    const w = window as unknown as { __tideSentenceCentre?: (i: number) => unknown }
+    w.__tideSentenceCentre = (i) => {
+      const s = sentences[i]
+      const r = s ? spanRects(s.spans, itemOf, sizeOf)[0] : undefined
+      const size = r ? sizeOf(r.page) : null
+      return r && size?.width && size.height
+        ? { page: r.page, fx: (r.x + r.w / 2) / size.width, fy: (r.y + r.h / 2) / size.height }
+        : null
+    }
+    return () => {
+      delete w.__tideSentenceCentre
+    }
+  }, [sentences, itemOf, sizeOf])
   // Pages are memoised: a stable handler that reads the latest closure.
   const pickRef = useRef(pickNow)
   useEffect(() => {

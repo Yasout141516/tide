@@ -51,8 +51,11 @@ test('Play speaks and the highlight advances to the next sentence', async () => 
   console.log(`first audio: ${firstAudioMs} ms from Play to playing`)
   const dir = resolve(__dirname, '..', '..', 'test-results')
   mkdirSync(dir, { recursive: true })
-  // CI prints this file in the job summary (the first-audio latency of the voice player).
-  writeFileSync(join(dir, 'first-audio.json'), JSON.stringify({ firstAudioMs }))
+  // The only writer: the first Play of a fresh launch (it includes the model load). CI prints it.
+  writeFileSync(
+    join(dir, 'first-audio.json'),
+    JSON.stringify({ measured: 'first Play of a fresh launch', firstAudioMs })
+  )
 
   await expect.poll(() => idNumber(win), { timeout: ADVANCE_MS }).toBeGreaterThanOrEqual(1)
   const at = await idNumber(win)
@@ -116,21 +119,30 @@ test('→ skips forward and ← goes back', async () => {
   await app.close()
 })
 
-test('playback continues while the window is minimised', async () => {
-  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+/** Starts playing, then minimises or hides the window and expects the highlight to keep advancing. */
+async function playsThrough(
+  app: Awaited<ReturnType<typeof launchTide>>,
+  action: 'minimize' | 'hide'
+): Promise<void> {
   const win = await openListen(app)
   await playAndTime(win)
   await expect.poll(() => idNumber(win), { timeout: ADVANCE_MS }).toBeGreaterThanOrEqual(1)
-
-  await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows()[0]
-    w.minimize()
-    // On macOS the window can also be hidden (Cmd+H); audio must survive that too.
-    if (process.platform === 'darwin') w.hide()
-  })
+  await app.evaluate(({ BrowserWindow }, a) => BrowserWindow.getAllWindows()[0][a](), action)
   const at = await idNumber(win)
   await expect.poll(() => idNumber(win), { timeout: ADVANCE_MS }).toBeGreaterThan(at)
   expect(await phase(win)).toBe('playing')
+}
+
+test('playback continues while the window is minimised', async () => {
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  await playsThrough(app, 'minimize')
+  await app.close()
+})
+
+test('playback continues while the window is hidden (macOS)', async () => {
+  test.skip(process.platform !== 'darwin', 'hide() is the Cmd+H case, which only exists on macOS')
+  const app = await launchTide({ TIDE_OFFLINE_GUARD: '1' })
+  await playsThrough(app, 'hide')
   await app.close()
 })
 
