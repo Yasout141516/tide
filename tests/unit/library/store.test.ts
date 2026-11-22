@@ -255,8 +255,13 @@ describe('LibraryStore', () => {
       }
       // Disk writes at about 3 s, 6 s and 9 s (updates every 1 s for 10 s): never starved, never more often.
       vi.useRealTimers()
-      await sleep(100) // the queued writes drain on real I/O
+      // The queued writes drain on real I/O, which is slow under load: wait for the third, not a fixed delay.
+      await vi.waitFor(() => expect(faults.writes).toBe(3), { timeout: 10_000 })
+      // Nothing more is queued: the count stays at three once the disk work has settled.
+      await sleep(100)
       expect(faults.writes).toBe(3)
+      // Let any in-flight write finish before the temp directory is removed.
+      await store.flush()
     } finally {
       vi.useRealTimers()
     }

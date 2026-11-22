@@ -277,6 +277,10 @@ describe('Player bar', () => {
 
   it('does not auto-scroll within 5 s of her own scroll, and does again after', async () => {
     await open(bodyPages(4))
+    // The opening highlight may still be scrolling itself into view (more slowly under load): let it
+    // settle, so only scrolls caused by the steps below are counted.
+    await waitForId('0')
+    await new Promise((r) => setTimeout(r, 50))
     const scrolls: unknown[] = []
     Element.prototype.scrollIntoView = function (arg?: unknown) {
       scrolls.push(arg)
