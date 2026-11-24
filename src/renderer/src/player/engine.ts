@@ -28,6 +28,11 @@ export interface TtsClient {
 export type PlayerPhase =
   'idle' | 'loading-voice' | 'buffering' | 'playing' | 'paused' | 'finished' | 'error'
 
+/** Whether she is (or is about to be) hearing the reading: playing, or waiting on audio or the voice. */
+export function isListening(p: PlayerPhase | undefined): boolean {
+  return p === 'playing' || p === 'buffering' || p === 'loading-voice'
+}
+
 export interface PlayerSnapshot {
   phase: PlayerPhase
   index: number | null

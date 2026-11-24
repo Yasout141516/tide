@@ -1,5 +1,6 @@
 import { useReaderState } from '../reader/ReaderState'
 import { usePlayer } from './PlayerContext'
+import { isListening } from './engine'
 import { timeLeftLabel } from './timeline'
 import { SleepPopover } from './SleepPopover'
 import { VoicePopover } from './VoicePopover'
@@ -46,7 +47,7 @@ export function PlayerBar(): React.JSX.Element {
   const { sentences, page, numPages, current } = useReaderState()
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0
-  const wantsPlay = phase === 'playing' || phase === 'buffering' || phase === 'loading-voice'
+  const wantsPlay = isListening(phase)
 
   let left = numPages ? `Page ${page} of ${numPages}` : ''
   if (phase === 'loading-voice') left = 'Getting the voice ready…'

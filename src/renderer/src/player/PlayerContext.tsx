@@ -13,11 +13,18 @@ import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/li
 import { DEFAULT_VOICE, voiceRate } from '../../../shared/voices'
 import { nextReading } from '../../../shared/library/shelf'
 import { leavesKeysAlone } from '../lib/keys'
+import { useLatest } from '../lib/useLatest'
 import { tide } from '../lib/tide'
 import { useReaderState } from '../reader/ReaderState'
 import { useToast } from '../shell/Toast'
 import { bindMediaSession } from './media-session'
-import { PlayerEngine, type AudioSink, type PlayerSnapshot, type TtsClient } from './engine'
+import {
+  PlayerEngine,
+  isListening,
+  type AudioSink,
+  type PlayerSnapshot,
+  type TtsClient
+} from './engine'
 import { finishInLabel, finishInSpeed, readingSeconds } from './finish-in'
 import { HtmlAudioSink } from './sink'
 import { SleepTimer, type SleepOption, type SleepState } from './sleep'
@@ -171,20 +178,14 @@ export function PlayerProvider({
   const audio = useRef<HTMLAudioElement>(null)
   const [engine, setEngine] = useState<PlayerEngine | null>(null)
   const [snap, setSnap] = useState<PlayerSnapshot>(IDLE)
-  const sentencesRef = useRef(sentences)
-  useEffect(() => {
-    sentencesRef.current = sentences
-  })
+  const sentencesRef = useLatest(sentences)
   const [timer, setTimer] = useState<SleepTimer | null>(null)
   const [offer, setOffer] = useState<{ next: ReadingView | null; dismissed: boolean } | null>(null)
   /** What happens once, the moment the reading runs out. Kept current each render. */
   const onFinished = useRef<() => void>(() => {})
   const sinkRef = useRef<AudioSink | null>(null)
   const toast = useToast()
-  const latestProps = useRef({ snapshot, onPlayNext, toast })
-  useEffect(() => {
-    latestProps.current = { snapshot, onPlayNext, toast }
-  })
+  const latestProps = useLatest({ snapshot, onPlayNext, toast })
   /** The reading to play once its sentences arrive (Play next only; opening never autoplays). */
   const autoplayFor = useRef<ReadingId | null>(null)
   /** The sentences on screen when the reading changed: they still belong to the old reading. */
@@ -195,24 +196,16 @@ export function PlayerProvider({
   const speed = snapshot?.settings.speed ?? 1
   const finishIn = reading?.finishIn ?? null
   // Finish in…: the speed that fits the whole reading, from this voice's rate. Speeds up only.
+  const texts = useMemo(() => sentences.map((s) => s.text), [sentences])
   const fin = useMemo(
     () =>
-      finishIn === null || sentences.length === 0
+      finishIn === null || texts.length === 0
         ? null
-        : finishInSpeed(
-            readingSeconds(
-              sentences.map((s) => s.text),
-              voiceRate(voice)
-            ),
-            finishIn
-          ),
-    [finishIn, voice, sentences]
+        : finishInSpeed(readingSeconds(texts, voiceRate(voice)), finishIn),
+    [finishIn, voice, texts]
   )
   const effectiveSpeed = Math.max(speed, fin?.speed ?? 1)
-  const finRef = useRef({ fin, finishIn })
-  useEffect(() => {
-    finRef.current = { fin, finishIn }
-  })
+  const finRef = useLatest({ fin, finishIn })
   // The estimate shows for 5 s after the limit is set (not when a reading merely opens with one).
   const [finishNote, setFinishNote] = useState<string | null>(null)
   const [seenFinish, setSeenFinish] = useState({ id: reading?.id ?? null, finishIn })
@@ -305,7 +298,6 @@ export function PlayerProvider({
 
   // Another reading: stop, and save the old place.
   useEffect(() => {
-    engine?.setSentences([], null)
     pushed.current = null
     staleSentences.current = sentencesRef.current
     if (autoplayFor.current !== readingId) autoplayFor.current = null
@@ -321,8 +313,7 @@ export function PlayerProvider({
     if (!engine) return
     pushed.current = null
     const ph = engine.snapshot().phase
-    const wasListening = ph === 'playing' || ph === 'buffering' || ph === 'loading-voice'
-    resume.current = wasListening && prevCount.current > 0 && sentences.length > 0
+    resume.current = isListening(ph) && prevCount.current > 0 && sentences.length > 0
     prevCount.current = sentences.length
     // Play next: this is the first list the new reading has reported, so it plays from the start.
     if (
@@ -334,10 +325,7 @@ export function PlayerProvider({
       autoplayFor.current = null
       resume.current = true
     }
-    engine.setSentences(
-      sentences.map((s) => s.text),
-      null
-    )
+    engine.setSentences(texts, null)
     // The reading id is read, not watched: a new reading changes `sentences` when its text arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, sentences])
@@ -379,7 +367,6 @@ export function PlayerProvider({
       setOffer({ next: lib ? nextReading(lib, readingId) : null, dismissed: false })
       void tide()
         .library.update(readingId, { finished: true })
-        .then(() => tide().library.flush())
         .catch(() => {})
     }
   })
@@ -422,7 +409,6 @@ export function PlayerProvider({
     }, SLEEP_TICK_MS)
     return () => clearInterval(id)
   }, [sleepOn, engine, timer, nowFn])
-  // The reading ran out: a timer waiting for that is done.
 
   // Another reading starts with the timer off.
   useEffect(() => {
@@ -469,7 +455,7 @@ export function PlayerProvider({
       toggle: () => {
         autoplayFor.current = null
         const ph = engine?.snapshot().phase
-        if (ph !== 'playing' && ph !== 'buffering' && ph !== 'loading-voice') stopPreview()
+        if (!isListening(ph)) stopPreview()
         engine?.toggle()
       },
       skip: (d) => {
@@ -500,7 +486,7 @@ export function PlayerProvider({
       finishNote,
       preview: (id) => {
         const ph = engine?.snapshot().phase
-        if (ph === 'playing' || ph === 'buffering' || ph === 'loading-voice') engine?.pause()
+        if (isListening(ph)) engine?.pause()
         stopPreview()
         const url = `./voice-previews/${id}.mp3`
         const a = deps.makePreview ? deps.makePreview(url) : htmlPreview(url)
@@ -541,10 +527,7 @@ export function PlayerProvider({
   )
 
   // --- Keys: ← / → skip 15 s, Space plays and pauses ------------------------------------------
-  const latest = useRef(value)
-  useEffect(() => {
-    latest.current = value
-  })
+  const latest = useLatest(value)
   // --- Media keys and Now Playing -------------------------------------------------------------
   const title = reading?.title ?? null
   const artist = courseName ?? 'Tide'
@@ -563,9 +546,8 @@ export function PlayerProvider({
   }, [title, artist])
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return
-    const listening = phase === 'playing' || phase === 'buffering' || phase === 'loading-voice'
     navigator.mediaSession.playbackState =
-      title === null ? 'none' : listening ? 'playing' : 'paused'
+      title === null ? 'none' : isListening(phase) ? 'playing' : 'paused'
   }, [phase, title])
 
   const hasText = sentences.length > 0
