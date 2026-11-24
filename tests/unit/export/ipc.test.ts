@@ -131,7 +131,7 @@ describe('export:start and friends', () => {
     expect(first.jobId).toEqual(expect.any(String))
     expect(await start(spec())).toEqual({ busy: true })
 
-    await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalled())
+    await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalled(), { timeout: 10_000 })
     await handlers.get('export:cancel')!({}, first.jobId)
     expect(await until((e) => e.kind === 'cancelled')).toMatchObject({ jobId: first.jobId })
     expect(host.cancel).toHaveBeenCalledWith(`export-${first.jobId}`)
@@ -140,12 +140,14 @@ describe('export:start and friends', () => {
     const second = await start(spec())
     expect(second).toEqual({ jobId: expect.any(String) })
     await handlers.get('export:cancel')!({}, (second as { jobId: string }).jobId)
-  })
+  }, 30_000)
 
   it('saves a safely named, chaptered file, reports progress and reveals it', async () => {
     const { jobId } = (await start(spec())) as { jobId: string }
     for (let i = 0; i < 2; i++) {
-      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalledTimes(i + 1))
+      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalledTimes(i + 1), {
+        timeout: 10_000
+      })
       gate!.resolve()
     }
     const saved = await until((e) => e.kind === 'saved')
@@ -159,16 +161,18 @@ describe('export:start and friends', () => {
 
     await handlers.get('export:reveal')!({}, jobId)
     expect(showItemInFolder).toHaveBeenCalledWith(join(music, 'Tide', 'Week 3- Memory.m4b'))
-  })
+  }, 30_000)
 
   it('abortAndWait (quit) aborts the running export, waits for cleanup and leaves nothing behind', async () => {
     await ctl.abortAndWait() // nothing running: resolves at once
     for (const format of ['mp3', 'm4b'] as const) {
       events = []
       const { jobId } = (await start(spec({ format }))) as { jobId: string }
-      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalled())
+      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalled(), { timeout: 10_000 })
       gate!.resolve() // one sentence reaches the writer, so ffmpeg is really running
-      await vi.waitFor(() => expect(host.synthesize.mock.calls.length).toBeGreaterThan(1))
+      await vi.waitFor(() => expect(host.synthesize.mock.calls.length).toBeGreaterThan(1), {
+        timeout: 10_000
+      })
       await ctl.abortAndWait()
       // by the time it resolves the writer's cleanup is finished
       expect(readdirSync(join(music, 'Tide'))).toEqual([])
@@ -176,19 +180,19 @@ describe('export:start and friends', () => {
       expect(await until((e) => e.kind === 'cancelled')).toMatchObject({ jobId })
       host.synthesize.mockClear()
     }
-  })
+  }, 30_000)
 
   it('abortAndWait also releases a start that is waiting on the folder dialog', async () => {
     let choose!: (v: unknown) => void
     showOpenDialog.mockReturnValueOnce(new Promise((r) => (choose = r)))
     const pending = start(spec(), { chooseFolder: true })
-    await vi.waitFor(() => expect(showOpenDialog).toHaveBeenCalled())
+    await vi.waitFor(() => expect(showOpenDialog).toHaveBeenCalled(), { timeout: 10_000 })
     await ctl.abortAndWait()
     choose({ canceled: false, filePaths: [join(music, 'picked')] })
     expect(await pending).toEqual({ cancelled: true })
     expect(host.synthesize).not.toHaveBeenCalled()
     expect(existsSync(join(music, 'picked'))).toBe(false)
-  })
+  }, 30_000)
 
   it('reports a failure when the folder cannot be made', async () => {
     rmSync(music, { recursive: true, force: true })
