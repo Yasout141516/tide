@@ -35,6 +35,8 @@ function App(): React.JSX.Element {
     id: ReadingId
   } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Save as audio was chosen on a selection; Task 14's Save panel renders from this (its value is not read yet).
+  const [, setSaveRequest] = useState<{ range: [number, number] } | null>(null)
 
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
   // Stamp once per selection. A missing file is never stamped: it asks "Where did this one go?" instead,
@@ -197,6 +199,7 @@ function App(): React.JSX.Element {
             key={selected.id}
             reading={selected}
             snapshot={library}
+            onSaveSelection={(range) => setSaveRequest({ range })}
             onClose={() => {
               setSelectedId(null)
               stampedId.current = null

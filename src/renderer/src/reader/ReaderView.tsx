@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { LibrarySnapshot, ReadingView } from '../../../shared/library/types'
 import type { BuildResult } from '../../../shared/text/pipeline'
 import { anchorOf, resolveAnchor } from '../../../shared/text/anchor'
+import { selectionSentences } from '../../../shared/text/selection'
 import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight'
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
@@ -15,6 +16,9 @@ import { useReaderDeps } from './deps'
 import { filtersFor } from './filters'
 import { BackToReading } from './BackToReading'
 import { PasswordDialog } from './PasswordDialog'
+import { SelectionBubble } from './SelectionBubble'
+import { SelectTip } from './SelectTip'
+import { currentSelection } from './selection-dom'
 import type { PdfDoc } from './pdf'
 import { PdfPage } from './PdfPage'
 import { useReaderState, useReportReader } from './ReaderState'
@@ -25,6 +29,8 @@ type Props = {
   snapshot: LibrarySnapshot
   /** Back to the empty stage (Keep, Cancel, or a reading that went away). */
   onClose(): void
+  /** Save as audio on a selection: the inclusive sentence range it snapped to. */
+  onSaveSelection(range: [number, number]): void
 }
 
 type Open =
@@ -69,6 +75,7 @@ function ReaderSession({
   reading,
   snapshot,
   onClose,
+  onSaveSelection,
   fresh,
   onReopen
 }: Props & {
@@ -386,7 +393,8 @@ function ReaderSession({
     leftView.current = false
     setFollowing(on)
   }, [])
-  const phase = usePlayer().snapshot.phase
+  const player = usePlayer()
+  const phase = player.snapshot.phase
 
   const lineEl = (): Element | null =>
     scroller.current?.querySelector('[data-testid="sentence-highlight"]') ?? null
@@ -466,6 +474,66 @@ function ReaderSession({
   }
   const currentPage = current !== null ? sentences?.[current]?.spans[0].page : undefined
   const showPill = !following && currentRects.length > 0 && currentPage !== undefined
+
+  // --- Selection bubble and the one-time tip --------------------------------------------------
+  const TIP = 'select-text'
+  const [bubble, setBubble] = useState<{ rect: DOMRect; range: [number, number] } | null>(null)
+  const tipSeen = snapshot.ui.tipsSeen.includes(TIP)
+  const tipSeenRef = useRef(tipSeen)
+  useEffect(() => {
+    tipSeenRef.current = tipSeen
+  })
+  const markTipSeen = useCallback(() => {
+    if (!tipSeenRef.current) {
+      tipSeenRef.current = true
+      void tide()
+        .library.tipSeen(TIP)
+        .catch(() => {})
+    }
+  }, [])
+  const selectionOf = (): { rect: DOMRect; range: [number, number] } | null => {
+    const root = scroller.current
+    const sel = root && sentences ? currentSelection(root) : null
+    const range = sel && sentences ? selectionSentences(sentences, sel.a, sel.b) : null
+    return sel && range ? { rect: sel.rect, range } : null
+  }
+  const selectionRef = useRef(selectionOf)
+  useEffect(() => {
+    selectionRef.current = selectionOf
+  })
+  useEffect(() => {
+    const update = (): void => {
+      const next = selectionRef.current()
+      setBubble(next)
+      if (next) markTipSeen()
+    }
+    document.addEventListener('selectionchange', update)
+    // The box moves when the page scrolls under a held selection.
+    const el = scroller.current
+    const reposition = (): void => {
+      const next = selectionRef.current()
+      setBubble((b) => (b && next ? next : b))
+    }
+    el?.addEventListener('scroll', reposition, { passive: true })
+    return () => {
+      document.removeEventListener('selectionchange', update)
+      el?.removeEventListener('scroll', reposition)
+    }
+  }, [markTipSeen])
+  const dismissBubble = useCallback(() => {
+    window.getSelection()?.removeAllRanges()
+    setBubble(null)
+  }, [])
+  const bubbleOpen = bubble !== null
+  useEffect(() => {
+    if (!bubbleOpen) return
+    // Not prevented or stopped: other Escape handling (menus, dialogs) still runs.
+    const onEsc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') dismissBubble()
+    }
+    document.addEventListener('keydown', onEsc)
+    return () => document.removeEventListener('keydown', onEsc)
+  }, [bubbleOpen, dismissBubble])
 
   const pickNow = (n: number, x: number, y: number): void => {
     if (!sentences) return
@@ -616,6 +684,7 @@ function ReaderSession({
         className="relative h-full overflow-y-auto"
       >
         {message}
+        {sentences && sentences.length > 0 && !tipSeen ? <SelectTip onGotIt={markTipSeen} /> : null}
         {doc && sizes ? (
           <div className="flex w-max min-w-full flex-col items-center gap-4 px-7 py-4">
             {sizes.map((s, i) => {
@@ -651,6 +720,21 @@ function ReaderSession({
         )}
         {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
       </div>
+      {bubble ? (
+        <SelectionBubble
+          rect={bubble.rect}
+          onRead={() => {
+            const at = bubble.range[0]
+            dismissBubble()
+            player.readFrom(at)
+          }}
+          onSave={() => {
+            const r = bubble.range
+            dismissBubble()
+            onSaveSelection(r)
+          }}
+        />
+      ) : null}
       {showPill ? <BackToReading page={currentPage} onClick={backToReading} /> : null}
     </div>
   )
