@@ -38,7 +38,7 @@ describe('FfmpegRun write backpressure', () => {
       new AbortController().signal
     )
     let thens = 0
-    Promise.prototype.then = function (this: Promise<unknown>, ...a: never[]) {
+    Promise.prototype.then = function (this: Promise<unknown>, ...a: Parameters<typeof realThen>) {
       thens += 1
       return realThen.apply(this, a)
     } as typeof Promise.prototype.then
