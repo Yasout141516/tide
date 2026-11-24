@@ -49,8 +49,9 @@ function parseReading(v: unknown): Reading | null {
   const finished = v.finished ?? false
   const readEverything = v.readEverything ?? false
   if (typeof finished !== 'boolean' || typeof readEverything !== 'boolean') return null
-  const finishIn = v.finishIn ?? null
-  if (!(finishIn === null || (isNum(finishIn) && isFinishInChoice(finishIn)))) return null
+  // Lenient like voice and speed: an unknown choice (a hand edit, or a downgrade after a build added
+  // one) clears this reading's setting instead of failing the whole library.
+  const finishIn = isNum(v.finishIn) && isFinishInChoice(v.finishIn) ? v.finishIn : null
   return {
     id: v.id,
     title: v.title,

@@ -239,6 +239,20 @@ describe('LibraryStore', () => {
     expect(parseLibrary(null)).toBeNull()
   })
 
+  it('an invalid finishIn falls back to null for that reading only; the rest of the library loads', () => {
+    for (const bad of [15, 50, -1, '60', true, {}, NaN]) {
+      const lib = libWith('a', 'b') as unknown as { readings: Record<string, unknown>[] }
+      lib.readings[0].finishIn = 60
+      lib.readings[1].finishIn = bad
+      const parsed = parseLibrary(lib)
+      expect(parsed, JSON.stringify(bad)).not.toBeNull()
+      expect(parsed!.readings.map((r) => [r.id, r.finishIn])).toEqual([
+        ['a', 60],
+        ['b', null]
+      ])
+    }
+  })
+
   it('debounces writes and flush() writes now', async () => {
     const store = await LibraryStore.open(dir, { debounceMs: 200 })
     for (let i = 0; i < 10; i++) store.update((d) => d.readings.push(reading(`r${i}`)))
