@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { access, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
   AddReadingInput,
@@ -14,6 +14,7 @@ import type {
   RelinkResult
 } from '../../shared/library/types'
 import { SPEEDS, VOICE_IDS } from '../../shared/voices'
+import { pathExists } from '../fs-util'
 import { fingerprint } from './fingerprint'
 import { LibraryStore } from './store'
 
@@ -356,14 +357,7 @@ export class Library {
 
   async checkMissing(): Promise<void> {
     const readings = [...this.store.data().readings]
-    const results = await Promise.all(
-      readings.map((r) =>
-        access(r.path).then(
-          () => false,
-          () => true
-        )
-      )
-    )
+    const results = await Promise.all(readings.map(async (r) => !(await pathExists(r.path))))
     const next = new Set<ReadingId>()
     readings.forEach((r, i) => {
       if (results[i]) next.add(r.id)

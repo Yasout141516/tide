@@ -1,11 +1,12 @@
 // IPC for "Save as audio": validates the request, runs one export job at a time and reports events.
 import { randomUUID } from 'crypto'
-import { access, mkdir } from 'fs/promises'
+import { mkdir } from 'fs/promises'
 import { basename } from 'path'
 import { app, dialog, ipcMain, shell } from 'electron'
 import type { BrowserWindow, OpenDialogOptions } from 'electron'
 import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ipc-types'
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
+import { pathExists } from '../fs-util'
 import { runExport, type ExportDeps } from './job'
 import { exportDir, failureReason, safeFileName, uniquePath } from './files'
 import { MAX_NAME, MAX_SENTENCES, MAX_TEXT } from '../../shared/export-limits'
@@ -74,12 +75,6 @@ export function parseSpec(v: unknown): ExportSpec {
   }
 }
 
-const exists = (p: string): Promise<boolean> =>
-  access(p).then(
-    () => true,
-    () => false
-  )
-
 export interface ExportController {
   /**
    * Quit / relaunch: abort the running export and resolve once the writer has removed its part and
@@ -131,7 +126,7 @@ export function registerExportIpc(o: {
   ): Promise<void> {
     try {
       await mkdir(folder, { recursive: true })
-      const outPath = await uniquePath(folder, safeFileName(spec.baseName), spec.format, exists)
+      const outPath = await uniquePath(folder, safeFileName(spec.baseName), spec.format, pathExists)
       const meta = {
         title: spec.title,
         album: o.albumFor?.(spec.readingId) ?? 'Tide',

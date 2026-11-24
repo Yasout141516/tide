@@ -19,6 +19,8 @@ const job = (text: string, priority: Priority, gen = `g${nextId}`): Job => ({
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function rig(opts: { preempt?: boolean } = {}) {
   const queue = new JobQueue<Job>()
+  // preempt: false reproduces the behaviour before R35: nothing ever steps ahead of a running job.
+  if (opts.preempt === false) queue.nextAbove = () => undefined
   const cancelled = new Set<string>()
   const replies: TtsResponse[] = []
   const generated: string[] = []
@@ -37,10 +39,7 @@ function rig(opts: { preempt?: boolean } = {}) {
     isCancelled: (gen) => cancelled.has(gen),
     reply: (r) => replies.push(r),
     yieldToMessages: () => new Promise((r) => setImmediate(r)),
-    concat: (parts) => Float32Array.from(parts.flatMap((p) => [...p])),
-    sampleRate: 24000,
-    now: () => 0,
-    ...opts
+    now: () => 0
   })
   return {
     queue,

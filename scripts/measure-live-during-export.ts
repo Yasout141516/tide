@@ -4,10 +4,9 @@
  *
  *   npx tsx scripts/measure-live-during-export.ts [runs]
  *
- * The text is invented. "before" is the old behaviour (preempt: false), "after" the current scheduler.
+ * The text is invented. "before" is the old behaviour (no preempt), "after" the current scheduler.
  */
 import { join, resolve } from 'node:path'
-import { concatPcm, SAMPLE_RATE } from '../src/shared/pcm'
 import {
   blockNetwork,
   chunkLimit,
@@ -41,6 +40,7 @@ async function main(): Promise<void> {
 
   async function once(preempt: boolean): Promise<{ liveMs: number; exportMs: number }> {
     const queue = new JobQueue<SynthJobLike>()
+    if (!preempt) queue.nextAbove = () => undefined // nothing steps ahead of a running job
     const t: Record<string, number> = {}
     const pump = createPump<SynthJobLike>({
       queue,
@@ -53,10 +53,7 @@ async function main(): Promise<void> {
         if (r.type === 'audio') t[String(r.id)] = performance.now()
       },
       yieldToMessages: () => new Promise((r) => setImmediate(r)),
-      concat: concatPcm,
-      sampleRate: SAMPLE_RATE,
-      now: () => performance.now(),
-      preempt
+      now: () => performance.now()
     })
     const mk = (id: number, text: string, priority: 'live' | 'export'): SynthJobLike => ({
       id, text, voice: 'af_heart', speed: 1, priority, gen: `g${id}`

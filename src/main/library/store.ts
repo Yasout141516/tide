@@ -1,18 +1,14 @@
-import { copyFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { LibraryFile } from '../../shared/library/types'
 import { emptyLibrary, parseLibrary } from './schema'
+import { pathExists } from '../fs-util'
 
 const RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
 const RENAME_ATTEMPTS = 5
 const RENAME_DELAY_MS = 50
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-const exists = (p: string): Promise<boolean> =>
-  stat(p).then(
-    () => true,
-    () => false
-  )
 
 async function readParsed(path: string): Promise<{ present: boolean; data: LibraryFile | null }> {
   let text = ''
@@ -138,7 +134,7 @@ export class LibraryStore {
 
   private async write(json: string): Promise<void> {
     await writeFile(this.tmp, json, { encoding: 'utf8', flush: true })
-    if (this.backupAllowed && (await exists(this.file))) {
+    if (this.backupAllowed && (await pathExists(this.file))) {
       // Best effort: a locked backup must not stop the primary from being updated.
       try {
         await withRetry(() => copyFile(this.file, this.backup))

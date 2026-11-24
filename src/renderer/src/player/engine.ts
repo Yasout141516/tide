@@ -1,5 +1,6 @@
 import type { TtsAudio, TtsStatus } from '../../../shared/ipc-types'
 import { isAbortError } from '../../../shared/abort'
+import { SAMPLE_RATE } from '../../../shared/pcm'
 import { firstClips } from './clips'
 import { Timeline } from './timeline'
 import { pcmToWav } from './wav'
@@ -52,7 +53,6 @@ const AHEAD = 3
 const CACHE_MAX = 8
 /** The first clip after play, a seek or a voice change is cut at a clause boundary this early. */
 const FIRST_CLIP_WORDS = 8
-const SAMPLE_RATE = 24000
 
 /** Never reused for the life of the app: the TTS worker never forgets a cancelled gen. */
 let genCounter = 0

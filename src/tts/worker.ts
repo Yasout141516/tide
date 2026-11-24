@@ -1,7 +1,6 @@
 // Runs inside an Electron utilityProcess. Loads Kokoro from the bundled model dir and
 // answers TtsRequests from the main process. Never touches the network.
 import type { KokoroTTS } from 'kokoro-js'
-import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
 import {
   blockNetwork,
   chunkLimit,
@@ -84,8 +83,6 @@ const pump = createPump({
   isCancelled: (gen) => cancelledGens.has(gen),
   reply,
   yieldToMessages,
-  concat: concatPcm,
-  sampleRate: SAMPLE_RATE,
   now: () => performance.now()
 })
 

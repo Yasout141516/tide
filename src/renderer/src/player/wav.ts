@@ -1,3 +1,5 @@
+import { toS16 } from '../../../shared/pcm'
+
 /** Wrap mono Float32 PCM as a 16-bit PCM WAV (44-byte header). */
 export function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
   const dataBytes = pcm.length * 2
@@ -19,9 +21,6 @@ export function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
   v.setUint16(34, 16, true)
   tag(36, 'data')
   v.setUint32(40, dataBytes, true)
-  for (let i = 0; i < pcm.length; i++) {
-    const s = Math.max(-1, Math.min(1, pcm[i]))
-    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-  }
+  toS16(pcm).forEach((s, i) => v.setInt16(44 + i * 2, s, true))
   return buf
 }

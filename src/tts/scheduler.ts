@@ -2,6 +2,7 @@
 // One job runs at a time (ONNX inference is not re-entrant), but a running job of lower priority
 // steps aside between its chunks for any waiting job of higher priority (live > preview > export),
 // then resumes with its remaining chunks in order.
+import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
 import type { JobQueue } from './queue'
 import type { Priority, TtsResponse } from './protocol'
 
@@ -24,17 +25,11 @@ export interface SchedulerDeps<J extends SynthJobLike> {
   reply(res: TtsResponse): void
   /** A turn for the message loop, so a queued cancel or a new job can arrive. */
   yieldToMessages(): Promise<void>
-  concat(parts: Float32Array[]): Float32Array
-  sampleRate: 24000
   now(): number
-  /** false: never step aside (the behaviour before R35; for measuring only). Default true. */
-  preempt?: boolean
 }
 
 /** Returns `pump`: drains the queue; calling it while it runs does nothing (it will see new jobs). */
 export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => Promise<void> {
-  const preempt = d.preempt ?? true
-
   async function synthesize(msg: J): Promise<TtsResponse> {
     if (!d.isLoaded()) throw new Error('voice engine is not loaded')
     const t0 = d.now()
@@ -44,7 +39,7 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     for (const chunk of chunks) {
       await d.yieldToMessages()
       // A waiting higher-priority job goes first; this job's remaining chunks resume after it.
-      if (preempt) await runHigher(msg.priority)
+      await runHigher(msg.priority)
       if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
       parts.push(await d.generate(chunk, msg.voice, msg.speed))
     }
@@ -52,8 +47,8 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     return {
       id: msg.id,
       type: 'audio',
-      pcm: d.concat(parts),
-      sampleRate: d.sampleRate,
+      pcm: concatPcm(parts),
+      sampleRate: SAMPLE_RATE,
       synthMs: Math.round(d.now() - t0),
       chunks: chunks.length
     }

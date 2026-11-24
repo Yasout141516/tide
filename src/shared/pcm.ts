@@ -15,12 +15,18 @@ export function concatPcm(parts: Float32Array[]): Float32Array {
   return out
 }
 
-/** Float32 [-1, 1] → signed 16-bit little-endian (every supported target is little-endian). */
-export function toS16le(pcm: Float32Array): Buffer {
+/** Float32 [-1, 1] → signed 16-bit samples (clamped). */
+export function toS16(pcm: Float32Array): Int16Array {
   const out = new Int16Array(pcm.length)
   for (let i = 0; i < pcm.length; i++) {
     const s = Math.max(-1, Math.min(1, pcm[i]))
     out[i] = s < 0 ? s * 0x8000 : s * 0x7fff
   }
+  return out
+}
+
+/** Float32 [-1, 1] → signed 16-bit little-endian (every supported target is little-endian). */
+export function toS16le(pcm: Float32Array): Buffer {
+  const out = toS16(pcm)
   return Buffer.from(out.buffer, out.byteOffset, out.byteLength)
 }
