@@ -112,16 +112,18 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
           aria-checked={darkPages}
           aria-labelledby="dark-pages-label"
           onClick={() => void tide().library.setSettings({ darkPages: !darkPages })}
-          className={`relative h-6 w-10 flex-none cursor-pointer rounded-full border-0 p-0 ${
-            darkPages ? 'bg-primary' : 'bg-border'
-          }`}
+          className="flex min-h-9 flex-none cursor-pointer items-center border-0 bg-transparent p-0"
         >
           <span
             aria-hidden="true"
-            className={`absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,.2)] ${
-              darkPages ? 'left-[19px]' : 'left-[3px]'
-            }`}
-          />
+            className={`relative block h-6 w-10 rounded-full ${darkPages ? 'bg-primary' : 'bg-border'}`}
+          >
+            <span
+              className={`absolute top-[3px] h-[18px] w-[18px] rounded-full bg-surface shadow-[0_1px_2px_var(--shadow)] ${
+                darkPages ? 'left-[19px]' : 'left-[3px]'
+              }`}
+            />
+          </span>
         </button>
       </div>
 

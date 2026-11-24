@@ -93,4 +93,15 @@ describe('Settings dialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
     expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy()
   })
+
+  it('ArrowRight on the checked tile picks the next theme and moves focus to it', async () => {
+    const t = await mount()
+    act(() => t.emit({ type: 'settings' }))
+    const first = await screen.findByRole('radio', { name: 'Sky & Sea' })
+    act(() => first.focus())
+    await userEvent.keyboard('{ArrowRight}')
+    expect(t.calls['library.setSettings']).toEqual([[{ theme: 'deep-sea' }]])
+    await act(async () => {})
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Deep Sea' }))
+  })
 })
