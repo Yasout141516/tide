@@ -18,9 +18,11 @@ export interface ToastSpec {
 
 interface ToastApi {
   show(t: ToastSpec): void
+  /** Remove whatever toast is showing. */
+  dismiss(): void
 }
 
-const NONE: ToastApi = { show: () => {} }
+const NONE: ToastApi = { show: () => {}, dismiss: () => {} }
 const ToastCtx = createContext<ToastApi>(NONE)
 
 const actionButton =
@@ -39,7 +41,8 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
       return { ...t, key: counter.current }
     })
   }, [])
-  const api = useMemo<ToastApi>(() => ({ show }), [show])
+  const dismiss = useCallback((): void => setToast(null), [])
+  const api = useMemo<ToastApi>(() => ({ show, dismiss }), [show, dismiss])
 
   const key = toast?.key
   const ms = toast?.ms ?? 6000

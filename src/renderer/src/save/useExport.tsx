@@ -64,33 +64,61 @@ export function ExportProvider({
     setJob(j)
   }, [])
 
+  const startRef = useRef<
+    ((spec: ExportSpec, label: string, chooseFolder?: boolean) => Promise<void>) | null
+  >(null)
+  const toastRef = useRef(toast)
+  useEffect(() => {
+    toastRef.current = toast
+  })
+  const currentJob = (): Job | null => jobRef.current
+
+  const showFailure = useCallback(
+    (spec: ExportSpec, label: string, reason: ExportFailure): void => {
+      const again = (folder: boolean) => (): void => void startRef.current?.(spec, label, folder)
+      toastRef.current.show({
+        text: `Couldn't save the audio: ${REASONS[reason]}.`,
+        ms: Infinity,
+        actions: [
+          { label: 'Try again', onClick: again(false) },
+          { label: 'Choose another folder', onClick: again(true) }
+        ]
+      })
+    },
+    []
+  )
+
   const start = useCallback(
     async (spec: ExportSpec, label: string, chooseFolder = false): Promise<void> => {
+      // A stale toast's action (or anything else) never overwrites a running job.
+      if (jobRef.current) {
+        toast.show({ text: BUSY })
+        return
+      }
+      // A new job replaces whatever the last one left on screen (a sticky failure toast).
+      toast.dismiss()
       // Busy from the moment of asking: the folder dialog and a quick event can both come first.
       set({ id: null, label, percent: 0, spec })
       let r
       try {
         r = await tide().export.start(spec, chooseFolder ? { chooseFolder: true } : undefined)
       } catch {
-        r = { busy: true as const }
+        if (currentJob()?.spec === spec) set(null)
+        showFailure(spec, label, 'failed')
+        return
       }
       if ('jobId' in r) {
-        const cur = jobRef.current
+        const cur = currentJob()
         if (cur && cur.spec === spec) set({ ...cur, id: cur.id ?? r.jobId })
         return
       }
-      if (jobRef.current?.spec === spec) set(null)
+      if (currentJob()?.spec === spec) set(null)
       if ('busy' in r) toast.show({ text: BUSY })
     },
-    [set, toast]
+    [set, toast, showFailure]
   )
-  const startRef = useRef(start)
   useEffect(() => {
     startRef.current = start
-  })
-  const toastRef = useRef(toast)
-  useEffect(() => {
-    toastRef.current = toast
   })
 
   useEffect(
@@ -115,20 +143,10 @@ export function ExportProvider({
               }
             ]
           })
-        } else if (e.kind === 'failed') {
-          const again = (folder: boolean) => (): void =>
-            void startRef.current(cur.spec, cur.label, folder)
-          t.show({
-            text: `Couldn't save the audio: ${REASONS[e.reason]}.`,
-            ms: Infinity,
-            actions: [
-              { label: 'Try again', onClick: again(false) },
-              { label: 'Choose another folder', onClick: again(true) }
-            ]
-          })
-        } else t.show({ text: 'Audio not saved.' })
+        } else if (e.kind === 'failed') showFailure(cur.spec, cur.label, e.reason)
+        else t.show({ text: 'Audio not saved.' })
       }),
-    [set]
+    [set, showFailure]
   )
 
   const busy = job !== null
@@ -142,6 +160,7 @@ export function ExportProvider({
         <ExportProgress
           label={job.label}
           percent={job.percent}
+          cancellable={job.id !== null}
           onCancel={() => {
             if (job.id) void tide().export.cancel(job.id)
           }}

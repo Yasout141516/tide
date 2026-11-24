@@ -262,3 +262,63 @@ describe('Save as audio panel', () => {
     expect(await screen.findByText('Tide is still making your last audio.')).toBeTruthy()
   })
 })
+
+describe('Save as audio fix round 1', () => {
+  it('a new job clears an unclicked failure toast, so its saved toast shows', async () => {
+    const t = await open()
+    fakeStart(t, (n) => ({ jobId: `j${n}` }))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    await screen.findByText('Making your audio…')
+    act(() => t.emitExport({ jobId: 'j1', kind: 'failed', reason: 'disk-full' }))
+    await screen.findByText("Couldn't save the audio: your disk is full.")
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    await screen.findByText('Making your audio…')
+    expect(screen.queryByText(/Couldn't save the audio/)).toBeNull()
+    act(() => t.emitExport({ jobId: 'j2', kind: 'saved', fileName: 'Later.m4b' }))
+    expect(await screen.findByText('✓ Saved “Later.m4b”')).toBeTruthy()
+  })
+
+  it('a stale Try again never clobbers a running job', async () => {
+    const t = await open()
+    fakeStart(t, (n) => ({ jobId: `j${n}` }))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    await screen.findByText('Making your audio…')
+    act(() => t.emitExport({ jobId: 'j1', kind: 'failed', reason: 'failed' }))
+    const again = await screen.findByRole('button', { name: 'Try again' })
+    // Hold the second start open, then fire the old toast's action while the job runs.
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    await screen.findByText('Making your audio…')
+    fireEvent.click(again)
+    expect(t.calls['export.start']).toHaveLength(2)
+    expect(screen.getByText('Making your audio…')).toBeTruthy()
+    act(() => t.emitExport({ jobId: 'j2', kind: 'saved', fileName: 'Kept.m4b' }))
+    expect(await screen.findByText('✓ Saved “Kept.m4b”')).toBeTruthy()
+  })
+
+  it('a rejected start shows the failure toast, not the busy message', async () => {
+    const t = await open()
+    t.export.start = vi.fn(() => Promise.reject(new Error('ipc down')))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    expect(await screen.findByText("Couldn't save the audio: something went wrong.")).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Choose another folder' })).toBeTruthy()
+    expect(screen.queryByText('Making your audio…')).toBeNull()
+    expect(screen.queryByText('Tide is still making your last audio.')).toBeNull()
+  })
+
+  it('Cancel is disabled until the job has an id', async () => {
+    const t = await open()
+    t.export.start = vi.fn(() => new Promise<never>(() => {}))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    const card = (await screen.findByText('Making your audio…')).closest('section')!
+    expect(
+      (within(card).getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled
+    ).toBe(true)
+  })
+})

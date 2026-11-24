@@ -2,10 +2,13 @@
 export function ExportProgress({
   label,
   percent,
+  cancellable,
   onCancel
 }: {
   label: string
   percent: number
+  /** False until the job has an id to cancel. */
+  cancellable: boolean
   onCancel(): void
 }): React.JSX.Element {
   return (
@@ -33,8 +36,9 @@ export function ExportProgress({
         <span>You can keep reading while this finishes.</span>
         <button
           type="button"
+          disabled={!cancellable}
           onClick={onCancel}
-          className="ml-auto min-h-9 cursor-pointer rounded-[10px] border-0 bg-transparent px-3 font-sans text-[12.5px] font-extrabold text-soft-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="ml-auto min-h-9 cursor-pointer rounded-[10px] border-0 bg-transparent px-3 font-sans text-[12.5px] disabled:cursor-default disabled:opacity-60 font-extrabold text-soft-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Cancel
         </button>
