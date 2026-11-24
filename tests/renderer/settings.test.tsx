@@ -169,7 +169,7 @@ describe('Reading tab', () => {
             id: 'r1',
             title: 'Memory and Attention',
             courseId: null,
-            pageCount: 2,
+            pageCount: 3,
             position: null,
             addedAt: 5,
             lastOpenedAt: null,
@@ -186,7 +186,7 @@ describe('Reading tab', () => {
     t.tts.status = () => Promise.resolve('ready' as const)
     setTide(t)
     const p = fakePlayer()
-    const deps = fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(2)) })
+    const deps = fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(3)) })
     renderApp(deps, p.deps)
     await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
     const id = (): string | undefined =>
@@ -195,6 +195,12 @@ describe('Reading tab', () => {
     await userEvent.click(
       within(screen.getByLabelText('Player')).getByRole('button', { name: 'Play' })
     )
+    await waitFor(() => expect(p.sink.playing).toBe(true))
+    // Move on to sentence 3 (page 2), so restarting from the top would be visible.
+    for (const next of ['1', '2', '3']) {
+      act(() => p.sink.end())
+      await waitFor(() => expect(id()).toBe(next))
+    }
     await waitFor(() => expect(p.sink.playing).toBe(true))
     const plays = p.sink.plays
     const builds = vi.mocked(deps.buildSentences).mock.calls.length
@@ -212,8 +218,18 @@ describe('Reading tab', () => {
     })
     await waitFor(() => expect(p.sink.plays).toBeGreaterThan(plays))
     await waitFor(() => expect(p.sink.playing).toBe(true))
-    expect(id()).toBe('0')
+    expect(id()).toBe('3')
     act(() => p.sink.end())
-    await waitFor(() => expect(id()).toBe('1'))
+    await waitFor(() => expect(id()).toBe('4'))
+  })
+
+  it('a rejected Change folder shows a plain toast and leaves the folder as it was', async () => {
+    const t = await openReadingTab({
+      snapshot: { exportFolder: { name: 'Lectures', custom: true } }
+    })
+    t.library.chooseExportFolder = vi.fn(() => Promise.reject(new Error('tide-error: boom')))
+    await userEvent.click(screen.getByRole('button', { name: 'Change folder…' }))
+    expect(await screen.findByText("Couldn't change the folder. Please try again.")).toBeTruthy()
+    expect(screen.getByText('Lectures')).toBeTruthy()
   })
 })
