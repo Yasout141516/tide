@@ -2,6 +2,7 @@ import { utilityProcess, type ForkOptions } from 'electron'
 import type { SynthesizeOptions, TtsAudio, TtsLoadResult, TtsStatus } from '../shared/ipc-types'
 import { DEFAULT_VOICE } from '../shared/voices'
 import { makeAbortError } from '../shared/abort'
+import { logError } from './log'
 import type { Priority, TtsRequest, TtsResponse } from '../tts/protocol'
 
 /** The part of Electron's UtilityProcess the host uses (a fake implements it in unit tests). */
@@ -226,7 +227,7 @@ export class TtsHost {
     // Must be handled: an 'error' with no listener would throw ERR_UNHANDLED_ERROR in main.
     // Only log here; the 'exit' that always follows does the cleanup.
     child.on('error', (type, location) => {
-      console.error(`[tide] voice engine fatal error: ${type} at ${location}`)
+      logError('voice engine', `fatal error: ${type} at ${location}`)
     })
     child.on('exit', () => {
       if (this.child !== child) return

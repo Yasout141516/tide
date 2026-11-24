@@ -3,6 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { LookTab } from './LookTab'
 import { PronunciationTab } from './PronunciationTab'
 import { ReadingTab } from './ReadingTab'
+import { tide } from '../lib/tide'
+import { useToast } from '../shell/Toast'
 
 export type SettingsTab = 'look' | 'reading' | 'pronunciation'
 
@@ -51,6 +53,7 @@ function SettingsBody({
   onZoomStep
 }: Pick<Props, 'zoom' | 'onZoomStep'> & { initialTab: SettingsTab }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab)
+  const toast = useToast()
   return (
     <div className="grid h-full grid-cols-[180px_minmax(0,1fr)]">
       <nav
@@ -72,7 +75,23 @@ function SettingsBody({
             {t.label}
           </button>
         ))}
-        {/* Slot: Task 9 adds the "Copy diagnostic info" button at the foot of the nav. */}
+        <button
+          type="button"
+          onClick={() =>
+            void tide()
+              .app.copyDiagnostics()
+              .then(
+                () =>
+                  toast.show({
+                    text: 'Copied. Paste it into a message to whoever helps you with Tide.'
+                  }),
+                () => toast.show({ text: "Couldn't copy that. Please try again." })
+              )
+          }
+          className="mt-auto min-h-9 cursor-pointer rounded-[10px] border border-border bg-transparent px-3 py-[9px] text-left font-sans text-[12.5px] font-bold text-muted"
+        >
+          Copy diagnostic info
+        </button>
       </nav>
       <main className="min-h-0 overflow-y-auto px-6 py-5">
         {tab === 'look' ? <LookTab zoom={zoom} onZoomStep={onZoomStep} /> : null}

@@ -234,6 +234,33 @@ describe('Reading tab', () => {
   })
 })
 
+describe('Copy diagnostic info', () => {
+  async function open(): Promise<ReturnType<typeof fakeTide>> {
+    const t = await mount()
+    act(() => t.emit({ type: 'settings' }))
+    await screen.findByRole('dialog', { name: 'Settings' })
+    return t
+  }
+
+  it('copies and says so plainly', async () => {
+    const t = await open()
+    const b = screen.getByRole('button', { name: 'Copy diagnostic info' })
+    expect(b.className).toContain('min-h-9')
+    await userEvent.click(b)
+    expect(t.calls['app.copyDiagnostics']).toHaveLength(1)
+    expect(
+      await screen.findByText('Copied. Paste it into a message to whoever helps you with Tide.')
+    ).toBeTruthy()
+  })
+
+  it('tells her plainly when the copy fails', async () => {
+    const t = await open()
+    t.app.copyDiagnostics = vi.fn(() => Promise.reject(new Error('no clipboard')))
+    await userEvent.click(screen.getByRole('button', { name: 'Copy diagnostic info' }))
+    expect(await screen.findByText("Couldn't copy that. Please try again.")).toBeTruthy()
+  })
+})
+
 describe('Pronunciation tab', () => {
   async function openTab(
     pronunciations: { word: string; sayAs: string }[] = [],

@@ -58,7 +58,9 @@ contextBridge.exposeInMainWorld('tide', {
   },
   app: {
     setPlaying: (on: boolean) => ipcRenderer.send('app:playing', on),
-    relaunch: () => ipcRenderer.send('app:relaunch')
+    relaunch: () => ipcRenderer.send('app:relaunch'),
+    log: (scope: 'renderer', message: string) => ipcRenderer.send('app:log', scope, message),
+    copyDiagnostics: () => invoke<boolean>('app:copy-diagnostics')
   },
   library: {
     get: () => invoke<LibrarySnapshot>('library:get'),

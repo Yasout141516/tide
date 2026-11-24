@@ -164,7 +164,9 @@ export function fakeTide(
     },
     app: {
       setPlaying: fn('app.setPlaying', () => undefined),
-      relaunch: fn('app.relaunch', () => undefined)
+      relaunch: fn('app.relaunch', () => undefined),
+      log: fn('app.log', () => undefined),
+      copyDiagnostics: fn('app.copyDiagnostics', () => Promise.resolve(true))
     },
     library: {
       get: fn('library.get', () => Promise.resolve(snap)),

@@ -1,0 +1,94 @@
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createLog, diagnosticInfo, logError, setLog } from '../../src/main/log'
+import type { LibrarySettings } from '../../src/shared/library/types'
+
+const tmp = (): string => mkdtempSync(join(tmpdir(), 'tide-log-'))
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  setLog(null)
+})
+
+describe('log', () => {
+  it('appends with time and scope and replaces the home dir with ~', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    const log = createLog(dir, { home: 'C:\\Users\\Mia' })
+    log.error('library', new Error('cannot open C:\\Users\\Mia\\Docs\\a.pdf for C:\\Users\\Mia'))
+    const text = readFileSync(join(dir, 'tide.log'), 'utf8')
+    expect(text).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \[library\] cannot open ~\\Docs\\a\.pdf for ~/)
+    expect(text).not.toContain('Mia')
+    expect(text).toContain('at ')
+  })
+
+  it('rotates to tide.1.log past maxBytes, keeping one old file', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    const log = createLog(dir, { maxBytes: 300, home: '/nowhere' })
+    log.error('a', 'first ' + 'x'.repeat(150))
+    log.error('b', 'second ' + 'y'.repeat(150))
+    log.error('c', 'third ' + 'z'.repeat(150))
+    expect(readFileSync(join(dir, 'tide.1.log'), 'utf8')).toContain('second')
+    const cur = readFileSync(join(dir, 'tide.log'), 'utf8')
+    expect(cur).toContain('third')
+    expect(cur).not.toContain('second')
+    expect(existsSync(join(dir, 'tide.2.log'))).toBe(false)
+  })
+
+  it('never throws when the folder cannot be written', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    const blocker = join(dir, 'file')
+    writeFileSync(blocker, 'x')
+    const log = createLog(join(blocker, 'logs'))
+    expect(() => log.error('x', new Error('boom'))).not.toThrow()
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('logError is console-only until a log is set, then writes to it', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => logError('early', new Error('e'))).not.toThrow()
+    const dir = tmp()
+    setLog(createLog(dir))
+    logError('late', new Error('hello'))
+    expect(readFileSync(join(dir, 'tide.log'), 'utf8')).toContain('[late] hello')
+  })
+
+  it('diagnostics lists the pronunciation count but not the words', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    const log = createLog(dir)
+    log.error('x', 'something broke')
+    const settings = {
+      reading: { skipCitations: true },
+      zoom: 1,
+      voice: 'v',
+      speed: 1,
+      theme: 'deep-sea',
+      darkPages: true,
+      pronunciations: [
+        { id: '1', from: 'Nguyen', say: 'win' },
+        { id: '2', from: 'Siobhan', say: 'shivawn' }
+      ]
+    } as unknown as LibrarySettings
+    const info = diagnosticInfo({
+      appVersion: '1.2.3',
+      electron: '45.0.0',
+      os: 'win32',
+      osRelease: '10.0',
+      arch: 'x64',
+      voice: 'ready',
+      settings
+    })
+    const text = await log.diagnostics(info)
+    expect(text).toContain('Tide: 1.2.3')
+    expect(text).toContain('Voice engine: ready')
+    expect(text).toContain('Pronunciation fixes: 2')
+    expect(text).toContain('Theme: deep-sea')
+    expect(text).toContain('something broke')
+    expect(text).not.toMatch(/Nguyen|Siobhan|shivawn/)
+  })
+})

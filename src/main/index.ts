@@ -1,6 +1,17 @@
 import { resolveInitialTheme, windowBackground } from './window-bg'
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker } from 'electron'
+import { createLog, diagnosticInfo, logError, setLog } from './log'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  powerSaveBlocker
+} from 'electron'
 import { join } from 'path'
+import { arch, release } from 'os'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
@@ -104,7 +115,7 @@ function createWindow(): BrowserWindow {
 /** Warm the voice engine once the window has loaded, so first playback is quick. */
 function startTtsWhenLoaded(win: BrowserWindow): void {
   win.webContents.once('did-finish-load', () => {
-    ttsHost?.start().catch((err) => console.error('[tide] voice engine failed to load:', err))
+    ttsHost?.start().catch((err) => logError('voice engine failed to load', err))
   })
 }
 
@@ -138,8 +149,35 @@ app.on('second-instance', (_e, argv, workingDirectory) => {
   for (const p of filesFromArgv(argv, workingDirectory)) openWith.push(p)
 })
 
+// Unexpected errors go to the log, never to a dialog. Handlers log through logError, which is
+// console-only until the log below is installed.
+process.on('uncaughtException', (err) => logError('uncaught exception', err))
+process.on('unhandledRejection', (reason) => logError('unhandled rejection', reason))
+
 app.whenReady().then(async () => {
   if (!gotLock) return
+  const log = createLog(join(app.getPath('userData'), 'logs'))
+  setLog(log)
+  // Renderer errors arrive here. Anything but a 'renderer' scope and a string is ignored silently.
+  ipcMain.on('app:log', (_e, scope: unknown, message: unknown) => {
+    if (scope !== 'renderer' || typeof message !== 'string') return
+    log.error('renderer', message.slice(0, 4000))
+  })
+  ipcMain.handle('app:copy-diagnostics', async () => {
+    const text = await log.diagnostics(
+      diagnosticInfo({
+        appVersion: app.getVersion(),
+        electron: process.versions.electron,
+        os: process.platform,
+        osRelease: release(),
+        arch: arch(),
+        voice: ttsHost?.status() ?? 'not started',
+        settings: library?.snapshot().settings ?? null
+      })
+    )
+    clipboard.writeText(text)
+    return true
+  })
   app.setAppUserModelId('com.yasout141516.tide')
 
   ttsHost = new TtsHost({
@@ -177,7 +215,7 @@ app.whenReady().then(async () => {
     })
     const { send } = libraryIpc
     Menu.setApplicationMenu(buildMenu(send))
-    lib.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
+    lib.checkMissing().catch((err) => logError('missing-file check failed', err))
     openWith.attach(openWithHandler({ pick: (p) => lib.pick(p), send, show: showWindow }))
     for (const p of filesFromArgv(process.argv, process.cwd())) openWith.push(p)
   }

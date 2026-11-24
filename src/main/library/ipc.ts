@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { logError } from '../log'
 import { pickFolder } from '../folder-dialog'
 import type { OpenDialogOptions } from 'electron'
 import {
@@ -57,7 +58,7 @@ function clean(err: unknown): Error {
     const code = (err as NodeJS.ErrnoException).code
     if (typeof code === 'string' && /^E[A-Z]+$/.test(code)) return libraryError('file-unreadable')
   }
-  console.error('[tide] library operation failed:', err)
+  logError('library operation failed', err)
   return libraryError('failed')
 }
 
@@ -306,7 +307,7 @@ export function registerLibraryIpc(
     const t = now()
     if (t - lastCheck < FOCUS_CHECK_MS) return
     lastCheck = t
-    lib.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))
+    lib.checkMissing().catch((err) => logError('missing-file check failed', err))
   })
 
   let ready = false

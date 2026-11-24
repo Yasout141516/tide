@@ -1,3 +1,5 @@
+import { logError } from './log'
+
 /** Opens the library; if the store cannot open, reports it plainly and returns null (nothing is written). */
 export async function openLibraryOrReport<L>(
   open: () => Promise<L>,
@@ -6,7 +8,7 @@ export async function openLibraryOrReport<L>(
   try {
     return await open()
   } catch (err) {
-    console.error('[tide] the library could not be opened:', err)
+    logError('the library could not be opened', err)
     report(
       "Tide couldn't open your shelf",
       'Your readings file could not be read, so Tide has left it untouched. Close Tide and open it again. If this keeps happening, the file may need to be restored from its backup.'
@@ -46,7 +48,7 @@ export function createQuitHandler(o: {
     ]).then(([ok]) => ok)
     Promise.race([work, timeout])
       .then((ok) => {
-        if (!ok) console.error('[tide] library.json could not be written before quitting')
+        if (!ok) logError('quit', 'library.json could not be written before quitting')
       })
       .finally(() => {
         clearTimeout(timer)

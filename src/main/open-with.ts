@@ -1,4 +1,5 @@
 import { statSync } from 'fs'
+import { logError } from './log'
 import { resolve } from 'path'
 import type { AppCommand } from '../shared/ipc-types'
 import type { PickResult } from '../shared/library/types'
@@ -39,7 +40,7 @@ export class OpenWithQueue {
       try {
         await this.handle?.(path)
       } catch (err) {
-        console.error('[tide] could not open a file passed to Tide:', err)
+        logError('could not open a file passed to Tide', err)
       }
     })
   }
@@ -57,7 +58,7 @@ export function openWithHandler(o: {
       o.show()
       o.send({ type: 'open-pick', pick })
     } catch (err) {
-      console.error('[tide] could not open a file passed to Tide:', err)
+      logError('could not open a file passed to Tide', err)
       o.show()
       o.send({ type: 'open-failed' })
     }

@@ -1,4 +1,5 @@
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { logError } from '../log'
 import { join } from 'node:path'
 import type { LibraryFile } from '../../shared/library/types'
 import { emptyLibrary, parseLibrary } from './schema'
@@ -123,7 +124,7 @@ export class LibraryStore {
       })
       .catch((err) => {
         this.dirty = true
-        console.error('library.json write failed', err)
+        logError('library.json write failed', err)
         // One retry after the debounce interval; a later update or flush starts over.
         if (!this.retried && !this.timer) {
           this.retried = true
@@ -139,7 +140,7 @@ export class LibraryStore {
       try {
         await withRetry(() => copyFile(this.file, this.backup))
       } catch (err) {
-        console.error('library.backup.json copy failed', err)
+        logError('library.backup.json copy failed', err)
       }
     }
     await withRetry(() => rename(this.tmp, this.file))

@@ -48,6 +48,10 @@ export interface TideApi {
     setPlaying(on: boolean): void
     /** Quit (flushing the library) and start Tide again. */
     relaunch(): void
+    /** Send a renderer error to the log in main (fire and forget). */
+    log(scope: 'renderer', message: string): void
+    /** Copy diagnostic info (versions, settings counts, recent log) to the clipboard. */
+    copyDiagnostics(): Promise<boolean>
   }
   library: {
     get(): Promise<LibrarySnapshot>
