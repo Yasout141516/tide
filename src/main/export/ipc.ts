@@ -127,7 +127,13 @@ export function registerExportIpc(o: {
       let lastSent = 0
       await runExport(
         spec,
-        { jobId, synthesize: o.host.synthesize, cancel: o.host.cancel, writer },
+        {
+          jobId,
+          // Arrow wrappers: TtsHost's methods use `this`, so they cannot be passed detached.
+          synthesize: (text, so) => o.host.synthesize(text, so),
+          cancel: (gen) => o.host.cancel(gen),
+          writer
+        },
         (done, total) => {
           const now = Date.now()
           if (done === total || now - lastSent >= PROGRESS_MS) {

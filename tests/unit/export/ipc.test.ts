@@ -183,6 +183,30 @@ describe('export:start and friends', () => {
     expect(await start(spec(), { chooseFolder: true })).toEqual({ cancelled: true })
   })
 
+  it('calls the host as a method: its synthesize and cancel depend on `this`', async () => {
+    handlers.clear()
+    const real = {
+      calls: 0,
+      synthesize(): Promise<TtsAudio> {
+        this.calls++
+        return Promise.resolve(audio())
+      },
+      cancel(): void {
+        this.calls++
+      }
+    }
+    registerExportIpc({
+      host: real,
+      window: () => win,
+      env: { TIDE_E2E: '1', TIDE_MUSIC_DIR: music }
+    })
+    await start(spec())
+    expect(await until((e) => e.kind === 'saved' || e.kind === 'failed')).toMatchObject({
+      kind: 'saved'
+    })
+    expect(real.calls).toBeGreaterThan(0)
+  })
+
   it('rejects bad cancel and reveal ids', () => {
     expect(() => handlers.get('export:cancel')!({}, 5)).toThrow()
     expect(() => handlers.get('export:reveal')!({}, 'x'.repeat(65))).toThrow()
