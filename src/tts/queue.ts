@@ -30,6 +30,16 @@ export class JobQueue<T extends { priority: Priority; gen: string }> {
     return undefined
   }
 
+  /** The next job of a priority strictly above `priority`, if one is waiting (live > preview > export). */
+  nextAbove(priority: Priority): T | undefined {
+    for (const p of ORDER) {
+      if (p === priority) return undefined
+      const job = this.lanes[p].shift()
+      if (job) return job
+    }
+    return undefined
+  }
+
   /** Remove every queued job of a generation and return them. */
   cancel(gen: string): T[] {
     const removed: T[] = []
