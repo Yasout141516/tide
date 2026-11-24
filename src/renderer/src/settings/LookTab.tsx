@@ -2,6 +2,7 @@ import type { ThemeId } from '../../../shared/library/types'
 import { useLibrary } from '../state/useLibrary'
 import { useTheme } from '../theme/theme'
 import { tide } from '../lib/tide'
+import { Switch } from './Switch'
 
 /** Preview art for the tiles. They depict other themes, so they cannot be current-theme tokens. */
 const SWATCH: Record<Exclude<ThemeId, 'system'>, { bg: string; page: string; extra?: string }> = {
@@ -106,25 +107,11 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
             Turn off for readings with lots of charts or photos.
           </small>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={darkPages}
-          aria-labelledby="dark-pages-label"
-          onClick={() => void tide().library.setSettings({ darkPages: !darkPages })}
-          className="flex min-h-9 flex-none cursor-pointer items-center border-0 bg-transparent p-0"
-        >
-          <span
-            aria-hidden="true"
-            className={`relative block h-6 w-10 rounded-full ${darkPages ? 'bg-primary' : 'bg-border'}`}
-          >
-            <span
-              className={`absolute top-[3px] h-[18px] w-[18px] rounded-full bg-surface shadow-[0_1px_2px_var(--shadow)] ${
-                darkPages ? 'left-[19px]' : 'left-[3px]'
-              }`}
-            />
-          </span>
-        </button>
+        <Switch
+          checked={darkPages}
+          labelledBy="dark-pages-label"
+          onChange={(next) => void tide().library.setSettings({ darkPages: next })}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-3.5 border-b border-border px-0.5 py-[11px] text-[13.5px] font-bold">
