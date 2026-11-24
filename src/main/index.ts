@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
@@ -42,9 +42,18 @@ app.on('open-file', (e, path) => {
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
 
+// The window's first-paint colour: the stored theme's --bg (tokens.css), so a dark user sees no white flash.
+const BG = { 'sky-sea': '#f2f9ff', 'deep-sea': '#0b1d2c' } as const
+function windowBackground(): string {
+  const id = library?.snapshot().settings.theme ?? 'sky-sea'
+  if (id === 'system') return nativeTheme.shouldUseDarkColors ? BG['deep-sea'] : BG['sky-sea']
+  return id === 'deep-sea' ? BG['deep-sea'] : BG['sky-sea']
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     title: 'Tide',
+    backgroundColor: windowBackground(),
     // Content size: the shelf needs 1100 px of content to sit beside the page, so don't count the frame.
     useContentSize: true,
     width: 1200,

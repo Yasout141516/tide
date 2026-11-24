@@ -7,13 +7,21 @@ import type { LibrarySnapshot } from '../../src/shared/library/types'
 // when a test opted in to jsdom.
 type Listener = (e: { matches: boolean }) => void
 const NARROW = '(max-width: 1099px)'
+const DARK = '(prefers-color-scheme: dark)'
 let narrow = false
+let osDark = false
 const listeners = new Set<{ query: string; fn: Listener }>()
 
 /** Drives every `(max-width: 1099px)` matchMedia query: true = narrow window. */
 export function setNarrow(on: boolean): void {
   narrow = on
   for (const l of listeners) if (l.query === NARROW) l.fn({ matches: on })
+}
+
+/** Drives every `(prefers-color-scheme: dark)` matchMedia query: true = the OS is dark. */
+export function setOsDark(on: boolean): void {
+  osDark = on
+  for (const l of listeners) if (l.query === DARK) l.fn({ matches: on })
 }
 
 class ResizeObserverStub {
@@ -49,10 +57,11 @@ beforeEach(() => {
   HTMLMediaElement.prototype.pause = () => {}
   HTMLMediaElement.prototype.play = () => Promise.resolve()
   narrow = false
+  osDark = false
   listeners.clear()
   window.matchMedia = ((query: string) => ({
     get matches() {
-      return query === NARROW ? narrow : false
+      return query === NARROW ? narrow : query === DARK ? osDark : false
     },
     media: query,
     onchange: null,

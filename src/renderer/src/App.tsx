@@ -19,6 +19,7 @@ import { ReaderStateProvider, useReaderState } from './reader/ReaderState'
 import { FileMovedDialog } from './reading/FileMovedDialog'
 import { RenameDialog } from './reading/RenameDialog'
 import { RemoveDialog } from './reading/RemoveDialog'
+import { ThemeRoot } from './theme/ThemeRoot'
 import { ExportProgressSlot, ExportProvider, useExportUi } from './save/useExport'
 
 const ZOOM_MIN = 0.8
@@ -218,6 +219,7 @@ function App(): React.JSX.Element {
 
   return (
     <ReaderStateProvider>
+      <ThemeRoot />
       <ToastProvider>
         <PlayerProvider
           reading={selected}
