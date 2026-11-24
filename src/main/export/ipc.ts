@@ -46,6 +46,11 @@ function parseSpec(v: unknown): ExportSpec {
     !Array.isArray(sentences) ||
     sentences.length < 1 ||
     sentences.length > MAX_SENTENCES ||
+    !sentences.some(
+      (x) =>
+        typeof (x as { text?: unknown })?.text === 'string' &&
+        (x as { text: string }).text.trim() !== ''
+    ) ||
     !sentences.every((x) => {
       const t = x as { text?: unknown; page?: unknown } | null
       return (

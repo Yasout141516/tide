@@ -102,6 +102,12 @@ describe('export:start and friends', () => {
       spec({ speed: 1.1 }),
       spec({ speed: NaN }),
       spec({ sentences: [] }),
+      spec({
+        sentences: [
+          { text: '', page: 1 },
+          { text: ' 	 ', page: 2 }
+        ]
+      }),
       spec({ sentences: [{ text: 'x'.repeat(5001), page: 1 }] }),
       spec({ sentences: [{ text: 'ok', page: 0 }] }),
       spec({ sentences: [{ text: 'ok', page: 1.5 }] }),

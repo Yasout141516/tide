@@ -128,6 +128,18 @@ function lifecycle(
   }
 }
 
+/**
+ * Rename the finished part into place. An abort that lands during the rename must leave nothing
+ * behind: abort() only removes the part, so remove the output here and report the abort.
+ */
+async function publish(part: string, outPath: string, aborted: () => boolean): Promise<void> {
+  await rename(part, outPath)
+  if (aborted()) {
+    await rm(outPath, { force: true })
+    throw abortError()
+  }
+}
+
 const pcmInput = ['-f', 's16le', '-ar', String(SAMPLE_RATE), '-ac', '1', '-i', 'pipe:0']
 
 export function createMp3Writer(
@@ -160,7 +172,7 @@ export function createMp3Writer(
         run.end()
         await run.closed
         if (life.aborted()) throw abortError()
-        await rename(part, outPath)
+        await publish(part, outPath, life.aborted)
       }),
     abort: life.abort
   }
@@ -210,7 +222,7 @@ export function createM4bWriter(
         await run.closed
         if (life.aborted()) throw abortError()
         await setChapterTrackLanguage(part, 'eng')
-        await rename(part, outPath)
+        await publish(part, outPath, life.aborted)
         await rm(dir, { recursive: true, force: true })
       }),
     abort: life.abort
