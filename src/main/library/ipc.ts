@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { pickFolder } from '../folder-dialog'
 import type { OpenDialogOptions } from 'electron'
 import {
   LIBRARY_ERROR_PREFIX,
@@ -10,11 +11,15 @@ import type {
   LibrarySnapshot,
   PdfRef,
   PickResult,
+  Pronunciation,
   ReadPdfResult,
   ReadingId,
   ReadingPatch,
-  RelinkResult
+  RelinkResult,
+  SettingsPatch
 } from '../../shared/library/types'
+import { THEME_IDS } from '../../shared/library/types'
+import { DEFAULT_FILTERS } from '../../shared/text/types'
 import { SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import type { Library } from './library'
 import { isObj, isStr } from '../validate'
@@ -97,6 +102,29 @@ function validPatch(p: unknown): p is ReadingPatch {
         break
       case 'pageCount':
         if (!isInt(v, 1)) return false
+        break
+      default:
+        return false
+    }
+  }
+  return true
+}
+
+function validSettingsPatch(p: unknown): p is SettingsPatch {
+  if (!isObj(p)) return false
+  for (const [k, v] of Object.entries(p)) {
+    switch (k) {
+      case 'theme':
+        if (!isStr(v) || !(THEME_IDS as readonly string[]).includes(v)) return false
+        break
+      case 'darkPages':
+        if (typeof v !== 'boolean') return false
+        break
+      case 'reading':
+        if (!isObj(v)) return false
+        for (const [fk, fv] of Object.entries(v)) {
+          if (!Object.hasOwn(DEFAULT_FILTERS, fk) || typeof fv !== 'boolean') return false
+        }
         break
       default:
         return false
@@ -237,6 +265,29 @@ export function registerLibraryIpc(
     )
       bad('library:voice', '(voice: one of the ten voices, speed: one of the speed steps)')
     lib.setVoice(voice, speed)
+  })
+
+  handle('library:settings', (patch: unknown): void => {
+    if (!validSettingsPatch(patch))
+      bad('library:settings', '(patch of theme, darkPages, reading filters)')
+    lib.setSettings(patch)
+  })
+
+  handle('library:pronunciations', (list: unknown): void => {
+    if (!Array.isArray(list) || !list.every((e) => isObj(e) && isStr(e.word) && isStr(e.sayAs)))
+      bad('library:pronunciations', '(list of { word: string, sayAs: string })')
+    lib.setPronunciations(list as Pronunciation[])
+  })
+
+  handle('library:choose-export-folder', async (): Promise<'chosen' | 'cancelled'> => {
+    const path = await pickFolder(o.window(), 'Choose a folder for saved audio')
+    if (path === null) return 'cancelled'
+    lib.setExportFolder(path)
+    return 'chosen'
+  })
+
+  handle('library:reset-export-folder', (): void => {
+    lib.setExportFolder(null)
   })
 
   handle('library:flush', async (): Promise<void> => {

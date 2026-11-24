@@ -1,12 +1,15 @@
 import { DEFAULT_VOICE, SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import { DEFAULT_FILTERS, type ReadingFilters } from '../../shared/text/types'
+import { THEME_IDS } from '../../shared/library/types'
 import type { Anchor } from '../../shared/text/anchor'
 import type {
   Course,
   LibraryFile,
-  LibrarySettings,
   LibraryUi,
-  Reading
+  Pronunciation,
+  Reading,
+  StoredSettings,
+  ThemeId
 } from '../../shared/library/types'
 
 export const SCHEMA_VERSION = 1
@@ -21,7 +24,16 @@ export function emptyLibrary(): LibraryFile {
     schemaVersion: 1,
     courses: [],
     readings: [],
-    settings: { reading: { ...DEFAULT_FILTERS }, zoom: 1, voice: DEFAULT_VOICE, speed: 1 },
+    settings: {
+      reading: { ...DEFAULT_FILTERS },
+      zoom: 1,
+      voice: DEFAULT_VOICE,
+      speed: 1,
+      theme: 'sky-sea',
+      darkPages: true,
+      pronunciations: [],
+      exportFolder: null
+    },
     ui: { collapsed: [], tipsSeen: [] }
   }
 }
@@ -80,7 +92,16 @@ function parseFilters(v: unknown): ReadingFilters | null {
   return out as unknown as ReadingFilters
 }
 
-function parseSettings(v: unknown): LibrarySettings | null {
+function parsePronunciations(v: unknown): Pronunciation[] {
+  if (!Array.isArray(v)) return []
+  const out: Pronunciation[] = []
+  for (const e of v) {
+    if (isObj(e) && isStr(e.word) && isStr(e.sayAs)) out.push({ word: e.word, sayAs: e.sayAs })
+  }
+  return out
+}
+
+function parseSettings(v: unknown): StoredSettings | null {
   if (v === undefined) return emptyLibrary().settings
   if (!isObj(v)) return null
   const reading = parseFilters(v.reading)
@@ -88,7 +109,20 @@ function parseSettings(v: unknown): LibrarySettings | null {
   if (!reading || !isNum(zoom)) return null
   const voice = isStr(v.voice) && VOICE_IDS.has(v.voice) ? v.voice : DEFAULT_VOICE
   const speed = (SPEEDS as readonly unknown[]).includes(v.speed) ? (v.speed as number) : 1
-  return { reading, zoom: Math.min(2, Math.max(0.8, zoom)), voice, speed }
+  const theme = (THEME_IDS as readonly unknown[]).includes(v.theme)
+    ? (v.theme as ThemeId)
+    : 'sky-sea'
+  const darkPages = typeof v.darkPages === 'boolean' ? v.darkPages : true
+  return {
+    reading,
+    zoom: Math.min(2, Math.max(0.8, zoom)),
+    voice,
+    speed,
+    theme,
+    darkPages,
+    pronunciations: parsePronunciations(v.pronunciations),
+    exportFolder: isStr(v.exportFolder) && v.exportFolder !== '' ? v.exportFolder : null
+  }
 }
 
 function parseUi(v: unknown): LibraryUi | null {

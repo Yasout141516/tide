@@ -31,7 +31,15 @@ async function openReading(
   const t = fakeTide({
     snapshot: {
       readings: [{ ...reading, ...over }],
-      settings: { reading: DEFAULT_FILTERS, zoom, voice: 'bf_emma', speed: 1 }
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      }
     }
   })
   setTide(t)
@@ -191,7 +199,15 @@ describe('Text size', () => {
     const t = fakeTide({
       snapshot: {
         readings: [reading],
-        settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 }
+        settings: {
+          reading: DEFAULT_FILTERS,
+          zoom: 1,
+          voice: 'bf_emma',
+          speed: 1,
+          theme: 'sky-sea',
+          darkPages: true,
+          pronunciations: []
+        }
       }
     })
     const applied = t.library.setZoom

@@ -75,7 +75,15 @@ async function open(pages: PageText[]): Promise<void> {
   const t = fakeTide({
     snapshot: {
       readings: [{ ...reading, pageCount: pages.length }],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 }
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      }
     }
   })
   setTide(t)

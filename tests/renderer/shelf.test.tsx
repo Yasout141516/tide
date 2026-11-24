@@ -30,6 +30,7 @@ function snapshot(readings: ReadingView[], collapsed: string[] = []): LibrarySna
     courses: [{ id: 'c1', name: 'PSYC 201' }],
     readings,
     settings: {} as LibrarySnapshot['settings'],
+    exportFolder: { name: 'Tide', custom: false },
     ui: { collapsed, tipsSeen: [] }
   }
 }

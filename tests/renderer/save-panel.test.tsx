@@ -54,7 +54,15 @@ async function open(
     platform: opts.platform,
     snapshot: {
       readings: [opts.title ? { ...reading, title: opts.title } : reading],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: opts.speed ?? 1 },
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: opts.speed ?? 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      },
       ui: { collapsed: [], tipsSeen: ['select-text'] }
     }
   })

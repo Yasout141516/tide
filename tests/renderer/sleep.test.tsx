@@ -48,7 +48,15 @@ async function open(extra = false): Promise<{
           missing: false
         }
       ],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 }
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      }
     }
   })
   t.tts.synthesize = vi.fn(() => Promise.resolve(SILENCE))

@@ -50,7 +50,15 @@ async function openWith(
   const t = fakeTide({
     snapshot: {
       readings: [{ ...reading, pageCount: pages.length, ...over }],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 }
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      }
     }
   })
   setTide(t)

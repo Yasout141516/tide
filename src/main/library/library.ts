@@ -7,12 +7,16 @@ import type {
   LibrarySnapshot,
   PdfRef,
   PickResult,
+  Pronunciation,
   ReadPdfResult,
   Reading,
   ReadingId,
   ReadingPatch,
-  RelinkResult
+  RelinkResult,
+  SettingsPatch
 } from '../../shared/library/types'
+import { PRONUNCIATION_LIMITS, THEME_IDS } from '../../shared/library/types'
+import type { ReadingFilters } from '../../shared/text/types'
 import { SPEEDS, VOICE_IDS } from '../../shared/voices'
 import { pathExists } from '../fs-util'
 import { fingerprint } from './fingerprint'
@@ -71,7 +75,14 @@ export class Library {
         reading: { ...d.settings.reading },
         zoom: d.settings.zoom,
         voice: d.settings.voice,
-        speed: d.settings.speed
+        speed: d.settings.speed,
+        theme: d.settings.theme,
+        darkPages: d.settings.darkPages,
+        pronunciations: d.settings.pronunciations.map((p) => ({ ...p }))
+      },
+      exportFolder: {
+        name: d.settings.exportFolder ? basename(d.settings.exportFolder) || 'Tide' : 'Tide',
+        custom: d.settings.exportFolder !== null
       },
       ui: { collapsed: [...d.ui.collapsed], tipsSeen: [...d.ui.tipsSeen] }
     }
@@ -338,6 +349,60 @@ export class Library {
       (d) => {
         d.settings.voice = voice
         d.settings.speed = speed
+      },
+      { urgent: true }
+    )
+    this.emit()
+  }
+
+  setSettings(p: SettingsPatch): void {
+    this.store.update(
+      (d) => {
+        if (p.theme !== undefined && (THEME_IDS as readonly string[]).includes(p.theme))
+          d.settings.theme = p.theme
+        if (typeof p.darkPages === 'boolean') d.settings.darkPages = p.darkPages
+        if (p.reading) {
+          for (const k of Object.keys(d.settings.reading) as (keyof ReadingFilters)[]) {
+            const val = p.reading[k]
+            if (typeof val === 'boolean') d.settings.reading[k] = val
+          }
+        }
+      },
+      { urgent: true }
+    )
+    this.emit()
+  }
+
+  setPronunciations(list: Pronunciation[]): void {
+    const L = PRONUNCIATION_LIMITS
+    const byWord = new Map<string, Pronunciation>()
+    for (const e of list) {
+      const word = e.word.trim().slice(0, L.wordLen).trim()
+      const sayAs = e.sayAs.trim().slice(0, L.sayAsLen).trim()
+      if (!word || !sayAs) continue
+      const key = word.toLowerCase()
+      byWord.delete(key) // the last entry wins, and sits at its own position
+      byWord.set(key, { word, sayAs })
+    }
+    const cleaned = [...byWord.values()].slice(0, L.words)
+    this.store.update(
+      (d) => {
+        d.settings.pronunciations = cleaned
+      },
+      { urgent: true }
+    )
+    this.emit()
+  }
+
+  /** The chosen default export folder, or null for Music/Tide. Main only: never in the snapshot. */
+  exportFolder(): string | null {
+    return this.store.data().settings.exportFolder
+  }
+
+  setExportFolder(path: string | null): void {
+    this.store.update(
+      (d) => {
+        d.settings.exportFolder = path
       },
       { urgent: true }
     )

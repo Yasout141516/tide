@@ -28,12 +28,33 @@ export interface Reading {
   finishIn: number | null
 }
 
+export const THEME_IDS = ['sky-sea', 'deep-sea', 'pixel-quest', 'kitty', 'system'] as const
+export type ThemeId = (typeof THEME_IDS)[number]
+
+export interface Pronunciation {
+  word: string
+  sayAs: string
+}
+export const PRONUNCIATION_LIMITS = { words: 200, wordLen: 60, sayAsLen: 120 } as const
+
 /** `zoom` is 0.8 to 2.0, default 1. `voice` is one of VOICE_IDS; `speed` one of SPEEDS. */
 export interface LibrarySettings {
   reading: ReadingFilters
   zoom: number
   voice: string
   speed: number
+  theme: ThemeId
+  darkPages: boolean
+  pronunciations: Pronunciation[]
+}
+
+/** What library.json stores: the snapshot's settings plus the export folder path (never sent to the renderer). */
+export type StoredSettings = LibrarySettings & { exportFolder: string | null }
+
+export interface SettingsPatch {
+  theme?: ThemeId
+  darkPages?: boolean
+  reading?: Partial<ReadingFilters>
 }
 
 /** `collapsed`: CourseIds and/or OTHER. `tipsSeen`: keys of one-time tips already shown. */
@@ -46,7 +67,7 @@ export interface LibraryFile {
   schemaVersion: 1
   courses: Course[]
   readings: Reading[]
-  settings: LibrarySettings
+  settings: StoredSettings
   ui: LibraryUi
 }
 
@@ -59,6 +80,8 @@ export interface LibrarySnapshot {
   courses: Course[]
   readings: ReadingView[]
   settings: LibrarySettings
+  /** Basename only, "Tide" when the default is in use. */
+  exportFolder: { name: string; custom: boolean }
   ui: LibraryUi
 }
 

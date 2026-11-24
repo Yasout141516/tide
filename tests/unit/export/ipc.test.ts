@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -205,6 +205,68 @@ describe('export:start and friends', () => {
     await start(spec())
     expect(await until((e) => e.kind === 'failed')).toMatchObject({ kind: 'failed' })
   })
+
+  const finishJob = async (): Promise<void> => {
+    for (let i = 0; i < 2; i++) {
+      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalledTimes(i + 1), {
+        timeout: 10_000
+      })
+      gate!.resolve()
+    }
+  }
+
+  const withDefault = (folder: () => string | null): void => {
+    handlers.clear()
+    registerExportIpc({
+      host,
+      window: () => win,
+      env: { TIDE_E2E: '1', TIDE_MUSIC_DIR: music },
+      defaultFolder: folder
+    })
+  }
+
+  it('saves into the chosen default folder with no Tide subfolder', async () => {
+    const mine = join(music, 'MyAudio')
+    mkdirSync(mine)
+    withDefault(() => mine)
+    await start(spec({ format: 'mp3' }))
+    await finishJob()
+    await until((e) => e.kind === 'saved')
+    expect(readdirSync(mine).some((f) => f.endsWith('.mp3'))).toBe(true)
+    expect(existsSync(join(music, 'Tide'))).toBe(false)
+  }, 30_000)
+
+  it('a deleted default folder fails with folder-missing, not a fallback', async () => {
+    const noParent = join(music, 'Gone', 'Audio') // neither it nor its parent exists
+    const parentOnly = join(music, 'Alone') // the parent exists, the folder was deleted
+    for (const folder of [noParent, parentOnly]) {
+      events.length = 0
+      withDefault(() => folder)
+      await start(spec())
+      expect(await until((e) => e.kind === 'failed')).toMatchObject({
+        kind: 'failed',
+        reason: 'folder-missing'
+      })
+      expect(existsSync(folder)).toBe(false)
+      expect(existsSync(join(music, 'Tide'))).toBe(false)
+    }
+    expect(host.synthesize).not.toHaveBeenCalled()
+  })
+
+  it('defaultFolder is consulted at each start, not captured once', async () => {
+    const a = join(music, 'A')
+    const b = join(music, 'B')
+    mkdirSync(a)
+    mkdirSync(b)
+    let current = a
+    withDefault(() => current)
+    current = b
+    await start(spec({ format: 'mp3' }))
+    await finishJob()
+    await until((e) => e.kind === 'saved')
+    expect(readdirSync(b).length).toBeGreaterThan(0)
+    expect(readdirSync(a)).toEqual([])
+  }, 30_000)
 
   it('chooseFolder uses main’s own dialog and a cancel starts nothing', async () => {
     showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })

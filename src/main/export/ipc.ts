@@ -2,8 +2,9 @@
 import { randomUUID } from 'crypto'
 import { mkdir } from 'fs/promises'
 import { basename } from 'path'
-import { app, dialog, ipcMain, shell } from 'electron'
-import type { BrowserWindow, OpenDialogOptions } from 'electron'
+import { app, ipcMain, shell } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { pickFolder } from '../folder-dialog'
 import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ipc-types'
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
 import { pathExists } from '../fs-util'
@@ -102,6 +103,8 @@ export function registerExportIpc(o: {
   window: () => BrowserWindow | null
   /** The reading's course name, or null when it has none (album falls back to "Tide"). */
   albumFor?: (readingId: string) => string | null
+  /** The default folder she chose in Settings (used as-is), or null for Music/Tide. Read at each start. */
+  defaultFolder?: () => string | null
   env?: Record<string, string | undefined>
 }): ExportController {
   const env = o.env ?? process.env
@@ -113,24 +116,23 @@ export function registerExportIpc(o: {
     if (win && !win.isDestroyed()) win.webContents.send('export:event', e)
   }
 
-  async function chooseFolder(): Promise<string | null> {
-    const opts: OpenDialogOptions = {
-      title: 'Choose a folder for the audio',
-      properties: ['openDirectory', 'createDirectory']
-    }
-    const win = o.window()
-    const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
-    return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
-  }
+  const chooseFolder = (): Promise<string | null> =>
+    pickFolder(o.window(), 'Choose a folder for the audio')
 
   async function run(
     spec: ExportSpec,
     jobId: string,
     folder: string,
+    mustExist: boolean,
     ac: AbortController,
     job: RunningJob
   ): Promise<void> {
     try {
+      // A default folder she chose must still be there: a deleted one fails loudly instead of
+      // quietly reappearing (or the audio landing somewhere she did not pick).
+      if (mustExist && !(await pathExists(folder))) {
+        throw Object.assign(new Error('folder missing'), { code: 'ENOENT' })
+      }
       await mkdir(folder, { recursive: true })
       const outPath = await uniquePath(folder, safeFileName(spec.baseName), spec.format, pathExists)
       const meta = {
@@ -180,7 +182,9 @@ export function registerExportIpc(o: {
     const ac = new AbortController()
     const job: RunningJob = { jobId, abort: ac, done: null, writer: null }
     running = job // claimed before any await, so a second start sees busy
-    let folder = exportDir(resolveMusicDir(env, () => app.getPath('music')))
+    const custom = o.defaultFolder?.() ?? null
+    let folder = custom ?? exportDir(resolveMusicDir(env, () => app.getPath('music')))
+    let mustExist = custom !== null
     if ((opts as { chooseFolder?: unknown } | null)?.chooseFolder === true) {
       let chosen: string | null = null
       try {
@@ -194,8 +198,9 @@ export function registerExportIpc(o: {
         return { cancelled: true }
       }
       folder = chosen
+      mustExist = false
     }
-    job.done = run(spec, jobId, folder, ac, job)
+    job.done = run(spec, jobId, folder, mustExist, ac, job)
     return { jobId }
   }
 

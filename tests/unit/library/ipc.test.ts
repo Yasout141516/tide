@@ -45,6 +45,9 @@ function setup(now = (): number => 0) {
     setCollapsed: vi.fn(),
     setZoom: vi.fn(),
     setVoice: vi.fn(),
+    setSettings: vi.fn(),
+    setPronunciations: vi.fn(),
+    setExportFolder: vi.fn(),
     tipSeen: vi.fn(),
     flush: vi.fn(() => Promise.resolve(true)),
     checkMissing: vi.fn(() => Promise.resolve())
@@ -191,6 +194,61 @@ describe('library IPC', () => {
     expect(lib.setZoom).not.toHaveBeenCalled()
     call('library:zoom', 1.5)
     expect(lib.setZoom).toHaveBeenCalledWith(1.5)
+  })
+
+  it('library:settings rejects an unknown theme, key, filter or non-boolean', () => {
+    const { call, lib } = setup()
+    for (const bad of [
+      { theme: 'neon' },
+      { theme: 3 },
+      { colour: 'red' },
+      { darkPages: 'yes' },
+      { reading: { skipEverything: true } },
+      { reading: { toString: true } },
+      { reading: { skipFootnotes: 'no' } },
+      { reading: 'x' },
+      null,
+      'x'
+    ])
+      expect(() => call('library:settings', bad)).toThrow(/library:settings expects/)
+    expect(lib.setSettings).not.toHaveBeenCalled()
+  })
+
+  it('library:settings with reading: { skipFootnotes: false } passes only that filter', () => {
+    const { call, lib } = setup()
+    call('library:settings', { reading: { skipFootnotes: false } })
+    expect(lib.setSettings).toHaveBeenCalledWith({ reading: { skipFootnotes: false } })
+    call('library:settings', { theme: 'kitty', darkPages: false })
+    expect(lib.setSettings).toHaveBeenLastCalledWith({ theme: 'kitty', darkPages: false })
+  })
+
+  it('library:pronunciations rejects a non-array or a non-object entry', () => {
+    const { call, lib } = setup()
+    for (const bad of ['x', null, [3], [null], [{ word: 'a' }], [{ word: 1, sayAs: 'b' }]])
+      expect(() => call('library:pronunciations', bad)).toThrow(/library:pronunciations expects/)
+    expect(lib.setPronunciations).not.toHaveBeenCalled()
+    call('library:pronunciations', [{ word: 'a', sayAs: 'b' }])
+    expect(lib.setPronunciations).toHaveBeenCalledWith([{ word: 'a', sayAs: 'b' }])
+  })
+
+  it('library:choose-export-folder stores the path in main and returns only chosen or cancelled', async () => {
+    const { call, lib } = setup()
+    showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] })
+    expect(await call('library:choose-export-folder')).toBe('cancelled')
+    expect(lib.setExportFolder).not.toHaveBeenCalled()
+    showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/x/Audio'] })
+    expect(await call('library:choose-export-folder')).toBe('chosen')
+    expect(lib.setExportFolder).toHaveBeenCalledWith('/x/Audio')
+    expect(showOpenDialog.mock.calls[1].at(-1).properties).toEqual([
+      'openDirectory',
+      'createDirectory'
+    ])
+  })
+
+  it('library:reset-export-folder clears the folder', () => {
+    const { call, lib } = setup()
+    call('library:reset-export-folder')
+    expect(lib.setExportFolder).toHaveBeenCalledWith(null)
   })
 
   it('library:voice rejects an unknown voice or a speed outside SPEEDS', () => {

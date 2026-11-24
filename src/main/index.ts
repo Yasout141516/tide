@@ -161,6 +161,7 @@ app.whenReady().then(async () => {
     exportCtl = registerExportIpc({
       host: ttsHost,
       window: () => mainWindow,
+      defaultFolder: () => lib.exportFolder(),
       albumFor: (id) => {
         return courseNameOf(lib.snapshot(), id)
       }

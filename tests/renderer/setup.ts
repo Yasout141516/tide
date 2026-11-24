@@ -96,8 +96,12 @@ export function fakeTide(
       },
       zoom: 1,
       voice: 'bf_emma',
-      speed: 1
+      speed: 1,
+      theme: 'sky-sea',
+      darkPages: true,
+      pronunciations: []
     },
+    exportFolder: { name: 'Tide', custom: false },
     ui: { collapsed: [], tipsSeen: [] },
     ...init.snapshot
   }
@@ -209,6 +213,25 @@ export function fakeTide(
       }),
       setVoice: fn('library.setVoice', (voice, speed) => {
         set({ ...snap, settings: { ...snap.settings, voice, speed } })
+        return Promise.resolve()
+      }),
+      setSettings: fn('library.setSettings', (p) => {
+        const { reading, ...rest } = p
+        set({
+          ...snap,
+          settings: { ...snap.settings, ...rest, reading: { ...snap.settings.reading, ...reading } }
+        })
+        return Promise.resolve()
+      }),
+      setPronunciations: fn('library.setPronunciations', (pronunciations) => {
+        set({ ...snap, settings: { ...snap.settings, pronunciations } })
+        return Promise.resolve()
+      }),
+      chooseExportFolder: fn('library.chooseExportFolder', () =>
+        Promise.resolve('cancelled' as const)
+      ),
+      resetExportFolder: fn('library.resetExportFolder', () => {
+        set({ ...snap, exportFolder: { name: 'Tide', custom: false } })
         return Promise.resolve()
       }),
       flush: fn('library.flush', () => Promise.resolve()),

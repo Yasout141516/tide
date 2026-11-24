@@ -63,7 +63,15 @@ async function open(
   const t = fakeTide({
     snapshot: {
       readings: [reading],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 },
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      },
       ui: { collapsed: [], tipsSeen }
     }
   })
@@ -126,7 +134,16 @@ describe('Selection bubble', () => {
     const snapshot: LibrarySnapshot = {
       readings: [reading],
       courses: [],
-      settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: 1 },
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme: 'sky-sea',
+        darkPages: true,
+        pronunciations: []
+      },
+      exportFolder: { name: 'Tide', custom: false },
       ui: { collapsed: [], tipsSeen: ['select-text'] }
     }
     render(

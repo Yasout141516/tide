@@ -14,7 +14,10 @@ const settings: LibrarySettings = {
   },
   zoom: 1,
   voice: 'bf_emma',
-  speed: 1
+  speed: 1,
+  theme: 'sky-sea',
+  darkPages: true,
+  pronunciations: []
 }
 
 describe('filtersFor', () => {

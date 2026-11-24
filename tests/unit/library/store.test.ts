@@ -298,3 +298,45 @@ describe('LibraryStore', () => {
     expect(ids(await readJson('library.json'))).toEqual(['r1'])
   })
 })
+
+describe('parseLibrary: M6 settings', () => {
+  const withSettings = (settings: unknown): unknown => ({ ...libWith('a'), settings })
+  const m5 = { reading: {}, zoom: 1.2, voice: 'bf_emma', speed: 1 }
+
+  it('defaults the new settings for an M5 library.json', () =>
+    expect(parseLibrary(withSettings(m5))!.settings).toMatchObject({
+      theme: 'sky-sea',
+      darkPages: true,
+      pronunciations: [],
+      exportFolder: null
+    }))
+
+  it('resets only a bad theme', () => {
+    const s = parseLibrary(withSettings({ ...m5, theme: 'neon', darkPages: false }))!.settings
+    expect(s).toMatchObject({ theme: 'sky-sea', darkPages: false, zoom: 1.2 })
+  })
+
+  it('a non-boolean darkPages becomes true', () =>
+    expect(parseLibrary(withSettings({ ...m5, darkPages: 'no' }))!.settings.darkPages).toBe(true))
+
+  it('keeps a valid non-default theme', () =>
+    expect(parseLibrary(withSettings({ ...m5, theme: 'kitty' }))!.settings.theme).toBe('kitty'))
+
+  it('drops a bad pronunciation entry and keeps the good ones', () => {
+    const list = [{ word: 'Vygotsky', sayAs: 'vih-GOT-skee' }, 42, { word: '' }]
+    const got = parseLibrary(withSettings({ ...m5, pronunciations: list }))!.settings
+    expect(got.pronunciations).toEqual([{ word: 'Vygotsky', sayAs: 'vih-GOT-skee' }])
+  })
+
+  it('a pronunciations value that is not an array becomes []', () =>
+    expect(
+      parseLibrary(withSettings({ ...m5, pronunciations: 'x' }))!.settings.pronunciations
+    ).toEqual([]))
+
+  it('a non-string exportFolder becomes null; a string is kept', () => {
+    expect(parseLibrary(withSettings({ ...m5, exportFolder: 7 }))!.settings.exportFolder).toBeNull()
+    expect(parseLibrary(withSettings({ ...m5, exportFolder: '/x/y' }))!.settings.exportFolder).toBe(
+      '/x/y'
+    )
+  })
+})

@@ -28,6 +28,7 @@ function snap(
     courses,
     readings,
     settings: {} as LibrarySnapshot['settings'],
+    exportFolder: { name: 'Tide', custom: false },
     ui: { collapsed, tipsSeen: [] }
   }
 }

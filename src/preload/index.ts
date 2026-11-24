@@ -6,7 +6,9 @@ import type {
   AddReadingInput,
   LibrarySnapshot,
   PdfRef,
-  ReadingPatch
+  Pronunciation,
+  ReadingPatch,
+  SettingsPatch
 } from '../shared/library/types'
 import type { AppCommand } from '../shared/ipc-types'
 
@@ -66,6 +68,10 @@ contextBridge.exposeInMainWorld('tide', {
     setCollapsed: (key: string, collapsed: boolean) => invoke('library:collapse', key, collapsed),
     setZoom: (zoom: number) => invoke('library:zoom', zoom),
     setVoice: (voice: string, speed: number) => invoke('library:voice', voice, speed),
+    setSettings: (p: SettingsPatch) => invoke('library:settings', p),
+    setPronunciations: (list: Pronunciation[]) => invoke('library:pronunciations', list),
+    chooseExportFolder: () => invoke('library:choose-export-folder'),
+    resetExportFolder: () => invoke('library:reset-export-folder'),
     flush: () => invoke('library:flush'),
     tipSeen: (key: string) => invoke('library:tip-seen', key)
   }

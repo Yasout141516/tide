@@ -3,10 +3,12 @@ import type {
   LibrarySnapshot,
   PdfRef,
   PickResult,
+  Pronunciation,
   ReadPdfResult,
   ReadingId,
   ReadingPatch,
-  RelinkResult
+  RelinkResult,
+  SettingsPatch
 } from '../shared/library/types'
 import type {
   AppCommand,
@@ -58,6 +60,11 @@ export interface TideApi {
     setCollapsed(key: string, collapsed: boolean): Promise<void>
     setZoom(zoom: number): Promise<void>
     setVoice(voice: string, speed: number): Promise<void>
+    setSettings(p: SettingsPatch): Promise<void>
+    setPronunciations(list: Pronunciation[]): Promise<void>
+    /** Main shows the folder dialog and stores the path; the renderer never sees it. */
+    chooseExportFolder(): Promise<'chosen' | 'cancelled'>
+    resetExportFolder(): Promise<void>
     /** Resolves once the library file has been written. */
     flush(): Promise<void>
     tipSeen(key: string): Promise<void>

@@ -343,4 +343,57 @@ describe('Library', () => {
     lib.setZoom(1.2)
     expect(kinds).toEqual(['position', 'other', 'other', 'other'])
   })
+
+  it('setSettings changes theme, darkPages and only the named filter, and persists', async () => {
+    const lib = await open()
+    const before = lib.snapshot().settings.reading
+    lib.setSettings({ theme: 'deep-sea', darkPages: false, reading: { skipFootnotes: false } })
+    const s = lib.snapshot().settings
+    expect(s).toMatchObject({ theme: 'deep-sea', darkPages: false })
+    expect(s.reading).toEqual({ ...before, skipFootnotes: false })
+    await lib.flush()
+    const lib2 = await Library.open(join(root, 'data'), { debounceMs: 20 })
+    libs.push(lib2)
+    expect(lib2.snapshot().settings).toMatchObject({ theme: 'deep-sea', darkPages: false })
+  })
+
+  it('setPronunciations keeps the last of two case-insensitive duplicates', async () => {
+    const lib = await open()
+    lib.setPronunciations([
+      { word: 'schema', sayAs: 'a' },
+      { word: 'Schema', sayAs: 'b' }
+    ])
+    expect(lib.snapshot().settings.pronunciations).toEqual([{ word: 'Schema', sayAs: 'b' }])
+  })
+
+  it('setPronunciations trims, drops empties and caps lengths and count', async () => {
+    const lib = await open()
+    const many = Array.from({ length: 250 }, (_, i) => ({ word: `w${i}`, sayAs: 'x' }))
+    lib.setPronunciations([
+      { word: '  Piaget ', sayAs: ' pee-ah-ZHAY ' },
+      { word: '   ', sayAs: 'x' },
+      { word: 'y', sayAs: '' },
+      { word: 'W'.repeat(100), sayAs: 'S'.repeat(300) }
+    ])
+    const got = lib.snapshot().settings.pronunciations
+    expect(got).toHaveLength(2)
+    expect(got[0]).toEqual({ word: 'Piaget', sayAs: 'pee-ah-ZHAY' })
+    expect(got[1].word).toHaveLength(60)
+    expect(got[1].sayAs).toHaveLength(120)
+    lib.setPronunciations(many)
+    expect(lib.snapshot().settings.pronunciations).toHaveLength(200)
+  })
+
+  it('the snapshot carries only the export folder name, never the path', async () => {
+    const lib = await open()
+    expect(lib.snapshot().exportFolder).toEqual({ name: 'Tide', custom: false })
+    expect(lib.exportFolder()).toBeNull()
+    const chosen = join(root, 'MyAudio')
+    lib.setExportFolder(chosen)
+    expect(lib.exportFolder()).toBe(chosen)
+    expect(lib.snapshot().exportFolder).toEqual({ name: 'MyAudio', custom: true })
+    expect(JSON.stringify(lib.snapshot())).not.toContain(root)
+    lib.setExportFolder(null)
+    expect(lib.snapshot().exportFolder).toEqual({ name: 'Tide', custom: false })
+  })
 })
