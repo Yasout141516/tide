@@ -76,6 +76,8 @@ interface Entry {
   pending: number
   /** Object URL per clip; undefined when not arrived yet. Kept after playing, revoked on eviction. */
   urls: (string | undefined)[]
+  /** Synthesis failed for good (R37); raised as an error only when playback reaches this sentence. */
+  failed?: boolean
   /** Real duration per clip once arrived. */
   secs: (number | undefined)[]
 }
@@ -401,13 +403,20 @@ export class PlayerEngine {
           this.restartPending = true
           this.status = 'restarting'
           if (this.wantPlay && !this.clipLoaded) this.phase = 'loading-voice'
+        } else if (i !== this.cur.i) {
+          entry.failed = true // a prefetched sentence: the current one keeps playing (R37)
+          return
         } else {
-          this.wantPlay = false
-          this.deps.sink.pause()
-          this.phase = 'error'
+          this.raiseError()
         }
         this.emit()
       })
+  }
+
+  private raiseError(): void {
+    this.wantPlay = false
+    this.deps.sink.pause()
+    this.phase = 'error'
   }
 
   private handleStatus(s: TtsStatus): void {
@@ -434,7 +443,13 @@ export class PlayerEngine {
   private tryStart(): void {
     if (!this.wantPlay || this.clipLoaded) return
     const { i, p } = this.cur
-    const url = this.entryFor(i)?.urls[p]
+    const entry = this.entryFor(i)
+    if (entry?.failed) {
+      this.raiseError()
+      this.emit()
+      return
+    }
+    const url = entry?.urls[p]
     if (url === undefined) {
       this.phase = this.waitPhase()
       this.emit()

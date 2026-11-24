@@ -492,6 +492,24 @@ describe('PlayerEngine', () => {
     expect(engine.snapshot().phase).toBe('error')
   })
 
+  it('a prefetched sentence that fails does not stop the current one; the error is raised on reaching it (R37)', async () => {
+    const { engine, sink, tts } = setup(S)
+    engine.play()
+    tts.calls[0].resolve(audio(1))
+    tts.calls[1].resolve(audio(1))
+    await flush()
+    const pausesBefore = sink.pauses
+    tts.calls[2].reject(new Error('boom')) // sentence 2 fails while sentence 0 plays
+    await flush()
+    expect(engine.snapshot().phase).toBe('playing')
+    expect(sink.pauses).toBe(pausesBefore)
+    sink.triggerEnded() // -> sentence 1, still fine
+    expect(engine.snapshot()).toMatchObject({ index: 1, phase: 'playing' })
+    sink.triggerEnded() // -> sentence 2, the failed one
+    await flush()
+    expect(engine.snapshot().phase).toBe('error')
+  })
+
   it('a restart of the voice engine resumes the current sentence when ready', async () => {
     const { engine, sink, tts } = setup(S)
     engine.play()
