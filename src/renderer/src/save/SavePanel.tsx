@@ -127,7 +127,15 @@ export function SavePanel({
     scope: kind === 'pages' && !rangeOk ? { kind: 'whole' } : scope
   })
   const baseName = typedName ?? suggested
-  const pagesMessage = kind === 'pages' && spoken.length === 0
+  // An invalid range says so; a valid one with no spoken text says there is nothing to read.
+  const pagesMessage =
+    kind === 'pages'
+      ? !rangeOk
+        ? 'Check the page numbers.'
+        : spoken.length === 0
+          ? 'Nothing to read on those pages.'
+          : null
+      : null
 
   const scopeLabel =
     kind === 'selection'
@@ -215,7 +223,7 @@ export function SavePanel({
           </div>
           {pagesMessage ? (
             <p role="alert" className="m-0 mb-1 px-1 text-[12.5px] font-semibold text-warn">
-              Nothing to read on those pages.
+              {pagesMessage}
             </p>
           ) : null}
           {tooLong ? (

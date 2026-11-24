@@ -215,19 +215,25 @@ describe('Save as audio panel', () => {
     const from = screen.getByLabelText('From page')
     const to = screen.getByLabelText('To page')
     expect(saveButton().disabled).toBe(false)
+    const CHECK = 'Check the page numbers.'
+    const NOTHING = 'Nothing to read on those pages.'
     await userEvent.clear(from)
-    expect(screen.getByText('Nothing to read on those pages.')).toBeTruthy()
+    expect(screen.getByText(CHECK)).toBeTruthy() // empty
+    expect(screen.queryByText(NOTHING)).toBeNull()
     expect(saveButton().disabled).toBe(true)
     await userEvent.type(from, '3')
     await userEvent.clear(to)
     await userEvent.type(to, '2')
+    expect(screen.getByText(CHECK)).toBeTruthy() // from > to
     expect(saveButton().disabled).toBe(true)
     await userEvent.clear(to)
     await userEvent.type(to, '9')
+    expect(screen.getByText(CHECK)).toBeTruthy() // out of range
     expect(saveButton().disabled).toBe(true)
     await userEvent.clear(to)
     await userEvent.type(to, '3')
-    expect(screen.queryByText('Nothing to read on those pages.')).toBeNull()
+    expect(screen.queryByText(CHECK)).toBeNull()
+    expect(screen.queryByText(NOTHING)).toBeNull()
     expect(saveButton().disabled).toBe(false)
   })
 
