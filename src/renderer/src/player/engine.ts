@@ -76,7 +76,11 @@ interface Entry {
   pending: number
   /** Object URL per clip; undefined when not arrived yet. Kept after playing, revoked on eviction. */
   urls: (string | undefined)[]
-  /** Synthesis failed for good (R37); raised as an error only when playback reaches this sentence. */
+  /**
+   * A clip failed for good (R37). Its `pending` is settled like an arrival, so it is never taken for
+   * in-flight work. For a prefetched sentence the error is raised only when playback reaches it;
+   * a seek or Play (restart) drops the entry, so the sentence is requested afresh.
+   */
   failed?: boolean
   /** Real duration per clip once arrived. */
   secs: (number | undefined)[]
@@ -284,7 +288,7 @@ export class PlayerEngine {
     const lo = this.index
     const hi = this.index + AHEAD
     for (const [k, e] of [...this.entries]) {
-      if (e.pending > 0 && (k < lo || k > hi)) this.evict(k)
+      if (e.failed || (e.pending > 0 && (k < lo || k > hi))) this.evict(k) // a failed one is retried
     }
     if (this.wantPlay && this.needsFront(lo)) {
       this.evict(lo)
@@ -394,6 +398,7 @@ export class PlayerEngine {
 
   private onFail(i: number, entry: Entry, err: unknown): void {
     if (isAbortError(err) || this.disposed || this.entries.get(i) !== entry) return
+    entry.pending -= 1 // settled, as an arrival does
     void this.deps.tts
       .status()
       .catch((): TtsStatus => 'failed')

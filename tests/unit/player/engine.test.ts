@@ -510,6 +510,56 @@ describe('PlayerEngine', () => {
     expect(engine.snapshot().phase).toBe('error')
   })
 
+  describe('a failed prefetched sentence (R37 follow-up)', () => {
+    /** Plays sentence 0 with 0 and 1 ready, and sentence 2 failed. */
+    async function failedTwo(): Promise<Rig> {
+      const r = setup(S)
+      r.engine.play()
+      r.tts.calls[0].resolve(audio(1))
+      r.tts.calls[1].resolve(audio(1))
+      await flush()
+      r.tts.calls[2].reject(new Error('boom'))
+      await flush()
+      return r
+    }
+
+    it('does not stay pending, so it never counts as the oldest in-flight job', async () => {
+      const { engine } = await failedTwo()
+      const entries = (engine as unknown as { entries: Map<number, { pending: number }> }).entries
+      expect(entries.get(2)?.pending).toBe(0)
+      expect(entries.get(3)?.pending).toBeGreaterThan(0) // still in flight, for contrast
+    })
+
+    it('Play after the error retries from the current sentence', async () => {
+      const { engine, sink, tts } = await failedTwo()
+      sink.triggerEnded()
+      sink.triggerEnded() // reaches the failed sentence
+      await flush()
+      expect(engine.snapshot().phase).toBe('error')
+      const n = tts.calls.length
+      engine.play()
+      expect(tts.calls.length).toBeGreaterThan(n)
+      expect(engine.snapshot().phase).not.toBe('error')
+    })
+
+    it('a seek past it and back requests it again instead of raising', async () => {
+      const { engine, tts } = await failedTwo()
+      engine.setIndex(5)
+      const n = tts.calls.length
+      engine.setIndex(2)
+      expect(tts.calls.slice(n).map((c) => c.text)).toContain(S[2])
+      expect(engine.snapshot().phase).not.toBe('error')
+    })
+
+    it('a seek straight onto it requests it again instead of raising', async () => {
+      const { engine, tts } = await failedTwo()
+      const n = tts.calls.length
+      engine.setIndex(2)
+      expect(tts.calls.slice(n).map((c) => c.text)).toContain(S[2])
+      expect(engine.snapshot().phase).not.toBe('error')
+    })
+  })
+
   it('a restart of the voice engine resumes the current sentence when ready', async () => {
     const { engine, sink, tts } = setup(S)
     engine.play()
