@@ -323,6 +323,20 @@ describe('Lazy canvases', () => {
   })
 })
 
+describe('Dark pages', () => {
+  it('the PDF canvas is marked data-pdf-canvas and the highlight layer is not inside it', async () => {
+    await openReading(fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(2)) }), { pageCount: 2 })
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid="sentence-highlight"]')).toBeTruthy()
+    )
+    const canvas = pageBox(1).querySelector('canvas') as HTMLCanvasElement
+    expect(canvas.hasAttribute('data-pdf-canvas')).toBe(true)
+    const hl = document.querySelector('[data-testid="sentence-highlight"]') as HTMLElement
+    expect(canvas.contains(hl)).toBe(false)
+    expect(hl.closest('[data-pdf-canvas]')).toBeNull()
+  })
+})
+
 describe('Selectable text', () => {
   afterEach(() => window.getSelection()?.removeAllRanges())
 

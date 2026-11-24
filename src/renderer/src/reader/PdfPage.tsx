@@ -83,7 +83,7 @@ function PdfPageView({
         onPick?.(n, (e.clientX - box.left) / scale, (e.clientY - box.top) / scale)
       }}
     >
-      <canvas ref={canvas} className="block" />
+      <canvas ref={canvas} data-pdf-canvas className="block" />
       {highlight && highlight.rects.length > 0 ? (
         <HighlightLayer rects={highlight.rects} scale={scale} sentenceId={highlight.sentenceId} />
       ) : null}

@@ -123,6 +123,11 @@ body,
   color: transparent;
 }
 
+/* Dark pages: only the canvas is filtered; the text layer, highlight and selection sit above it, unfiltered. */
+html[data-dark-pages='true'] canvas[data-pdf-canvas] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
