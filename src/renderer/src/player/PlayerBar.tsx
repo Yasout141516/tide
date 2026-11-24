@@ -1,5 +1,5 @@
 import { useReaderState } from '../reader/ReaderState'
-import { usePlayer } from './PlayerContext'
+import { usePlayerActions, usePlayerState } from './PlayerContext'
 import { isListening } from './engine'
 import { timeLeftLabel } from './timeline'
 import { SleepPopover } from './SleepPopover'
@@ -43,7 +43,8 @@ function Spinner(): React.JSX.Element {
 
 /** The five controls: Back 15s, Play / Pause, Forward 15s, voice & speed, Sleep. */
 export function PlayerBar(): React.JSX.Element {
-  const { snapshot, toggle, skip, finished, playNext, dismissFinished, finishNote } = usePlayer()
+  const { snapshot, finished, finishNote } = usePlayerState()
+  const { toggle, skip, playNext, dismissFinished } = usePlayerActions()
   const { sentences, page, numPages, current } = useReaderState()
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0

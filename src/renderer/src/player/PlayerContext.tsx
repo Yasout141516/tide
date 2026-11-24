@@ -54,8 +54,8 @@ export interface PreviewAudio {
 const DepsCtx = createContext<PlayerDeps>({})
 export const PlayerDepsProvider = DepsCtx.Provider
 
-export interface PlayerValue {
-  snapshot: PlayerSnapshot
+/** The stable half: functions that never change for an engine's lifetime, so they never re-render a consumer. */
+export interface PlayerActions {
   play(): void
   pause(): void
   toggle(): void
@@ -64,24 +64,27 @@ export interface PlayerValue {
   readFrom(index: number): void
   setVoice(id: string): void
   setSpeed(s: number): void
-  /** Her own speed choice (one of SPEEDS); `snapshot.speed` is the effective one, raised by Finish in…. */
-  chosenSpeed: number
-  /** The Finish in… estimate, shown for a few seconds after the limit is set. */
-  finishNote: string | null
   /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
   preview(id: string): void
   /** Stop a running preview (the popover closing). */
   stopPreview(): void
-  /** Estimated seconds to read sentences fromIndex..toIndex inclusive, at the current speed. */
-  estimateSec(fromIndex: number, toIndex: number): number
-  /** The sleep timer: its option and the seconds left (null for page, reading and off). */
-  sleep: SleepState
   setSleep(o: SleepOption): void
-  /** Set once the reading has ended: the reading to offer next, if any. Cleared by Dismiss or Play. */
-  finished: { next: ReadingView | null } | null
   /** Open the offered next reading and play it once its sentences arrive. */
   playNext(): void
   dismissFinished(): void
+}
+
+/** The state that changes while she listens (the snapshot moves every sentence). */
+export interface PlayerStateValue {
+  snapshot: PlayerSnapshot
+  /** Her own speed choice (one of SPEEDS); `snapshot.speed` is the effective one, raised by Finish in…. */
+  chosenSpeed: number
+  /** The Finish in… estimate, shown for a few seconds after the limit is set. */
+  finishNote: string | null
+  /** Set once the reading has ended: the reading to offer next, if any. Cleared by Dismiss or Play. */
+  finished: { next: ReadingView | null } | null
+  /** Estimated seconds to read sentences fromIndex..toIndex inclusive, at the current speed. */
+  estimateSec(fromIndex: number, toIndex: number): number
 }
 
 const IDLE: PlayerSnapshot = {
@@ -92,8 +95,7 @@ const IDLE: PlayerSnapshot = {
   secondsLeft: null
 }
 
-const NOOP: PlayerValue = {
-  snapshot: IDLE,
+const NOOP_ACTIONS: PlayerActions = {
   play: () => {},
   pause: () => {},
   toggle: () => {},
@@ -101,19 +103,27 @@ const NOOP: PlayerValue = {
   readFrom: () => {},
   setVoice: () => {},
   setSpeed: () => {},
-  chosenSpeed: 1,
-  finishNote: null,
   preview: () => {},
   stopPreview: () => {},
-  estimateSec: () => 0,
-  sleep: { option: 'off', remainingSec: null },
   setSleep: () => {},
-  finished: null,
   playNext: () => {},
   dismissFinished: () => {}
 }
 
-const PlayerCtx = createContext<PlayerValue>(NOOP)
+const NOOP_STATE: PlayerStateValue = {
+  snapshot: IDLE,
+  chosenSpeed: 1,
+  finishNote: null,
+  finished: null,
+  estimateSec: () => 0
+}
+
+const IDLE_SLEEP: SleepState = { option: 'off', remainingSec: null }
+
+const ActionsCtx = createContext<PlayerActions>(NOOP_ACTIONS)
+const StateCtx = createContext<PlayerStateValue>(NOOP_STATE)
+/** Its own context: the sleep countdown ticks about once a second and only the sleep UI should feel it. */
+const SleepCtx = createContext<SleepState>(IDLE_SLEEP)
 
 /** A preview on a plain audio element of its own. */
 function htmlPreview(url: string): PreviewAudio {
@@ -190,7 +200,7 @@ export function PlayerProvider({
   const autoplayFor = useRef<ReadingId | null>(null)
   /** The sentences on screen when the reading changed: they still belong to the old reading. */
   const staleSentences = useRef(sentences)
-  const [sleep, setSleepState] = useState<SleepState>({ option: 'off', remainingSec: null })
+  const [sleep, setSleepState] = useState<SleepState>(IDLE_SLEEP)
 
   const voice = snapshot?.settings.voice ?? DEFAULT_VOICE
   const speed = snapshot?.settings.speed ?? 1
@@ -439,10 +449,10 @@ export function PlayerProvider({
     [latestProps]
   )
 
-  // --- Actions ------------------------------------------------------------------------------
-  const value = useMemo<PlayerValue>(
+  // --- Actions: stable for the engine's lifetime; everything else is read through refs --------
+  const live = useLatest({ timer, current, finished })
+  const actions = useMemo<PlayerActions>(
     () => ({
-      snapshot: snap,
       play: () => {
         autoplayFor.current = null
         stopPreview()
@@ -483,8 +493,6 @@ export function PlayerProvider({
           .library.setVoice(engine.snapshot().voice, s)
           .catch(() => {})
       },
-      chosenSpeed: speed,
-      finishNote,
       preview: (id) => {
         const ph = engine?.snapshot().phase
         if (isListening(ph)) engine?.pause()
@@ -498,10 +506,8 @@ export function PlayerProvider({
         void Promise.resolve(a.play()).catch(() => {})
       },
       stopPreview,
-      sleep,
-      finished,
       playNext: () => {
-        const next = finished?.next
+        const next = live.current.finished?.next
         if (!next) return
         setOffer({ next, dismissed: true })
         autoplayFor.current = next.id
@@ -512,23 +518,29 @@ export function PlayerProvider({
         setOffer((o) => (o ? { ...o, dismissed: true } : o))
       },
       setSleep: (o) => {
-        const at = engine?.snapshot().index ?? current ?? 0
-        timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)
-      },
-      estimateSec: (from, to) => {
-        if (!engine) return 0
-        let sum = 0
-        for (let i = Math.max(0, from); i <= to; i++)
-          sum += engine.timeline.durationOf(i, snap.speed)
-        return sum
+        const at = engine?.snapshot().index ?? live.current.current ?? 0
+        live.current.timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)
       }
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam
-    [engine, snap, stopPreview, sleep, timer, current, finished, speed, finishNote]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam; the rest are refs or stable
+    [engine]
+  )
+
+  const estimateSec = useCallback(
+    (from: number, to: number): number => {
+      if (!engine) return 0
+      let sum = 0
+      for (let i = Math.max(0, from); i <= to; i++) sum += engine.timeline.durationOf(i, snap.speed)
+      return sum
+    },
+    [engine, snap.speed]
+  )
+  const state = useMemo<PlayerStateValue>(
+    () => ({ snapshot: snap, chosenSpeed: speed, finishNote, finished, estimateSec }),
+    [snap, speed, finishNote, finished, estimateSec]
   )
 
   // --- Keys: ← / → skip 15 s, Space plays and pauses ------------------------------------------
-  const latest = useLatest(value)
   // --- Media keys and Now Playing -------------------------------------------------------------
   const title = reading?.title ?? null
   const artist = courseName ?? 'Tide'
@@ -538,13 +550,13 @@ export function PlayerProvider({
       typeof navigator === 'undefined' ? undefined : navigator.mediaSession,
       { title, artist },
       {
-        play: () => latest.current.play(),
-        pause: () => latest.current.pause(),
-        back: () => latest.current.skip(-SKIP_SEC),
-        forward: () => latest.current.skip(SKIP_SEC)
+        play: () => actions.play(),
+        pause: () => actions.pause(),
+        back: () => actions.skip(-SKIP_SEC),
+        forward: () => actions.skip(SKIP_SEC)
       }
     )
-  }, [title, artist, latest])
+  }, [title, artist, actions])
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return
     navigator.mediaSession.playbackState =
@@ -570,10 +582,10 @@ export function PlayerProvider({
       e.preventDefault()
       if (space) {
         spaceHandled.current = true
-        if (!e.repeat) latest.current.toggle()
-      } else latest.current.skip(e.key === 'ArrowRight' ? SKIP_SEC : -SKIP_SEC)
+        if (!e.repeat) actions.toggle()
+      } else actions.skip(e.key === 'ArrowRight' ? SKIP_SEC : -SKIP_SEC)
     },
-    [hasText, latest]
+    [hasText, actions]
   )
   useEffect(() => {
     const onUp = (e: KeyboardEvent): void => {
@@ -590,15 +602,27 @@ export function PlayerProvider({
   }, [onKey])
 
   return (
-    <PlayerCtx.Provider value={value}>
-      {children}
-      {/* data-phase is test-only (TIDE_E2E exposes window.tideTest): e2e waits on the player's phase. */}
-      <audio ref={audio} hidden data-phase={window.tideTest ? phase : undefined} />
-    </PlayerCtx.Provider>
+    <ActionsCtx.Provider value={actions}>
+      <StateCtx.Provider value={state}>
+        <SleepCtx.Provider value={sleep}>
+          {children}
+          {/* data-phase is test-only (TIDE_E2E exposes window.tideTest): e2e waits on the player's phase. */}
+          <audio ref={audio} hidden data-phase={window.tideTest ? phase : undefined} />
+        </SleepCtx.Provider>
+      </StateCtx.Provider>
+    </ActionsCtx.Provider>
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components -- the hook belongs with its provider
-export function usePlayer(): PlayerValue {
-  return useContext(PlayerCtx)
+/* eslint-disable react-refresh/only-export-components -- the hooks belong with their provider */
+export function usePlayerActions(): PlayerActions {
+  return useContext(ActionsCtx)
+}
+
+export function usePlayerState(): PlayerStateValue {
+  return useContext(StateCtx)
+}
+
+export function useSleep(): SleepState {
+  return useContext(SleepCtx)
 }

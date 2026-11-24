@@ -8,7 +8,7 @@ import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
 import { focusOwnsKeys } from '../lib/keys'
 import { useLatest } from '../lib/useLatest'
-import { usePlayer } from '../player/PlayerContext'
+import { usePlayerActions, usePlayerState } from '../player/PlayerContext'
 import { useExportUi } from '../save/useExport'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
@@ -396,8 +396,8 @@ function ReaderSession({
     leftView.current = false
     setFollowing(on)
   }, [])
-  const player = usePlayer()
-  const phase = player.snapshot.phase
+  const { readFrom } = usePlayerActions()
+  const phase = usePlayerState().snapshot.phase
 
   const lineEl = (): Element | null =>
     scroller.current?.querySelector('[data-testid="sentence-highlight"]') ?? null
@@ -733,7 +733,7 @@ function ReaderSession({
           onRead={() => {
             const at = bubble.range[0]
             dismissBubble()
-            player.readFrom(at)
+            readFrom(at)
           }}
           onSave={() => {
             const r = bubble.range

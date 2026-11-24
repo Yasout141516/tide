@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover'
 import { useState } from 'react'
-import { usePlayer } from './PlayerContext'
+import { usePlayerActions, useSleep } from './PlayerContext'
 import { SLEEP_CHOICES, sleepLabel } from './sleep'
 
 const focus =
@@ -9,7 +9,8 @@ const trigger = `inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-[7
 
 /** The Sleep button, showing the live countdown, and its popover of stop-after choices. */
 export function SleepPopover({ disabled }: { disabled: boolean }): React.JSX.Element {
-  const { sleep, setSleep } = usePlayer()
+  const sleep = useSleep()
+  const { setSleep } = usePlayerActions()
   const [open, setOpen] = useState(false)
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>

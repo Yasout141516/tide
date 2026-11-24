@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover'
 import { SPEEDS, speedLabel, VOICES, voiceName, DEFAULT_VOICE } from '../../../shared/voices'
-import { usePlayer } from './PlayerContext'
+import { usePlayerActions, usePlayerState } from './PlayerContext'
 
 const focus =
   'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
@@ -9,7 +9,8 @@ const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify
 
 /** The voice & speed button and its popover: ten voices with a Listen each, then five speeds. */
 export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Element {
-  const { snapshot, chosenSpeed, setVoice, setSpeed, preview, stopPreview } = usePlayer()
+  const { snapshot, chosenSpeed } = usePlayerState()
+  const { setVoice, setSpeed, preview, stopPreview } = usePlayerActions()
   return (
     <Popover.Root onOpenChange={(open) => !open && stopPreview()}>
       <Popover.Trigger className={trigger} disabled={disabled}>

@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import type { ExportSpec } from '../../../shared/ipc-types'
 import type { ReadingView } from '../../../shared/library/types'
 import { voiceName } from '../../../shared/voices'
-import { usePlayer } from '../player/PlayerContext'
+import { usePlayerState } from '../player/PlayerContext'
 import { useReaderState } from '../reader/ReaderState'
 import { defaultBaseName, durationLabel, type SaveScope } from './names'
 import { buildExportSpec, exportSentences, TOO_LONG_MESSAGE, tooLongForOneFile } from './spec'
@@ -38,7 +38,7 @@ export function SavePanel({
   onSave(spec: ExportSpec, scopeLabel: string): void
 }): React.JSX.Element {
   const { sentences, page, numPages } = useReaderState()
-  const { snapshot, chosenSpeed, estimateSec } = usePlayer()
+  const { snapshot, chosenSpeed, estimateSec } = usePlayerState()
 
   const [kind, setKind] = useState<Kind>(range ? 'selection' : 'whole')
   const [from, setFrom] = useState(String(page))
