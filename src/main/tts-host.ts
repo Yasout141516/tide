@@ -246,6 +246,8 @@ export class TtsHost {
     return new Promise<TtsResponse>((resolve, reject) => {
       const pending: Pending = { resolve, reject, timer: null, arm: null }
       const arm = (): void => {
+        // A second `started` (the job resumed after stepping aside, R36) restarts the clock.
+        if (pending.timer) clearTimeout(pending.timer)
         pending.timer = setTimeout(() => {
           this.pending.delete(id)
           reject(new Error(timing.message(timing.timeoutMs)))

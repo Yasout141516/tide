@@ -39,8 +39,10 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     for (const chunk of chunks) {
       await d.yieldToMessages()
       // A waiting higher-priority job goes first; this job's remaining chunks resume after it.
-      await runHigher(msg.priority)
+      const stepped = await runHigher(msg.priority)
       if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
+      // R36: resuming after nested jobs, so the host restarts this job's timeout.
+      if (stepped) d.reply({ id: msg.id, type: 'started' })
       parts.push(await d.generate(chunk, msg.voice, msg.speed))
     }
     if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
@@ -72,8 +74,14 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     }
   }
 
-  async function runHigher(priority: Priority): Promise<void> {
-    for (let h = d.queue.nextAbove(priority); h; h = d.queue.nextAbove(priority)) await runOne(h)
+  /** Runs every waiting higher-priority job; true if it ran any. */
+  async function runHigher(priority: Priority): Promise<boolean> {
+    let ran = false
+    for (let h = d.queue.nextAbove(priority); h; h = d.queue.nextAbove(priority)) {
+      await runOne(h)
+      ran = true
+    }
+    return ran
   }
 
   let running = false

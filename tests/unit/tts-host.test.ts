@@ -159,6 +159,33 @@ describe('TtsHost v2', () => {
     }
   })
 
+  it('a second started for a pending job re-arms its timer (R36)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { host, child } = hostWith(loads)
+      await host.start()
+      const text = 'x'.repeat(1500)
+      let settled = false
+      const p = host.synthesize(text, OPTS).then(
+        () => (settled = true),
+        () => (settled = true)
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const synth = child().sent.find((m) => m.type === 'synthesize')!
+      child().respond({ id: synth.id, type: 'started' })
+      await vi.advanceTimersByTimeAsync(jobTimeoutMs(text) - 1000) // nearly out, stepping aside for live work
+      child().respond({ id: synth.id, type: 'started' }) // resumed
+      await vi.advanceTimersByTimeAsync(jobTimeoutMs(text) - 1)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await p
+      expect(settled).toBe(true)
+      host.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a job that hangs after started kills and respawns the worker, rejects pending jobs and reports restarting then ready', async () => {
     vi.useFakeTimers()
     try {

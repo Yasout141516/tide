@@ -72,6 +72,28 @@ describe('worker scheduler: priority between chunks (R35)', () => {
     expect(r.audioOf(live)).toEqual([1])
     expect(r.audioOf(exp)).toEqual([1, 2, 3]) // in order, complete
     expect(r.order()).toEqual([String(live.id), String(exp.id)]) // live answered first
+    expect(r.typeOf(exp)).toEqual(['started', 'started', 'audio']) // R36: started again on resuming
+  })
+
+  it('a preempted job re-posts started after the nested higher-priority jobs ran (R36)', async () => {
+    const r = rig()
+    const exp = job('e1|e2|e3', 'export')
+    const live = job('l1', 'live')
+    r.queue.push(exp)
+    r.onGenerate((c) => c === 'e1' && r.queue.push(live))
+    await r.pump()
+    expect(r.typeOf(exp)).toEqual(['started', 'started', 'audio'])
+    expect(r.typeOf(live)).toEqual(['started', 'audio'])
+    // the re-post comes after the live job's reply, before the export resumes
+    const seq = r.replies.map((x) => `${x.id}:${x.type}`)
+    expect(seq.indexOf(`${exp.id}:started`, 1)).toBeGreaterThan(seq.indexOf(`${live.id}:audio`))
+  })
+
+  it('a job that was never preempted posts started once', async () => {
+    const r = rig()
+    const exp = job('e1|e2', 'export')
+    r.queue.push(exp)
+    await r.pump()
     expect(r.typeOf(exp)).toEqual(['started', 'audio'])
   })
 
