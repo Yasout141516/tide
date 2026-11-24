@@ -5,7 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
 import { registerExportIpc, type ExportController } from './export/ipc'
-import { PlayingBlocker } from './playing'
+import { PlayingBlocker, releaseWhenRendererLost } from './playing'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
 import { registerLibraryIpc } from './library/ipc'
@@ -66,6 +66,7 @@ function createWindow(): BrowserWindow {
   libraryIpc?.attachWindow(win)
 
   win.on('ready-to-show', () => win.show())
+  releaseWhenRendererLost(win.webContents, playing)
 
   // macOS: closing the window hides it so playback keeps running.
   win.on('close', (e) => {
