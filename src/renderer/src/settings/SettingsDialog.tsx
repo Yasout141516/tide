@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { LookTab } from './LookTab'
+import { PronunciationTab } from './PronunciationTab'
 import { ReadingTab } from './ReadingTab'
 
 export type SettingsTab = 'look' | 'reading' | 'pronunciation'
@@ -76,7 +77,7 @@ function SettingsBody({
       <main className="min-h-0 overflow-y-auto px-6 py-5">
         {tab === 'look' ? <LookTab zoom={zoom} onZoomStep={onZoomStep} /> : null}
         {tab === 'reading' ? <ReadingTab /> : null}
-        {/* Slot: Task 7 renders <PronunciationTab /> here. */}
+        {tab === 'pronunciation' ? <PronunciationTab /> : null}
       </main>
     </div>
   )

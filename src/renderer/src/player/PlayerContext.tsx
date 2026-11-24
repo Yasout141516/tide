@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode
 } from 'react'
-import type { TtsStatus } from '../../../shared/ipc-types'
+import type { TtsAudio, TtsStatus } from '../../../shared/ipc-types'
 import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/library/types'
 import { DEFAULT_VOICE, voiceRate } from '../../../shared/voices'
 import { nextReading } from '../../../shared/library/shelf'
@@ -27,6 +27,7 @@ import {
 } from './engine'
 import { finishInLabel, finishInSpeed, readingSeconds } from './finish-in'
 import { HtmlAudioSink } from './sink'
+import { pcmToWav } from './wav'
 import { SleepTimer, type SleepOption, type SleepState } from './sleep'
 
 const SKIP_SEC = 15
@@ -68,6 +69,8 @@ export interface PlayerActions {
   refreshAudio(): void
   /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
   preview(id: string): void
+  /** Pause the reading (it stays paused) and play a clip she just had made (a pronunciation check). */
+  previewClip(audio: TtsAudio): void
   /** Stop a running preview (the popover closing). */
   stopPreview(): void
   setSleep(o: SleepOption): void
@@ -107,6 +110,7 @@ const NOOP_ACTIONS: PlayerActions = {
   setSpeed: () => {},
   refreshAudio: () => {},
   preview: () => {},
+  previewClip: () => {},
   stopPreview: () => {},
   setSleep: () => {},
   playNext: () => {},
@@ -441,9 +445,13 @@ export function PlayerProvider({
 
   // --- Preview: a second element, so the reading's own audio is never touched -----------------
   const previewing = useRef<PreviewAudio | null>(null)
+  /** Frees the running clip's object URL, if it has one. */
+  const releaseClip = useRef<(() => void) | null>(null)
   const stopPreview = useCallback(() => {
     previewing.current?.pause()
     previewing.current = null
+    releaseClip.current?.()
+    releaseClip.current = null
   }, [])
   useEffect(() => stopPreview, [stopPreview])
 
@@ -466,77 +474,98 @@ export function PlayerProvider({
   // --- Actions: stable for the engine's lifetime; everything else is read through refs --------
   const live = useLatest({ timer, current, finished })
   const actions = useMemo<PlayerActions>(
-    () => ({
-      play: () => {
-        autoplayFor.current = null
-        stopPreview()
-        engine?.play()
-      },
-      pause: () => {
-        autoplayFor.current = null
-        engine?.pause()
-      },
-      toggle: () => {
-        autoplayFor.current = null
-        const ph = engine?.snapshot().phase
-        if (!isListening(ph)) stopPreview()
-        engine?.toggle()
-      },
-      skip: (d) => {
-        stopPreview()
-        engine?.skip(d)
-      },
-      readFrom: (i) => {
-        if (!engine) return
-        stopPreview()
-        engine.setIndex(i)
-        engine.play()
-      },
-      setVoice: (id) => {
-        if (!engine) return
-        engine.setVoice(id)
-        void tide()
-          .library.setVoice(id, latestProps.current.snapshot?.settings.speed ?? 1)
-          .catch(() => {})
-      },
-      setSpeed: (s) => {
-        if (!engine) return
-        const f = finRef.current.fin
-        engine.setSpeed(f ? Math.max(s, f.speed) : s)
-        void tide()
-          .library.setVoice(engine.snapshot().voice, s)
-          .catch(() => {})
-      },
-      refreshAudio: () => engine?.refreshAudio(),
-      preview: (id) => {
+    () => {
+      /** Pause the reading, then play one url on the preview element; `release` runs when it ends or is stopped. */
+      const startPreview = (url: string, release?: () => void): void => {
         const ph = engine?.snapshot().phase
         if (isListening(ph)) engine?.pause()
         stopPreview()
-        const url = `./voice-previews/${id}.mp3`
         const a = deps.makePreview ? deps.makePreview(url) : htmlPreview(url)
         previewing.current = a
+        let freed = false
+        const free = (): void => {
+          if (freed) return
+          freed = true
+          release?.()
+        }
+        releaseClip.current = free
         a.onEnded?.(() => {
-          if (previewing.current === a) previewing.current = null
+          if (previewing.current === a) {
+            previewing.current = null
+            releaseClip.current = null
+          }
+          free()
         })
         void Promise.resolve(a.play()).catch(() => {})
-      },
-      stopPreview,
-      playNext: () => {
-        const next = live.current.finished?.next
-        if (!next) return
-        setOffer({ next, dismissed: true })
-        autoplayFor.current = next.id
-        if (latestProps.current.onPlayNext(next.id) === false) autoplayFor.current = null
-      },
-      dismissFinished: () => {
-        autoplayFor.current = null
-        setOffer((o) => (o ? { ...o, dismissed: true } : o))
-      },
-      setSleep: (o) => {
-        const at = engine?.snapshot().index ?? live.current.current ?? 0
-        live.current.timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)
       }
-    }),
+      return {
+        play: () => {
+          autoplayFor.current = null
+          stopPreview()
+          engine?.play()
+        },
+        pause: () => {
+          autoplayFor.current = null
+          engine?.pause()
+        },
+        toggle: () => {
+          autoplayFor.current = null
+          const ph = engine?.snapshot().phase
+          if (!isListening(ph)) stopPreview()
+          engine?.toggle()
+        },
+        skip: (d) => {
+          stopPreview()
+          engine?.skip(d)
+        },
+        readFrom: (i) => {
+          if (!engine) return
+          stopPreview()
+          engine.setIndex(i)
+          engine.play()
+        },
+        setVoice: (id) => {
+          if (!engine) return
+          engine.setVoice(id)
+          void tide()
+            .library.setVoice(id, latestProps.current.snapshot?.settings.speed ?? 1)
+            .catch(() => {})
+        },
+        setSpeed: (s) => {
+          if (!engine) return
+          const f = finRef.current.fin
+          engine.setSpeed(f ? Math.max(s, f.speed) : s)
+          void tide()
+            .library.setVoice(engine.snapshot().voice, s)
+            .catch(() => {})
+        },
+        refreshAudio: () => engine?.refreshAudio(),
+        preview: (id) => startPreview(`./voice-previews/${id}.mp3`),
+        previewClip: (clip) => {
+          const make =
+            deps.makeUrl ?? ((wav) => URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })))
+          const revoke = deps.revokeUrl ?? ((u) => URL.revokeObjectURL(u))
+          const url = make(pcmToWav(clip.pcm, clip.sampleRate))
+          startPreview(url, () => revoke(url))
+        },
+        stopPreview,
+        playNext: () => {
+          const next = live.current.finished?.next
+          if (!next) return
+          setOffer({ next, dismissed: true })
+          autoplayFor.current = next.id
+          if (latestProps.current.onPlayNext(next.id) === false) autoplayFor.current = null
+        },
+        dismissFinished: () => {
+          autoplayFor.current = null
+          setOffer((o) => (o ? { ...o, dismissed: true } : o))
+        },
+        setSleep: (o) => {
+          const at = engine?.snapshot().index ?? live.current.current ?? 0
+          live.current.timer?.set(o, sentencesRef.current[at]?.spans[0]?.page ?? 0)
+        }
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is a fixed test seam; the rest are refs or stable
     [engine]
   )
