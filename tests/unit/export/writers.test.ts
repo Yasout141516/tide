@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ffmpegHasMp3, ffmpegPath } from '../../../src/main/audio-export'
+import { ffmpegHasMp3 } from '../../../src/main/audio-export'
+import { ffmpegPath } from '../../../src/main/export/ffmpeg'
 import { createM4bWriter, createMp3Writer } from '../../../src/main/export/writers'
 
 const sine = (sec: number): Float32Array =>

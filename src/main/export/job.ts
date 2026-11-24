@@ -1,6 +1,7 @@
 // One export run: synthesise the sentences one at a time at export priority and feed a writer.
-import type { Chapter } from '../audio-export'
+import type { Chapter } from './ffmpeg'
 import { SAMPLE_RATE } from '../../shared/pcm'
+import { makeAbortError } from '../../shared/abort'
 import type { ExportSpec, TtsAudio } from '../../shared/ipc-types'
 import type { TtsSynthesizeOptions } from '../tts-host'
 import type { AudioWriter } from './writers'
@@ -16,7 +17,7 @@ export interface ExportDeps {
   writer: AudioWriter
 }
 
-const abortError = (): Error => Object.assign(new Error('export cancelled'), { name: 'AbortError' })
+const abortError = (): Error => makeAbortError('export cancelled')
 
 /**
  * Resolves once the writer has finished the file. On abort or any failure it cancels the generation,

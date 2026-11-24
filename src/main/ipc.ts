@@ -5,7 +5,8 @@ import type { ExportM4bResult, TtsAudio } from '../shared/ipc-types'
 import { SAMPLE_RATE } from '../shared/pcm'
 import { DEFAULT_VOICE, VOICE_IDS } from '../shared/voices'
 import type { TtsHost } from './tts-host'
-import { assembleChapters, exportM4b, ffmpegHasMp3 } from './audio-export'
+import { assembleChapters, ffmpegHasMp3 } from './audio-export'
+import { createM4bWriter } from './export/writers'
 
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
 export function registerIpc(
@@ -85,13 +86,18 @@ async function exportTwoPageM4b(host: TtsHost, outPath: string): Promise<ExportM
     pages.map((_, i) => `Page ${i + 1}`)
   )
   const t0 = performance.now()
-  await exportM4b(
-    pcm,
-    SAMPLE_RATE,
-    chapters,
+  const writer = createM4bWriter(
+    outPath,
     { title: 'Tide smoke', album: 'Tide smoke', artist: 'Tide' },
-    outPath
+    new AbortController().signal
   )
+  try {
+    await writer.write(pcm)
+    await writer.finish(chapters)
+  } catch (err) {
+    await writer.abort()
+    throw err
+  }
   return {
     audioSec: pcm.length / SAMPLE_RATE,
     chapters: chapters.length,

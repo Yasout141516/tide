@@ -1,4 +1,5 @@
 import type { TtsAudio, TtsStatus } from '../../../shared/ipc-types'
+import { isAbortError } from '../../../shared/abort'
 import { firstClips } from './clips'
 import { Timeline } from './timeline'
 import { pcmToWav } from './wav'
@@ -72,10 +73,6 @@ interface Entry {
   urls: (string | undefined)[]
   /** Real duration per clip once arrived. */
   secs: (number | undefined)[]
-}
-
-function isAbort(e: unknown): boolean {
-  return typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError'
 }
 
 function clamp(i: number, n: number): number {
@@ -389,7 +386,7 @@ export class PlayerEngine {
   }
 
   private onFail(i: number, entry: Entry, err: unknown): void {
-    if (isAbort(err) || this.disposed || this.entries.get(i) !== entry) return
+    if (isAbortError(err) || this.disposed || this.entries.get(i) !== entry) return
     void this.deps.tts
       .status()
       .catch((): TtsStatus => 'failed')

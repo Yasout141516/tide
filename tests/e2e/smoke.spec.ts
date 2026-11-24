@@ -2,7 +2,7 @@ import { execFileSync } from 'child_process'
 import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { test, expect } from '@playwright/test'
-import { ffmpegPath } from '../../src/main/audio-export'
+import { ffmpegPath } from '../../src/main/export/ffmpeg'
 import type {
   ExportM4bResult,
   SynthesizeOptions,

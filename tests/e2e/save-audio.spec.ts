@@ -4,7 +4,7 @@ import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { ffmpegPath } from '../../src/main/audio-export'
+import { ffmpegPath } from '../../src/main/export/ffmpeg'
 import { addFixtureReading, highlightIds } from './helpers'
 import { launchTide } from './launch'
 

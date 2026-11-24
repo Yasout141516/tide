@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { concatPcm, SAMPLE_RATE, toS16le } from '../src/shared/pcm'
 import { PREVIEW_SENTENCE, VOICES } from '../src/shared/voices'
-import { ffmpegPath } from '../src/main/audio-export'
+import { ffmpegBaseArgs, ffmpegPath, pcmInputArgs } from '../src/main/export/ffmpeg'
 import { blockNetwork, configureOffline, MODEL_ID, speechChunks } from '../src/tts/engine'
 
 const ROOT = resolve(__dirname, '..')
@@ -26,25 +26,7 @@ async function encodeMp3(pcm: Float32Array, outPath: string): Promise<void> {
   writeFileSync(raw, toS16le(pcm))
   await run(
     ffmpegPath(),
-    [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-y',
-      '-f',
-      's16le',
-      '-ar',
-      String(SAMPLE_RATE),
-      '-ac',
-      '1',
-      '-i',
-      raw,
-      '-ac',
-      '1',
-      '-b:a',
-      '64k',
-      outPath
-    ],
+    [...ffmpegBaseArgs, ...pcmInputArgs(raw), '-ac', '1', '-b:a', '64k', outPath],
     { windowsHide: true }
   )
 }

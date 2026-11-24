@@ -3,19 +3,44 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  assembleChapters,
-  exportM4b,
-  exportMp3,
-  ffmpegHasMp3,
-  ffmpegPath
-} from '../../src/main/audio-export'
+import { assembleChapters, ffmpegHasMp3 } from '../../src/main/audio-export'
+import { ffmpegPath, type AudioMeta, type Chapter } from '../../src/main/export/ffmpeg'
+import { createM4bWriter, createMp3Writer, type AudioWriter } from '../../src/main/export/writers'
 
 // Runs the real ffmpeg-static binary in plain Node.
 const sine = (sec: number): Float32Array =>
   Float32Array.from({ length: 24000 * sec }, (_, i) => 0.2 * Math.sin(i / 10))
 const meta = { title: 'Working Memory', album: 'PSYC 201 readings', artist: 'Tide' }
 const hasMp3 = await ffmpegHasMp3()
+
+/** Feed one whole buffer through a writer; any failure aborts it (deleting its files). */
+async function writeWhole(
+  writer: AudioWriter,
+  pcm: Float32Array,
+  chapters: Chapter[]
+): Promise<void> {
+  try {
+    await writer.write(pcm)
+    await writer.finish(chapters)
+  } catch (err) {
+    await writer.abort()
+    throw err
+  }
+}
+const exportM4b = (
+  pcm: Float32Array,
+  _rate: number,
+  chapters: Chapter[],
+  m: AudioMeta,
+  outPath: string,
+  signal: AbortSignal = new AbortController().signal
+): Promise<void> => writeWhole(createM4bWriter(outPath, m, signal), pcm, chapters)
+const exportMp3 = (
+  pcm: Float32Array,
+  _rate: number,
+  m: AudioMeta,
+  outPath: string
+): Promise<void> => writeWhole(createMp3Writer(outPath, m, new AbortController().signal), pcm, [])
 
 /** The file's metadata (global tags and chapters) as ffmpeg reads it back. */
 const readMeta = (file: string): string =>

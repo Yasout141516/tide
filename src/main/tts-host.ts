@@ -1,6 +1,7 @@
 import { utilityProcess, type ForkOptions } from 'electron'
 import type { SynthesizeOptions, TtsAudio, TtsLoadResult, TtsStatus } from '../shared/ipc-types'
 import { DEFAULT_VOICE } from '../shared/voices'
+import { makeAbortError } from '../shared/abort'
 import type { Priority, TtsRequest, TtsResponse } from '../tts/protocol'
 
 /** The part of Electron's UtilityProcess the host uses (a fake implements it in unit tests). */
@@ -219,7 +220,7 @@ export class TtsHost {
       if (p.timer) clearTimeout(p.timer)
       if (res.type === 'error') p.reject(new Error(res.message))
       else if (res.type === 'cancelled') {
-        p.reject(Object.assign(new Error('synthesis cancelled'), { name: 'AbortError' }))
+        p.reject(makeAbortError('synthesis cancelled'))
       } else p.resolve(res)
     })
     // Must be handled: an 'error' with no listener would throw ERR_UNHANDLED_ERROR in main.

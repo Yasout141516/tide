@@ -8,14 +8,16 @@ import { rename, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { SAMPLE_RATE, toS16le } from '../../shared/pcm'
+import { makeAbortError } from '../../shared/abort'
 import {
-  abortError,
   ffmetadata,
+  ffmpegBaseArgs,
   ffmpegPath,
+  pcmInputArgs,
   setChapterTrackLanguage,
   type AudioMeta,
   type Chapter
-} from '../audio-export'
+} from './ffmpeg'
 
 export interface AudioWriter {
   /** Append PCM (24 kHz mono). Resolves once ffmpeg has taken it (backpressure). */
@@ -41,7 +43,7 @@ class FfmpegRun {
   private readonly child: ChildProcess
 
   constructor(args: string[], stdin: boolean) {
-    this.child = spawn(ffmpegPath(), ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
+    this.child = spawn(ffmpegPath(), [...ffmpegBaseArgs, ...args], {
       stdio: [stdin ? 'pipe' : 'ignore', 'ignore', 'pipe'],
       windowsHide: true
     })
@@ -140,7 +142,9 @@ async function publish(part: string, outPath: string, aborted: () => boolean): P
   }
 }
 
-const pcmInput = ['-f', 's16le', '-ar', String(SAMPLE_RATE), '-ac', '1', '-i', 'pipe:0']
+const abortError = (): Error => makeAbortError('export aborted')
+
+const pcmInput = pcmInputArgs()
 
 export function createMp3Writer(
   outPath: string,
