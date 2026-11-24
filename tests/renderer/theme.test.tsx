@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/react'
 import { act } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { ThemeRoot } from '../../src/renderer/src/theme/ThemeRoot'
 import { isDarkTheme, resolveTheme } from '../../src/renderer/src/theme/theme'
 import { setTide } from '../../src/renderer/src/lib/tide'
@@ -18,6 +18,11 @@ async function mount(over: Partial<LibrarySettings>): Promise<void> {
 const attr = (n: 'theme' | 'darkPages'): string | undefined => document.documentElement.dataset[n]
 
 describe('theme engine', () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme
+    delete document.documentElement.dataset.darkPages
+  })
+
   it('resolves system to deep-sea when the OS is dark and sky-sea when light', () => {
     expect(resolveTheme('system', true)).toBe('deep-sea')
     expect(resolveTheme('system', false)).toBe('sky-sea')
@@ -52,5 +57,20 @@ describe('theme engine', () => {
   it('dark pages flag is false for a light theme even with darkPages on', async () => {
     await mount({ theme: 'sky-sea', darkPages: true })
     expect(attr('darkPages')).toBe('false')
+  })
+
+  it('system with a dark OS and darkPages on sets dark pages', async () => {
+    await mount({ theme: 'system', darkPages: true })
+    await act(async () => setOsDark(true))
+    expect(attr('theme')).toBe('deep-sea')
+    expect(attr('darkPages')).toBe('true')
+  })
+
+  it('uses the initial theme from main before the library snapshot arrives', async () => {
+    const t = fakeTide({ initialTheme: 'deep-sea' })
+    t.library.get = () => new Promise(() => {})
+    setTide(t)
+    render(<ThemeRoot />)
+    expect(attr('theme')).toBe('deep-sea')
   })
 })

@@ -1,5 +1,6 @@
 import type { ThemeId } from '../../../shared/library/types'
 import { useLibrary } from '../state/useLibrary'
+import { tide } from '../lib/tide'
 import { useMediaQuery } from '../shell/useMediaQuery'
 
 export type ResolvedTheme = Exclude<ThemeId, 'system'>
@@ -18,7 +19,8 @@ export function isDarkTheme(t: ResolvedTheme): boolean {
 export function useTheme(): { id: ThemeId; resolved: ResolvedTheme; dark: boolean } {
   const library = useLibrary()
   const osDark = useMediaQuery('(prefers-color-scheme: dark)')
-  const id = library?.settings.theme ?? 'sky-sea'
+  // Until the first snapshot arrives, the theme main painted the window with.
+  const id = library ? library.settings.theme : tide().initialTheme
   const resolved = resolveTheme(id, osDark)
   return { id, resolved, dark: isDarkTheme(resolved) }
 }

@@ -1,3 +1,4 @@
+import { resolveInitialTheme, windowBackground } from './window-bg'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
@@ -42,18 +43,13 @@ app.on('open-file', (e, path) => {
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
 
-// The window's first-paint colour: the stored theme's --bg (tokens.css), so a dark user sees no white flash.
-const BG = { 'sky-sea': '#f2f9ff', 'deep-sea': '#0b1d2c' } as const
-function windowBackground(): string {
-  const id = library?.snapshot().settings.theme ?? 'sky-sea'
-  if (id === 'system') return nativeTheme.shouldUseDarkColors ? BG['deep-sea'] : BG['sky-sea']
-  return id === 'deep-sea' ? BG['deep-sea'] : BG['sky-sea']
-}
-
 function createWindow(): BrowserWindow {
+  // The library is open before any window is made, so the stored theme paints from the first frame.
+  const stored = library?.snapshot().settings.theme
+  const initialTheme = resolveInitialTheme(stored, nativeTheme.shouldUseDarkColors)
   const win = new BrowserWindow({
     title: 'Tide',
-    backgroundColor: windowBackground(),
+    backgroundColor: windowBackground(stored, nativeTheme.shouldUseDarkColors),
     // Content size: the shelf needs 1100 px of content to sit beside the page, so don't count the frame.
     useContentSize: true,
     width: 1200,
@@ -69,7 +65,7 @@ function createWindow(): BrowserWindow {
       sandbox: true,
       backgroundThrottling: false,
       // The sandboxed preload reads this from process.argv to expose test-only hooks.
-      additionalArguments: e2e ? ['--tide-e2e'] : []
+      additionalArguments: [`--tide-theme=${initialTheme}`, ...(e2e ? ['--tide-e2e'] : [])]
     }
   })
   mainWindow = win

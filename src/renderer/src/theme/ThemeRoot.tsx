@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import { useLibrary } from '../state/useLibrary'
 import { useTheme } from './theme'
 
@@ -6,7 +6,7 @@ import { useTheme } from './theme'
 export function ThemeRoot(): null {
   const { resolved, dark } = useTheme()
   const darkPages = useLibrary()?.settings.darkPages ?? true
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme = resolved
     root.dataset.darkPages = String(dark && darkPages)

@@ -89,7 +89,11 @@ type Call = Record<string, unknown[][]>
  * fire `onChanged`; install it with `setTide()`. `emit` plays a menu command; `calls` records every call.
  */
 export function fakeTide(
-  init: { snapshot?: Partial<LibrarySnapshot>; platform?: string } = {}
+  init: {
+    snapshot?: Partial<LibrarySnapshot>
+    platform?: string
+    initialTheme?: TideApi['initialTheme']
+  } = {}
 ): TideApi & { emit(c: AppCommand): void; emitExport(e: ExportEvent): void; calls: Call } {
   let snap: LibrarySnapshot = {
     courses: [],
@@ -130,6 +134,7 @@ export function fakeTide(
 
   return {
     platform: init.platform ?? 'win32',
+    initialTheme: init.initialTheme ?? 'sky-sea',
     ready: fn('ready', () => undefined),
     onCommand: (cb) => {
       commands.add(cb)
