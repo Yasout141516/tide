@@ -17,12 +17,13 @@ export interface ToastSpec {
 }
 
 interface ToastApi {
-  show(t: ToastSpec): void
-  /** Remove whatever toast is showing. */
-  dismiss(): void
+  /** Returns the key of the toast now showing it (an identical one already showing keeps its key). */
+  show(t: ToastSpec): number
+  /** Remove the toast with this key if it is still showing; with no key, whatever toast is showing. */
+  dismiss(key?: number): void
 }
 
-const NONE: ToastApi = { show: () => {}, dismiss: () => {} }
+const NONE: ToastApi = { show: () => 0, dismiss: () => {} }
 const ToastCtx = createContext<ToastApi>(NONE)
 
 const actionButton =
@@ -32,25 +33,39 @@ const actionButton =
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [toast, setToast] = useState<(ToastSpec & { key: number }) | null>(null)
   const counter = useRef(0)
-  const show = useCallback((t: ToastSpec): void => {
-    setToast((prev) => {
-      // The same message is not announced twice; a sticky one is never pushed aside by a passing one.
-      if (prev && prev.text === t.text) return prev
-      if (prev && prev.ms === Infinity && t.ms !== Infinity) return prev
-      counter.current = Math.max(counter.current, prev?.key ?? 0) + 1
-      return { ...t, key: counter.current }
-    })
+  // What is showing, kept in step with the state so show/dismiss can answer synchronously.
+  const shown = useRef<(ToastSpec & { key: number }) | null>(null)
+  const put = useCallback((t: (ToastSpec & { key: number }) | null): void => {
+    shown.current = t
+    setToast(t)
   }, [])
-  const dismiss = useCallback((): void => setToast(null), [])
+  const show = useCallback(
+    (t: ToastSpec): number => {
+      const prev = shown.current
+      // The same message is not announced twice; a sticky one is never pushed aside by a passing one.
+      if (prev && prev.text === t.text) return prev.key
+      if (prev && prev.ms === Infinity && t.ms !== Infinity) return prev.key
+      counter.current += 1
+      put({ ...t, key: counter.current })
+      return counter.current
+    },
+    [put]
+  )
+  const dismiss = useCallback(
+    (key?: number): void => {
+      if (key === undefined || shown.current?.key === key) put(null)
+    },
+    [put]
+  )
   const api = useMemo<ToastApi>(() => ({ show, dismiss }), [show, dismiss])
 
   const key = toast?.key
   const ms = toast?.ms ?? 6000
   useEffect(() => {
     if (key === undefined || !Number.isFinite(ms)) return
-    const id = setTimeout(() => setToast(null), ms)
+    const id = setTimeout(() => put(null), ms)
     return () => clearTimeout(id)
-  }, [key, ms])
+  }, [key, ms, put])
 
   return (
     <ToastCtx.Provider value={api}>
@@ -72,7 +87,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
                 type="button"
                 className={actionButton}
                 onClick={() => {
-                  setToast(null)
+                  put(null)
                   a.onClick()
                 }}
               >

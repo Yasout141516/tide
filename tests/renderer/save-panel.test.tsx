@@ -42,7 +42,13 @@ afterEach(() => window.getSelection()?.removeAllRanges())
 type FakeTide = ReturnType<typeof fakeTide>
 
 async function open(
-  opts: { platform?: string; pages?: PageText[]; speed?: number; title?: string } = {}
+  opts: {
+    platform?: string
+    pages?: PageText[]
+    speed?: number
+    title?: string
+    beforeRender?: (t: FakeTide) => void
+  } = {}
 ): Promise<FakeTide> {
   const t = fakeTide({
     platform: opts.platform,
@@ -52,6 +58,7 @@ async function open(
       ui: { collapsed: [], tipsSeen: ['select-text'] }
     }
   })
+  opts.beforeRender?.(t)
   setTide(t)
   renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(opts.pages ?? bodyPages(3)) }))
   await userEvent.click(
@@ -349,6 +356,26 @@ describe('Save as audio fix round 1', () => {
     expect(screen.queryByText(/Couldn't save the audio/)).toBeNull()
     act(() => t.emitExport({ jobId: 'j2', kind: 'saved', fileName: 'Later.m4b' }))
     expect(await screen.findByText('✓ Saved “Later.m4b”')).toBeTruthy()
+  })
+
+  it('starting an export leaves an unrelated sticky toast alone', async () => {
+    let emit: (s: 'failed') => void = () => {}
+    const t = await open({
+      beforeRender: (x) => {
+        x.tts.onStatus = ((cb: (s: 'failed') => void) => {
+          emit = cb
+          return () => {}
+        }) as typeof x.tts.onStatus
+      }
+    })
+    act(() => emit('failed'))
+    await screen.findByText('The voice stopped unexpectedly.')
+    fakeStart(t, (n) => ({ jobId: `j${n}` }))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    await screen.findByText('Making your audio…')
+    expect(screen.getByRole('button', { name: 'Restart Tide' })).toBeTruthy()
+    expect(screen.getByText('The voice stopped unexpectedly.')).toBeTruthy()
   })
 
   it('a stale Try again never clobbers a running job', async () => {

@@ -70,6 +70,14 @@ export function ExportProvider({
   }, [])
 
   const toastRef = useLatest(toast)
+  // The key of the last toast this provider showed, so starting a job removes only that one.
+  const ownToast = useRef<number | null>(null)
+  const showOwn = useCallback(
+    (t: Parameters<typeof toast.show>[0]): void => {
+      ownToast.current = toastRef.current.show(t)
+    },
+    [toastRef]
+  )
 
   // showFailure's retry actions call the latest `start`, which is defined below it.
   const startRef = useRef<StartFn | null>(null)
@@ -77,7 +85,7 @@ export function ExportProvider({
   const showFailure = useCallback(
     (spec: ExportSpec, label: string, reason: ExportFailure): void => {
       const again = (folder: boolean) => (): void => void startRef.current?.(spec, label, folder)
-      toastRef.current.show({
+      showOwn({
         text: `Couldn't save the audio: ${REASONS[reason]}.`,
         ms: Infinity,
         actions: [
@@ -86,18 +94,18 @@ export function ExportProvider({
         ]
       })
     },
-    [toastRef]
+    [showOwn]
   )
 
   const start = useCallback<StartFn>(
     async (spec, label, chooseFolder = false) => {
       // A stale toast's action (or anything else) never overwrites a running job.
       if (jobRef.current) {
-        toast.show({ text: BUSY })
+        showOwn({ text: BUSY })
         return
       }
-      // A new job replaces whatever the last one left on screen (a sticky failure toast).
-      toast.dismiss()
+      // A new job replaces what the last one left on screen (a sticky failure toast), nothing else.
+      if (ownToast.current !== null) toast.dismiss(ownToast.current)
       // Busy from the moment of asking: the folder dialog and a quick event can both come first.
       set({ id: null, label, percent: 0, spec })
       // Events may replace the job across the awaits below, so read it afresh each time.
@@ -116,9 +124,9 @@ export function ExportProvider({
         return
       }
       if (live.current?.spec === spec) set(null)
-      if ('busy' in r) toast.show({ text: BUSY })
+      if ('busy' in r) showOwn({ text: BUSY })
     },
-    [set, toast, showFailure]
+    [set, toast, showFailure, showOwn]
   )
   useEffect(() => {
     startRef.current = start
@@ -135,9 +143,8 @@ export function ExportProvider({
           return
         }
         set(null)
-        const t = toastRef.current
         if (e.kind === 'saved') {
-          t.show({
+          showOwn({
             text: `✓ Saved “${e.fileName}”`,
             actions: [
               {
@@ -147,16 +154,16 @@ export function ExportProvider({
             ]
           })
         } else if (e.kind === 'failed') showFailure(cur.spec, cur.label, e.reason)
-        else t.show({ text: 'Audio not saved.' })
+        else showOwn({ text: 'Audio not saved.' })
       }),
-    [set, showFailure, toastRef]
+    [set, showFailure, showOwn]
   )
 
   const busy = job !== null
   const ui = useMemo<ExportUi>(
     () => ({
       openPanel: (range) => {
-        if (jobRef.current) toastRef.current.show({ text: BUSY })
+        if (jobRef.current) showOwn({ text: BUSY })
         else setPanel({ range: range ?? null })
       },
       progress: job ? (
@@ -170,7 +177,7 @@ export function ExportProvider({
         />
       ) : null
     }),
-    [job, toastRef]
+    [job, showOwn]
   )
 
   return (
