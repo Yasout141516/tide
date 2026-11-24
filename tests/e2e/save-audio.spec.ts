@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
@@ -12,8 +12,12 @@ import { launchTide } from './launch'
 test.setTimeout(240_000)
 const SAVE_MS = 150_000
 
-/** Pages of listen.pdf that have spoken sentences (tests/fixtures/pdfs/listen.json: all three). */
-const LISTEN_PAGES_WITH_TEXT = 3
+/** Pages of listen.pdf that have spoken sentences, from its fixture sidecar (not pageCount). */
+const LISTEN_PAGES_WITH_TEXT = (
+  JSON.parse(
+    readFileSync(resolve(__dirname, '..', 'fixtures', 'pdfs', 'listen.json'), 'utf8')
+  ) as { pages: { spoken: string }[] }
+).pages.filter((p) => p.spoken.trim() !== '').length
 
 const resultsDir = resolve(__dirname, '..', '..', 'test-results')
 
@@ -78,6 +82,10 @@ const phase = (win: Page): Promise<string | null> =>
 test('select text, Save as audio, saves an MP3 with tags', async () => {
   const { app, win, dir } = await launch('listen.pdf')
   await dragSelect(win, 0, 1)
+  // The drag covers all of sentence 0 and the start of sentence 1 ("Gulls followed ...").
+  const selected = await win.evaluate(() => String(window.getSelection()))
+  expect(selected).toContain('one by one.')
+  expect(selected).toContain('Gulls followed')
   await bubbleButton(win, 'Save as audio').click()
   const panel = win.getByRole('dialog', { name: 'Save as audio' })
   await expect(panel.getByRole('radio', { name: /The text I selected/ })).toBeChecked()
@@ -90,8 +98,8 @@ test('select text, Save as audio, saves an MP3 with tags', async () => {
   expect(out.some((f) => f.endsWith('.part'))).toBe(false)
   const info = probe(join(dir, out[0]))
   expect(durationSec(info)).toBeGreaterThan(1)
-  expect(info).toMatch(/title\s*:/)
-  expect(info).toContain('Tide · Emma')
+  expect(info).toMatch(/title\s*:\s*\S/)
+  expect(info).toMatch(/artist\s*:\s*Tide · Emma/)
   console.log(`selection mp3: ${durationSec(info)} s of audio`)
   await app.close()
 })
@@ -123,6 +131,7 @@ test('the whole reading saves an audiobook with one chapter per page with text',
   // CI's macOS job checks this file's chapters with AVFoundation (scripts/check-chapters.swift).
   mkdirSync(resultsDir, { recursive: true })
   copyFileSync(m4b, join(resultsDir, 'whole.m4b'))
+  writeFileSync(join(resultsDir, 'whole.chapters'), String(LISTEN_PAGES_WITH_TEXT))
   await app.close()
 })
 
@@ -178,6 +187,7 @@ test('Read from here starts at the selected sentence', async () => {
   await dragSelect(win, 1, 1)
   await bubbleButton(win, 'Read from here').click()
   await expect.poll(() => phase(win), { timeout: 90_000 }).toBe('playing')
-  expect(Number((await highlightIds(win))[0])).toBeGreaterThanOrEqual(1)
+  // The first sentence spoken is the one the drag started in (sentence 1), not a later one.
+  expect(await highlightIds(win)).toEqual(['1'])
   await app.close()
 })

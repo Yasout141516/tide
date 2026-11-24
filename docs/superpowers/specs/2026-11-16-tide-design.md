@@ -568,6 +568,7 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - The Save panel's duration estimates describe the saved file. "Try again" re-sends the export, "Choose another folder" asks for one and saves straight into it, and a second export while one runs says "Tide is still making your last audio." (R28, R30).
 - Exports are mono MP3 at 64 kbps; whole readings are `.m4b` with one chapter per page that has text, named `Page N` (R29).
 - The implementer runs everything except the push; the controller pushes the feature branch (R31).
+- The CI jump limit is the larger of 6 s and twice the same run's first audio; locally 4.5 s (R32).
 
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*

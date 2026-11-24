@@ -188,15 +188,17 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           # M5: the audiobook the "Save as audio" e2e makes from the whole listen.pdf reading
-          # (one chapter per page with text: 3 pages, all with sentences).
+          # (one chapter per page with text).
+          # The expected count is written by the e2e from tests/fixtures/pdfs/listen.json.
+          whole_n=$(cat test-results/whole.chapters)
           rc2=0
-          swift scripts/check-chapters.swift test-results/whole.m4b 3 > check-chapters-whole.txt 2>&1 || rc2=$?
+          swift scripts/check-chapters.swift test-results/whole.m4b "$whole_n" > check-chapters-whole.txt 2>&1 || rc2=$?
           cat check-chapters-whole.txt
           {
             echo '### M5: AVFoundation chapter check on a saved whole reading'
             echo
             echo '```'
-            echo '$ swift scripts/check-chapters.swift test-results/whole.m4b 3'
+            echo "\$ swift scripts/check-chapters.swift test-results/whole.m4b $whole_n"
             cat check-chapters-whole.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
