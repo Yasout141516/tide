@@ -19,11 +19,10 @@ import { ReaderStateProvider, useReaderState } from './reader/ReaderState'
 import { FileMovedDialog } from './reading/FileMovedDialog'
 import { RenameDialog } from './reading/RenameDialog'
 import { RemoveDialog } from './reading/RemoveDialog'
+import { useZoom } from './lib/useZoom'
+import { SettingsDialog } from './settings/SettingsDialog'
 import { ThemeRoot } from './theme/ThemeRoot'
 import { ExportProgressSlot, ExportProvider, useExportUi } from './save/useExport'
-
-const ZOOM_MIN = 0.8
-const ZOOM_MAX = 2.0
 
 function App(): React.JSX.Element {
   // useLibrary also calls tide().ready() once the first snapshot has loaded.
@@ -64,31 +63,14 @@ function App(): React.JSX.Element {
   const add = adding.start
   // Menu commands. `start` is read through a ref so the subscription is made once.
   const startRef = useRef(adding.start)
-  const zoomRef = useRef(1)
-  const libZoomRef = useRef(1)
-  /** Zoom values sent to main whose snapshot has not come back yet, oldest first. */
-  const sentZooms = useRef<number[]>([])
+  const { zoom, step: stepZoom } = useZoom(library)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const pickRef = useRef(adding.handlePick)
   const failedRef = useRef(adding.openFailed)
   useEffect(() => {
     startRef.current = adding.start
     pickRef.current = adding.handlePick
     failedRef.current = adding.openFailed
-    // A held key sends steps faster than snapshots arrive. A snapshot that echoes a value we sent only
-    // retires it (our newer steps stay ahead); any other change is adopted.
-    const libZoom = library?.settings.zoom ?? 1
-    if (libZoom !== libZoomRef.current) {
-      libZoomRef.current = libZoom
-      const sent = sentZooms.current
-      const at = sent.indexOf(libZoom)
-      if (at >= 0) {
-        sent.splice(0, at + 1)
-        if (sent.length === 0) zoomRef.current = libZoom
-      } else {
-        sent.length = 0
-        zoomRef.current = libZoom
-      }
-    }
   })
   useEffect(
     () =>
@@ -97,24 +79,10 @@ function App(): React.JSX.Element {
         // A PDF opened from Finder / Explorer: a new file asks for a course, a known one opens.
         else if (c.type === 'open-pick') pickRef.current(c.pick)
         else if (c.type === 'open-failed') failedRef.current()
-        else if (c.type === 'zoom') {
-          // Text size: 80-200% in 10% steps, one decimal so repeated steps never drift.
-          const next = Math.round((zoomRef.current + c.step * 0.1) * 10) / 10
-          const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
-          if (zoom !== zoomRef.current) {
-            zoomRef.current = zoom
-            sentZooms.current.push(zoom)
-            tide()
-              .library.setZoom(zoom)
-              .catch(() => {
-                // Not saved: fall back to what the library says.
-                sentZooms.current.length = 0
-                zoomRef.current = libZoomRef.current
-              })
-          }
-        }
+        else if (c.type === 'zoom') stepZoom(c.step)
+        else if (c.type === 'settings') setSettingsOpen(true)
       }),
-    []
+    [stepZoom]
   )
 
   // Derived from the library, so a removed reading is never selected (ids are never reused).
@@ -237,6 +205,10 @@ function App(): React.JSX.Element {
                     onOpen={open}
                     onAdd={add}
                     onPicked={closeOverlay}
+                    onSettings={() => {
+                      closeOverlay()
+                      setSettingsOpen(true)
+                    }}
                   />
                 ) : (
                   <nav aria-label="Readings" className="flex-1" />
@@ -253,6 +225,12 @@ function App(): React.JSX.Element {
           </ExportProvider>
           {adding.ui}
           {dialogUi}
+          <SettingsDialog
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            zoom={zoom}
+            onZoomStep={stepZoom}
+          />
           {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
         </PlayerProvider>
       </ToastProvider>

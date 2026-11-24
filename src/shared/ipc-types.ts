@@ -63,6 +63,7 @@ export type ExportStartResult = { jobId: string } | { busy: true } | { cancelled
 export type AppCommand =
   | { type: 'add-reading' }
   | { type: 'zoom'; step: 1 | -1 }
+  | { type: 'settings' }
   | { type: 'open-failed' }
   | { type: 'open-pick'; pick: Exclude<PickResult, { kind: 'cancelled' }> }
 

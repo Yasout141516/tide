@@ -39,6 +39,11 @@ describe('buildMenu', () => {
     expect(click('CmdOrCtrl+-')).toEqual([{ type: 'zoom', step: -1 }])
   })
 
+  it('Settings… has CmdOrCtrl+, and sends { type: "settings" }', () => {
+    expect(items().find((i) => i.label === 'Settings…')?.accelerator).toBe('CmdOrCtrl+,')
+    expect(click('CmdOrCtrl+,')).toEqual([{ type: 'settings' }])
+  })
+
   it('the Help items are disabled reminders', () => {
     const help = items().filter((i) => /Add reading$|Text size|sentence/.test(i.label ?? ''))
     expect(help.filter((i) => i.enabled === false)).toHaveLength(3)

@@ -6,8 +6,32 @@ export function buildMenu(send: (c: AppCommand) => void): Menu {
   const mac = process.platform === 'darwin'
   const mod = mac ? '⌘' : 'Ctrl+'
   const minus = mac ? '−' : '-'
+  const settingsItem: MenuItemConstructorOptions = {
+    label: 'Settings…',
+    accelerator: 'CmdOrCtrl+,',
+    click: () => send({ type: 'settings' })
+  }
   const template: MenuItemConstructorOptions[] = [
-    ...(mac ? [{ role: 'appMenu' } as MenuItemConstructorOptions] : []),
+    ...(mac
+      ? ([
+          {
+            label: 'Tide',
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              settingsItem,
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' }
+            ]
+          }
+        ] as MenuItemConstructorOptions[])
+      : []),
     {
       label: 'File',
       submenu: [
@@ -16,7 +40,14 @@ export function buildMenu(send: (c: AppCommand) => void): Menu {
           accelerator: 'CmdOrCtrl+O',
           click: () => send({ type: 'add-reading' })
         },
-        ...(mac ? [] : ([{ type: 'separator' }, { role: 'quit' }] as MenuItemConstructorOptions[]))
+        ...(mac
+          ? []
+          : ([
+              { type: 'separator' },
+              settingsItem,
+              { type: 'separator' },
+              { role: 'quit' }
+            ] as MenuItemConstructorOptions[]))
       ]
     },
     { role: 'editMenu' },
@@ -48,6 +79,7 @@ export function buildMenu(send: (c: AppCommand) => void): Menu {
       submenu: [
         { label: `${mod}O  Add reading`, enabled: false },
         { label: `${mod}+ / ${mod}${minus}  Text size`, enabled: false },
+        { label: `${mod},  Settings`, enabled: false },
         { label: '← / →  Previous / next sentence', enabled: false }
       ]
     }

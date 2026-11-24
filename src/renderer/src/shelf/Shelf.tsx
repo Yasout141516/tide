@@ -11,9 +11,18 @@ type Props = {
   onAdd(): void
   /** Called after a reading is picked (closes the narrow-window overlay). */
   onPicked?(): void
+  /** Opens Settings (the narrow-window overlay closes itself first). */
+  onSettings?(): void
 }
 
-export function Shelf({ snapshot, selectedId, onOpen, onAdd, onPicked }: Props): React.JSX.Element {
+export function Shelf({
+  snapshot,
+  selectedId,
+  onOpen,
+  onAdd,
+  onPicked,
+  onSettings
+}: Props): React.JSX.Element {
   // Which "Finished (N)" folds are open. Local on purpose: not saved, collapsed again next launch.
   const [openFinished, setOpenFinished] = useState<ReadonlySet<string>>(new Set())
   const toggleFinished = (key: string): void =>
@@ -76,6 +85,15 @@ export function Shelf({ snapshot, selectedId, onOpen, onAdd, onPicked }: Props):
           </section>
         ))}
       </nav>
+      {onSettings ? (
+        <button
+          type="button"
+          onClick={onSettings}
+          className="mt-2 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-[10px] border-0 bg-transparent px-2.5 py-2 text-left font-sans text-[13px] font-bold text-muted"
+        >
+          <span aria-hidden="true">⚙</span> Settings
+        </button>
+      ) : null}
     </>
   )
 }
