@@ -235,11 +235,15 @@ describe('Reading tab', () => {
 })
 
 describe('Pronunciation tab', () => {
-  async function openTab(pronunciations: { word: string; sayAs: string }[] = []): Promise<{
+  async function openTab(
+    pronunciations: { word: string; sayAs: string }[] = [],
+    voice = 'bf_emma'
+  ): Promise<{
     t: ReturnType<typeof fakeTide>
     dlg: HTMLElement
     clips: string[]
     pauses: () => number
+    revoked: string[]
   }> {
     const t = fakeTide({
       snapshot: {
@@ -253,7 +257,7 @@ describe('Pronunciation tab', () => {
             readCitations: false
           },
           zoom: 1,
-          voice: 'bf_emma',
+          voice,
           speed: 1,
           theme: 'sky-sea',
           darkPages: true,
@@ -265,8 +269,12 @@ describe('Pronunciation tab', () => {
     setTide(t)
     const clips: string[] = []
     let pauses = 0
+    const revoked: string[] = []
+    let n = 0
     const player = {
       ...fakePlayer().deps,
+      makeUrl: () => `blob:clip-${n++}`,
+      revokeUrl: (u: string) => void revoked.push(u),
       makePreview: (url: string) => {
         clips.push(url)
         return { play: () => Promise.resolve(), pause: () => void pauses++ }
@@ -277,7 +285,7 @@ describe('Pronunciation tab', () => {
     act(() => t.emit({ type: 'settings' }))
     const dlg = await screen.findByRole('dialog', { name: 'Settings' })
     await userEvent.click(within(dlg).getByRole('button', { name: 'Pronunciation' }))
-    return { t, dlg, clips, pauses: () => pauses }
+    return { t, dlg, clips, pauses: () => pauses, revoked }
   }
   const lastSave = (t: ReturnType<typeof fakeTide>): unknown =>
     t.calls['library.setPronunciations']?.at(-1)?.[0]
@@ -332,6 +340,52 @@ describe('Pronunciation tab', () => {
     await waitFor(() => expect(clips).toHaveLength(1))
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(pauses()).toBe(1))
+  })
+
+  it('Listen with no reading open uses her saved voice', async () => {
+    const { t, dlg, clips } = await openTab([{ word: 'a', sayAs: 'b' }], 'af_bella')
+    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await waitFor(() => expect(clips).toHaveLength(1))
+    expect(vi.mocked(t.tts.synthesize).mock.calls[0][1]).toMatchObject({ voice: 'af_bella' })
+  })
+
+  it('leaving the tab while Listen is pending plays nothing', async () => {
+    const { t, dlg, clips } = await openTab([{ word: 'a', sayAs: 'b' }])
+    let resolve!: (a: typeof SILENCE) => void
+    t.tts.synthesize = vi.fn(() => new Promise<typeof SILENCE>((r) => (resolve = r)))
+    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Look' }))
+    await act(async () => resolve(SILENCE))
+    expect(clips).toHaveLength(0)
+  })
+
+  it('two rapid Listens play only the second clip', async () => {
+    const { t, dlg, clips } = await openTab([
+      { word: 'a', sayAs: 'one' },
+      { word: 'c', sayAs: 'two' }
+    ])
+    const pending: ((a: typeof SILENCE) => void)[] = []
+    t.tts.synthesize = vi.fn(() => new Promise<typeof SILENCE>((r) => pending.push(r)))
+    const [first, second] = within(dlg).getAllByRole('button', { name: '▶ Listen' })
+    await userEvent.click(first)
+    await userEvent.click(second)
+    await act(async () => pending[1](SILENCE))
+    await act(async () => pending[0](SILENCE))
+    expect(clips).toHaveLength(1)
+    expect(clips[0]).toBe('blob:clip-0')
+  })
+
+  it('a second Listen and stopping revoke the previous clip URL', async () => {
+    const { dlg, clips, revoked } = await openTab([{ word: 'a', sayAs: 'b' }])
+    const listen = within(dlg).getByRole('button', { name: '▶ Listen' })
+    await userEvent.click(listen)
+    await waitFor(() => expect(clips).toHaveLength(1))
+    expect(revoked).toEqual([])
+    await userEvent.click(listen)
+    await waitFor(() => expect(clips).toHaveLength(2))
+    expect(revoked).toEqual(['blob:clip-0'])
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(revoked).toEqual(['blob:clip-0', 'blob:clip-1']))
   })
 
   it('a failed Listen says so plainly', async () => {

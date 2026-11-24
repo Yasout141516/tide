@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { DEFAULT_VOICE } from '../../../shared/voices'
 import { PRONUNCIATION_LIMITS, type Pronunciation } from '../../../shared/library/types'
 import { useLibrary } from '../state/useLibrary'
 import { tide } from '../lib/tide'
-import { usePlayerActions, usePlayerState } from '../player/PlayerContext'
+import { usePlayerActions } from '../player/PlayerContext'
 import { useToast } from '../shell/Toast'
 
 type Row = { key: number; word: string; sayAs: string }
@@ -22,7 +23,9 @@ export function PronunciationTab(): React.JSX.Element {
   const library = useLibrary()
   const toast = useToast()
   const { previewClip, stopPreview } = usePlayerActions()
-  const { snapshot } = usePlayerState()
+  const voice = library?.settings.voice ?? DEFAULT_VOICE
+  /** Counts Listen presses; a clip that is not from the latest press (or arrives after leaving) is dropped. */
+  const listenId = useRef(0)
   // Local rows, seeded once: a snapshot that arrives while she types never overwrites them.
   const [rows, setRows] = useState<Row[]>(() =>
     (library?.settings.pronunciations ?? []).map((p, i) => ({
@@ -38,7 +41,13 @@ export function PronunciationTab(): React.JSX.Element {
   const L = PRONUNCIATION_LIMITS
 
   // Leaving the tab (or the dialog) stops a clip that is still playing.
-  useEffect(() => stopPreview, [stopPreview])
+  useEffect(
+    () => () => {
+      listenId.current = -1
+      stopPreview()
+    },
+    [stopPreview]
+  )
   useEffect(() => {
     if (focusKey.current === null) return
     inputs.current.get(focusKey.current)?.focus()
@@ -51,11 +60,17 @@ export function PronunciationTab(): React.JSX.Element {
       .catch(() => toast.show({ text: "Couldn't save that word. Please try again." }))
   const edit = (key: number, patch: Partial<Row>): void =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
-  const listen = (sayAs: string): void =>
-    void tide()
-      .tts.synthesize(sayAs.trim(), { voice: snapshot.voice, speed: 1, priority: 'preview' })
-      .then(previewClip)
-      .catch(() => toast.show({ text: "Couldn't play that. Please try again." }))
+  const listen = (sayAs: string): void => {
+    const id = ++listenId.current
+    tide()
+      .tts.synthesize(sayAs.trim(), { voice, speed: 1, priority: 'preview' })
+      .then((clip) => {
+        if (listenId.current === id) previewClip(clip)
+      })
+      .catch(() => {
+        if (listenId.current === id) toast.show({ text: "Couldn't play that. Please try again." })
+      })
+  }
 
   return (
     <section aria-labelledby="pron-heading">
