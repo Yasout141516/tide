@@ -131,6 +131,12 @@ export function fakeTide(
       status: fn('tts.status', () => Promise.resolve('ready' as const)),
       onStatus: () => () => {}
     },
+    export: {
+      start: fn('export.start', () => Promise.resolve({ busy: true as const })),
+      cancel: fn('export.cancel', () => Promise.resolve()),
+      reveal: fn('export.reveal', () => Promise.resolve()),
+      onEvent: () => () => {}
+    },
     app: {
       setPlaying: fn('app.setPlaying', () => undefined),
       relaunch: fn('app.relaunch', () => undefined)

@@ -1,6 +1,6 @@
 // Sandboxed preload: only `electron` can be required. Exposes a narrow bridge (typed in index.d.ts).
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SynthesizeOptions, TtsStatus } from '../shared/ipc-types'
+import type { ExportEvent, ExportSpec, SynthesizeOptions, TtsStatus } from '../shared/ipc-types'
 import { LIBRARY_ERROR_PREFIX } from '../shared/ipc-types'
 import type {
   AddReadingInput,
@@ -40,6 +40,13 @@ contextBridge.exposeInMainWorld('tide', {
     cancel: (gen: string) => ipcRenderer.invoke('tts:cancel', gen),
     status: () => ipcRenderer.invoke('tts:status'),
     onStatus: (cb: (s: TtsStatus) => void) => subscribe<TtsStatus>('tts:status', cb)
+  },
+  export: {
+    start: (spec: ExportSpec, o?: { chooseFolder?: boolean }) =>
+      ipcRenderer.invoke('export:start', spec, o),
+    cancel: (jobId: string) => ipcRenderer.invoke('export:cancel', jobId),
+    reveal: (jobId: string) => ipcRenderer.invoke('export:reveal', jobId),
+    onEvent: (cb: (e: ExportEvent) => void) => subscribe<ExportEvent>('export:event', cb)
   },
   app: {
     setPlaying: (on: boolean) => ipcRenderer.send('app:playing', on),

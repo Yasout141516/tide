@@ -35,6 +35,30 @@ export interface ExportM4bResult {
   ffmpegHasMp3: boolean
 }
 
+/** One "Save as audio" request. Main cleans `baseName` into a safe file name. */
+export interface ExportSpec {
+  readingId: string
+  format: 'mp3' | 'm4b'
+  /** No extension; main cleans it. */
+  baseName: string
+  /** Tag title: reading title plus range. */
+  title: string
+  sentences: { text: string; page: number }[]
+  voice: string
+  speed: number
+}
+
+export type ExportFailure = 'disk-full' | 'no-permission' | 'folder-missing' | 'failed'
+
+export type ExportEvent =
+  | { jobId: string; kind: 'progress'; done: number; total: number }
+  | { jobId: string; kind: 'saved'; fileName: string }
+  | { jobId: string; kind: 'failed'; reason: ExportFailure }
+  | { jobId: string; kind: 'cancelled' }
+
+/** Reply to `export.start`. */
+export type ExportStartResult = { jobId: string } | { busy: true } | { cancelled: true }
+
 /** Menu and shortcut commands main sends to the renderer. */
 export type AppCommand =
   | { type: 'add-reading' }

@@ -1,11 +1,11 @@
 // Whole-reading export: .m4b audiobook (AAC-LC 64 kbps mono, one chapter per page) and .mp3.
-// Runs the bundled ffmpeg-static binary; PCM is streamed on stdin, never written to disk.
-import { execFile, spawn } from 'child_process'
-import { mkdtemp, open, rename, rm, writeFile } from 'fs/promises'
-import { tmpdir } from 'os'
-import { join } from 'path'
+// Runs the bundled ffmpeg-static binary; PCM is streamed on stdin. The streaming writers live in
+// export/writers.ts; exportM4b and exportMp3 here are whole-buffer wrappers over them.
+import { execFile } from 'child_process'
+import { open } from 'fs/promises'
 import ffmpegStatic from 'ffmpeg-static'
-import { concatPcm, SAMPLE_RATE, toS16le } from '../shared/pcm'
+import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
+import { createM4bWriter, createMp3Writer, type AudioWriter } from './export/writers'
 import { unpackedPath } from './paths'
 
 export interface Chapter {
@@ -55,42 +55,44 @@ export function ffmpegHasMp3(): Promise<boolean> {
   return mp3Probe
 }
 
-export function exportM4b(
+/** Feed one whole buffer through a streaming writer; any failure aborts it (deleting its files). */
+async function writeWhole(
+  writer: AudioWriter,
+  pcm: Float32Array,
+  sampleRate: number,
+  chapters: Chapter[]
+): Promise<void> {
+  try {
+    if (sampleRate !== SAMPLE_RATE) throw new Error(`export expects ${SAMPLE_RATE} Hz audio`)
+    await writer.write(pcm)
+    await writer.finish(chapters)
+  } catch (err) {
+    await writer.abort()
+    throw err
+  }
+}
+
+export async function exportM4b(
   pcm: Float32Array,
   sampleRate: number,
   chapters: Chapter[],
   meta: AudioMeta,
   outPath: string,
-  signal?: AbortSignal
+  signal: AbortSignal = new AbortController().signal
 ): Promise<void> {
-  const durationSec = pcm.length / sampleRate
-  const list = chapters.length > 0 ? chapters : [{ title: meta.title, startSec: 0 }]
-  return runFfmpeg(
-    pcm,
-    sampleRate,
-    ffmetadata(meta, list, durationSec),
-    ['-map_chapters', '1', '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', '-f', 'ipod'],
-    outPath,
-    signal,
-    (part) => setChapterTrackLanguage(part, 'eng')
-  )
+  if (signal.aborted) throw abortError()
+  await writeWhole(createM4bWriter(outPath, meta, signal), pcm, sampleRate, chapters)
 }
 
-export function exportMp3(
+export async function exportMp3(
   pcm: Float32Array,
   sampleRate: number,
   meta: AudioMeta,
   outPath: string,
-  signal?: AbortSignal
+  signal: AbortSignal = new AbortController().signal
 ): Promise<void> {
-  return runFfmpeg(
-    pcm,
-    sampleRate,
-    ffmetadata(meta, [], pcm.length / sampleRate),
-    ['-c:a', 'libmp3lame', '-b:a', '96k', '-f', 'mp3'],
-    outPath,
-    signal
-  )
+  if (signal.aborted) throw abortError()
+  await writeWhole(createMp3Writer(outPath, meta, signal), pcm, sampleRate, [])
 }
 
 /** FFMETADATA1 values escape '=', ';', '#', '\' and newlines with a backslash. */
@@ -99,7 +101,7 @@ function escapeMeta(s: string): string {
 }
 
 /** An FFMETADATA1 file: global tags, then one [CHAPTER] per entry (ms timebase, END = next START). */
-function ffmetadata(meta: AudioMeta, chapters: Chapter[], durationSec: number): string {
+export function ffmetadata(meta: AudioMeta, chapters: Chapter[], durationSec: number): string {
   const totalMs = Math.round(durationSec * 1000)
   const lines = [
     ';FFMETADATA1',
@@ -117,7 +119,8 @@ function ffmetadata(meta: AudioMeta, chapters: Chapter[], durationSec: number): 
   return lines.join('\n') + '\n'
 }
 
-const abortError = (): Error => Object.assign(new Error('export aborted'), { name: 'AbortError' })
+export const abortError = (): Error =>
+  Object.assign(new Error('export aborted'), { name: 'AbortError' })
 
 /**
  * Decodes the MP4 box header at `buf[at]`: type, total size and header length. A size of 1 means a
@@ -207,79 +210,4 @@ export async function setChapterTrackLanguage(file: string, lang: string): Promi
   } finally {
     await fh.close()
   }
-}
-
-/**
- * Encode `pcm` to `<outPath>.part` with the given output options, then rename it to `outPath`.
- * Abort or any ffmpeg failure kills ffmpeg, deletes the .part and rejects.
- */
-async function runFfmpeg(
-  pcm: Float32Array,
-  sampleRate: number,
-  metadata: string,
-  outputArgs: string[],
-  outPath: string,
-  signal?: AbortSignal,
-  finish?: (part: string) => Promise<unknown>
-): Promise<void> {
-  if (signal?.aborted) throw abortError()
-  const part = outPath + '.part'
-  const dir = await mkdtemp(join(tmpdir(), 'tide-ffmeta-'))
-  try {
-    const metaFile = join(dir, 'meta.txt')
-    await writeFile(metaFile, metadata, 'utf8')
-    if (signal?.aborted) throw abortError()
-    const args = [
-      '-hide_banner',
-      '-loglevel', 'error',
-      '-y',
-      '-f', 's16le', '-ar', String(sampleRate), '-ac', '1', '-i', 'pipe:0',
-      '-i', metaFile,
-      '-map', '0:a',
-      '-map_metadata', '1',
-      ...outputArgs,
-      part
-    ] // prettier-ignore
-    await encode(args, toS16le(pcm), signal)
-    await finish?.(part)
-    if (signal?.aborted) throw abortError()
-    await rename(part, outPath)
-  } catch (err) {
-    await rm(part, { force: true })
-    throw err
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-}
-
-/** Spawn ffmpeg, stream `input` on stdin, resolve on exit code 0. Abort kills the process. */
-function encode(args: string[], input: Buffer, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegPath(), args, {
-      stdio: ['pipe', 'ignore', 'pipe'],
-      windowsHide: true
-    })
-    let stderr = ''
-    child.stderr.setEncoding('utf8')
-    child.stderr.on('data', (d: string) => {
-      stderr = (stderr + d).slice(-4000)
-    })
-    const onAbort = (): void => {
-      child.kill('SIGKILL')
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
-    // ffmpeg exiting early (error or kill) closes the pipe: EPIPE here is expected, the exit code tells.
-    child.stdin.on('error', () => {})
-    child.on('error', (err) => {
-      signal?.removeEventListener('abort', onAbort)
-      reject(new Error(`ffmpeg failed to start: ${err.message}`))
-    })
-    child.on('close', (code, sig) => {
-      signal?.removeEventListener('abort', onAbort)
-      if (signal?.aborted) reject(abortError())
-      else if (code === 0) resolve()
-      else reject(new Error(`ffmpeg exited with ${code ?? sig}: ${stderr.trim()}`))
-    })
-    child.stdin.end(input)
-  })
 }

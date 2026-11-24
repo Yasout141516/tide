@@ -4,6 +4,7 @@ import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
+import { registerExportIpc } from './export/ipc'
 import { PlayingBlocker } from './playing'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
@@ -152,6 +153,15 @@ app.whenReady().then(async () => {
   if (library) {
     const lib = library
     libraryIpc = registerLibraryIpc(lib, { window: () => mainWindow })
+    registerExportIpc({
+      host: ttsHost,
+      window: () => mainWindow,
+      albumFor: (id) => {
+        const snap = lib.snapshot()
+        const courseId = snap.readings.find((r) => r.id === id)?.courseId
+        return snap.courses.find((c) => c.id === courseId)?.name ?? null
+      }
+    })
     const { send } = libraryIpc
     Menu.setApplicationMenu(buildMenu(send))
     lib.checkMissing().catch((err) => console.error('[tide] missing-file check failed:', err))

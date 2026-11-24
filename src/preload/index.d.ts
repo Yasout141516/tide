@@ -10,7 +10,10 @@ import type {
 } from '../shared/library/types'
 import type {
   AppCommand,
+  ExportEvent,
   ExportM4bResult,
+  ExportSpec,
+  ExportStartResult,
   SynthesizeOptions,
   TtsAudio,
   TtsLoadResult,
@@ -27,6 +30,14 @@ export interface TideApi {
     cancel(gen: string): Promise<void>
     status(): Promise<TtsStatus>
     onStatus(cb: (s: TtsStatus) => void): () => void
+  }
+  export: {
+    /** Save a reading as audio. `chooseFolder` asks main to show its folder dialog for this save. */
+    start(spec: ExportSpec, o?: { chooseFolder?: boolean }): Promise<ExportStartResult>
+    cancel(jobId: string): Promise<void>
+    /** Show the saved file in the system file manager. */
+    reveal(jobId: string): Promise<void>
+    onEvent(cb: (e: ExportEvent) => void): () => void
   }
   app: {
     /** Tell main whether audio is playing, so the machine is not suspended mid-read. */
