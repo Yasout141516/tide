@@ -12,7 +12,16 @@ import { createM4bWriter } from './export/writers'
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
 export function registerIpc(
   host: TtsHost,
-  { e2e, window }: { e2e: boolean; window?: () => BrowserWindow | null }
+  {
+    e2e,
+    window,
+    speak = (text, o) => host.synthesize(text, o)
+  }: {
+    e2e: boolean
+    window?: () => BrowserWindow | null
+    /** Synthesis with her pronunciation fixes applied; defaults to the host's own. */
+    speak?: TtsHost['synthesize']
+  }
 ): void {
   // Sent synchronously, never batched: on a crash the host emits 'restarting' before it rejects
   // pending jobs, and the renderer must learn that no later than it sees the rejection.
@@ -49,7 +58,7 @@ export function registerIpc(
         'tts:synthesize expects (text: string, { voice: one of the ten voices, speed: a number from 0.5 to 2, priority?: live | preview, gen?: string up to 64 characters, front?: boolean })'
       )
     }
-    return host.synthesize(text, {
+    return speak(text, {
       voice,
       speed,
       ...(priority !== undefined && { priority }),

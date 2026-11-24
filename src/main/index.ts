@@ -5,6 +5,7 @@ import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
+import { makeSpeak } from './speak'
 import { registerExportIpc, type ExportController } from './export/ipc'
 import { PlayingBlocker, releaseWhenRendererLost } from './playing'
 import { resourcePath } from './paths'
@@ -145,7 +146,10 @@ app.whenReady().then(async () => {
     workerPath: join(__dirname, 'tts-worker.js'),
     modelDir: resourcePath('models')
   })
-  registerIpc(ttsHost, { e2e, window: () => mainWindow })
+  const host = ttsHost
+  // The library opens after this; until then there are no rules.
+  const speak = makeSpeak(host, () => library?.pronunciations() ?? [])
+  registerIpc(host, { e2e, window: () => mainWindow, speak })
   ipcMain.on('app:playing', (_e, on: unknown) => {
     if (typeof on === 'boolean') playing.set(on)
   })
@@ -164,7 +168,7 @@ app.whenReady().then(async () => {
     const lib = library
     libraryIpc = registerLibraryIpc(lib, { window: () => mainWindow })
     exportCtl = registerExportIpc({
-      host: ttsHost,
+      host: { synthesize: speak, cancel: (g) => host.cancel(g) },
       window: () => mainWindow,
       defaultFolder: () => lib.exportFolder(),
       albumFor: (id) => {

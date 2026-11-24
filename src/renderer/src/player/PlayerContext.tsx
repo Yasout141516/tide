@@ -64,6 +64,8 @@ export interface PlayerActions {
   readFrom(index: number): void
   setVoice(id: string): void
   setSpeed(s: number): void
+  /** Her pronunciation fixes changed: throw away audio already made and re-make it from here. */
+  refreshAudio(): void
   /** Pause the reading (it stays paused) and play the bundled sample of a voice. */
   preview(id: string): void
   /** Stop a running preview (the popover closing). */
@@ -103,6 +105,7 @@ const NOOP_ACTIONS: PlayerActions = {
   readFrom: () => {},
   setVoice: () => {},
   setSpeed: () => {},
+  refreshAudio: () => {},
   preview: () => {},
   stopPreview: () => {},
   setSleep: () => {},
@@ -301,6 +304,17 @@ export function PlayerProvider({
     engine?.setSpeed(effectiveSpeed)
   }, [engine, voice, effectiveSpeed])
 
+  // Pronunciation fixes changed: audio already made (and prefetched) says the old thing.
+  // Snapshots arrive for many reasons, so only a real change counts; the first one is the baseline.
+  const prons = snapshot ? JSON.stringify(snapshot.settings.pronunciations) : null
+  const lastProns = useRef<string | null>(null)
+  useEffect(() => {
+    if (prons === null) return
+    const prev = lastProns.current
+    lastProns.current = prons
+    if (prev !== null && prev !== prons) engine?.refreshAudio()
+  }, [engine, prons])
+
   // --- Reader -> engine ---------------------------------------------------------------------
   /** The index the engine last pushed to the reader: its echo must not seek the engine back. */
   const pushed = useRef<number | null>(null)
@@ -493,6 +507,7 @@ export function PlayerProvider({
           .library.setVoice(engine.snapshot().voice, s)
           .catch(() => {})
       },
+      refreshAudio: () => engine?.refreshAudio(),
       preview: (id) => {
         const ph = engine?.snapshot().phase
         if (isListening(ph)) engine?.pause()

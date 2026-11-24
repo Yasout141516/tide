@@ -265,6 +265,31 @@ describe('PlayerEngine', () => {
     expect(engine.snapshot().voice).toBe('v2')
   })
 
+  it('refreshAudio cancels cached gens and re-requests the current sentence while playing', async () => {
+    const { engine, sink, tts } = setup(S)
+    engine.play()
+    for (const c of tts.calls.slice(0, 2)) c.resolve(audio(1))
+    await flush()
+    sink.triggerEnded()
+    expect(engine.snapshot().index).toBe(1)
+    const inFlight = tts.calls.slice(2).map((c) => c.gen) // arrived audio needs no cancel
+    expect(inFlight.length).toBeGreaterThan(0)
+    const n = tts.calls.length
+    engine.refreshAudio()
+    expect(tts.cancels).toEqual(expect.arrayContaining(inFlight))
+    const fresh = tts.calls.slice(n)
+    expect(fresh.map((c) => c.text)).toEqual(S.slice(1, 5))
+    expect(fresh.every((c) => !inFlight.includes(c.gen))).toBe(true)
+    expect(engine.snapshot().index).toBe(1)
+  })
+
+  it('refreshAudio does nothing when nothing is cached', () => {
+    const { engine, tts } = setup(S)
+    engine.refreshAudio()
+    expect(tts.calls).toHaveLength(0)
+    expect(tts.cancels).toHaveLength(0)
+  })
+
   it('never reuses a generation id', () => {
     const { engine, tts } = setup(S)
     engine.play()

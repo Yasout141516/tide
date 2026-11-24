@@ -394,6 +394,11 @@ export class Library {
     this.emit()
   }
 
+  /** The cleaned pronunciation rules. The same array until a rule changes (callers may cache by identity). */
+  pronunciations(): readonly Pronunciation[] {
+    return this.store.data().settings.pronunciations
+  }
+
   /** The chosen default export folder, or null for Music/Tide. Main only: never in the snapshot. */
   exportFolder(): string | null {
     return this.store.data().settings.exportFolder

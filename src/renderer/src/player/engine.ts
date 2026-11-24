@@ -198,6 +198,15 @@ export class PlayerEngine {
     this.restart()
   }
 
+  /**
+   * Her pronunciation fixes changed: audio made so far says the old thing. Cancel it, drop it, and
+   * start the current sentence again (as a voice change does). Nothing cached: nothing to redo.
+   */
+  refreshAudio(): void {
+    if (this.disposed || this.entries.size === 0) return
+    this.restart()
+  }
+
   /** Seconds played into the current sentence: finished clips plus the playing clip. */
   offsetSec(): number {
     if (this.index === null || this.cur.i !== this.index) return 0
