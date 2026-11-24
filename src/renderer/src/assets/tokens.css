@@ -69,6 +69,42 @@
   --logo-wave-b: #4fb0e8;
 }
 
+/* Pixel Quest: ocean-blue map, sand dialogue, 3px pixel borders. Pixel shape tokens live in main.css. */
+:root[data-theme='pixel-quest'] {
+  --bg: #12304a;
+  --shelf-a: #0c2236;
+  --shelf-b: #0c2236;
+  --surface: #0c2236;
+  --ink: #fdf3dc;
+  --muted: #9fc3d9;
+  --primary: #c8432b;
+  --on-primary: #ffffff;
+  --soft: #16405f;
+  --soft-ink: #ffd66b;
+  --border: #071624;
+  --stage-a: #12304a;
+  --stage-b: #12304a;
+  --stage-c: #12304a;
+  --page: #fffdf6;
+  --page-ink: #22223a;
+  --hl: #ffe27a;
+  --hl-line: #c8432b;
+  --sel: rgba(255, 214, 107, 0.35);
+  --wave-off: #071624;
+  --wave-on: #4fc3d1;
+  --warn: #ff9a85;
+  --warn-soft: #3a1f1a;
+  --ok: #7fd06e;
+  --bubble: #fdf3dc;
+  --primary-deep: #ffd66b;
+  --page-meta: #4fc3d1;
+  --scrim: rgba(2, 10, 18, 0.6);
+  --shadow: #071624;
+  --logo-sun: #ffd66b;
+  --logo-wave-a: #4fc3d1;
+  --logo-wave-b: #3aa9b8;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);

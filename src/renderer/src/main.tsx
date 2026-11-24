@@ -3,6 +3,7 @@ import '@fontsource/nunito-sans/latin-600.css'
 import '@fontsource/nunito-sans/latin-700.css'
 import '@fontsource/nunito-sans/latin-800.css'
 import '@fontsource/fraunces/latin-700.css'
+import '@fontsource/press-start-2p/latin-400.css'
 import './assets/main.css'
 
 import { StrictMode } from 'react'

@@ -4,9 +4,11 @@ import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppShell } from '../../src/renderer/src/shell/AppShell'
-import { setNarrow } from './setup'
+import { setTide } from '../../src/renderer/src/lib/tide'
+import { fakeTide, setNarrow } from './setup'
 
 function renderShell(): void {
+  setTide(fakeTide()) // the wordmark reads the theme
   render(
     <AppShell
       renderShelf={(closeOverlay) => (

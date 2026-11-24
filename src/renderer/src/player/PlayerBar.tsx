@@ -2,6 +2,9 @@ import { useReaderState } from '../reader/ReaderState'
 import { usePlayerActions, usePlayerState } from './PlayerContext'
 import { isListening } from './engine'
 import { timeLeftLabel } from './timeline'
+import { DialogueBox } from './DialogueBox'
+import { PixelWaves } from '../theme/PixelWaves'
+import { useTheme } from '../theme/theme'
 import { SleepPopover } from './SleepPopover'
 import { VoicePopover } from './VoicePopover'
 
@@ -46,6 +49,7 @@ export function PlayerBar(): React.JSX.Element {
   const { snapshot, finished, finishNote } = usePlayerState()
   const { toggle, skip, playNext, dismissFinished } = usePlayerActions()
   const { sentences, page, numPages, current } = useReaderState()
+  const { resolved } = useTheme()
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0
   const wantsPlay = isListening(phase)
@@ -61,14 +65,16 @@ export function PlayerBar(): React.JSX.Element {
   return (
     <footer
       aria-label="Player"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border bg-surface px-[22px] py-3"
+      className="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border bg-surface px-[22px] py-3"
     >
+      {resolved === 'pixel-quest' ? <PixelWaves /> : null}
+      <DialogueBox />
       <button type="button" className={skipButton} disabled={!ready} onClick={() => skip(-15)}>
         Back 15s
       </button>
       <button
         type="button"
-        className={`${playButton} ${phase === 'buffering' ? 'play-buffering' : ''}`}
+        className={`pq-play ${playButton} ${phase === 'buffering' ? 'play-buffering' : ''}`}
         disabled={!ready}
         onClick={toggle}
       >

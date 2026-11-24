@@ -136,3 +136,141 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
     transition: none !important;
   }
 }
+
+/* ===== Pixel Quest: shape and pixel-font rules (colours come from the tokens) =====
+   Unlayered, so they beat Tailwind's utilities without !important. Press Start 2P is for labels and
+   headings only (7-11 px): never the reading text, the PDF or the dialogue sentence itself. */
+:root[data-theme='pixel-quest'] {
+  --pq-font: 'Press Start 2P', ui-monospace, monospace;
+  --pq-pixel: 3px;
+}
+:root[data-theme='pixel-quest']
+  :where(
+    button,
+    input,
+    select,
+    textarea,
+    [role='dialog'],
+    [role='radio'],
+    [role='switch'],
+    [role='menu'],
+    [role='listbox']
+  ) {
+  border-radius: 0;
+}
+:root[data-theme='pixel-quest'] .font-display {
+  font-family: var(--pq-font);
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+:root[data-theme='pixel-quest'] .pq-add,
+:root[data-theme='pixel-quest'] .pq-play,
+:root[data-theme='pixel-quest'] footer[aria-label='Player'] button {
+  font-family: var(--pq-font);
+  font-weight: 400;
+  font-size: 8px;
+  line-height: 1.5;
+  border: 2px solid var(--border);
+}
+:root[data-theme='pixel-quest'] .pq-add,
+:root[data-theme='pixel-quest'] .pq-play {
+  border-width: var(--pq-pixel);
+  box-shadow: var(--pq-pixel) var(--pq-pixel) 0 var(--border);
+}
+:root[data-theme='pixel-quest'] .pq-add {
+  font-size: 9px;
+}
+:root[data-theme='pixel-quest'] .pq-play {
+  font-size: 10px;
+}
+/* Course headings on the shelf: pixel labels with a type badge. */
+:root[data-theme='pixel-quest'] nav[aria-label='Readings'] section > button[aria-expanded] {
+  font-family: var(--pq-font);
+  font-size: 7px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  line-height: 1.6;
+}
+.pq-badge {
+  font-style: normal;
+  font-family: var(--pq-font);
+  font-size: 7px;
+  letter-spacing: 0;
+  padding: 3px 4px;
+  border: 2px solid var(--border);
+  line-height: 1;
+}
+/* Playing-row marker, as in the reference. */
+:root[data-theme='pixel-quest'] [data-reading-id] {
+  position: relative;
+  border-radius: 0;
+  padding-left: 18px;
+}
+:root[data-theme='pixel-quest'] [data-reading-id][aria-current='true'] {
+  background: var(--soft);
+  box-shadow: none;
+}
+:root[data-theme='pixel-quest'] [data-reading-id][aria-current='true']::before {
+  content: '▶';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  font-size: 9px;
+  color: var(--primary-deep);
+}
+:root[data-theme='pixel-quest'] [data-reading-id][aria-current='true'] small:not(.text-warn) {
+  color: var(--primary-deep);
+}
+:root[data-theme='pixel-quest'] aside {
+  border-right: 4px solid var(--border);
+}
+:root[data-theme='pixel-quest'] footer[aria-label='Player'] {
+  border-top: 4px solid var(--border);
+}
+/* The PDF page and dialogs get the 3px pixel frame. */
+:root[data-theme='pixel-quest'] [data-page],
+:root[data-theme='pixel-quest'] [role='dialog'] {
+  box-shadow: 0 0 0 4px var(--border);
+}
+
+/* The RPG dialogue box: the sentence being read, in a readable font (not the pixel font). */
+.pq-dialogue {
+  position: relative;
+  flex: 1 1 100%;
+  margin: 6px 9px 10px;
+  padding: 10px 28px 10px 14px;
+  background: #fdf3dc;
+  color: #22223a;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  box-shadow:
+    0 0 0 3px #071624,
+    0 0 0 6px #fdf3dc,
+    0 0 0 9px #071624;
+}
+.pq-dialogue-who {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--pq-font);
+  font-size: 8px;
+  color: #2a6f92;
+}
+.pq-dialogue-cursor {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 10px;
+  animation: pq-blink 1s steps(1) infinite;
+}
+@keyframes pq-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pq-dialogue-cursor {
+    animation: none;
+  }
+}

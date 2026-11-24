@@ -98,6 +98,84 @@ const DEEP = {
   'logo-wave-b': '#4FB0E8'
 }
 
+const PQ = {
+  bg: '#12304A',
+  'shelf-a': '#0C2236',
+  'shelf-b': '#0C2236',
+  surface: '#0C2236',
+  ink: '#FDF3DC',
+  muted: '#9FC3D9',
+  primary: '#C8432B',
+  'on-primary': '#FFFFFF',
+  soft: '#16405F',
+  'soft-ink': '#FFD66B',
+  border: '#071624',
+  'stage-a': '#12304A',
+  'stage-b': '#12304A',
+  'stage-c': '#12304A',
+  page: '#FFFDF6',
+  'page-ink': '#22223A',
+  'page-meta': '#4FC3D1',
+  hl: '#FFE27A',
+  'hl-line': '#C8432B',
+  'wave-off': '#071624',
+  'wave-on': '#4FC3D1',
+  warn: '#FF9A85',
+  'warn-soft': '#3A1F1A',
+  ok: '#7FD06E',
+  bubble: '#FDF3DC',
+  'primary-deep': '#FFD66B'
+}
+
+// WCAG 2.x relative luminance and contrast ratio for #rrggbb.
+function lum(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = [n >> 16, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+}
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+describe('Pixel Quest tokens', () => {
+  const pq = block('pixel-quest')
+  it('defines every token the Sky & Sea block defines', () => {
+    expect(Object.keys(pq).sort()).toEqual(Object.keys(block('sky-sea')).sort())
+  })
+  it('uses the spec 5.2 values', () => {
+    for (const [k, v] of Object.entries(PQ)) expect(pq[k], k).toBe(norm(v))
+  })
+  const pairs: Array<[string, string, string]> = [
+    ['ink', 'bg', 'text on the map'],
+    ['ink', 'surface', 'text on the player bar'],
+    ['ink', 'shelf-a', 'text on the shelf'],
+    ['muted', 'surface', 'secondary text on the player'],
+    ['muted', 'bg', 'secondary text on the map'],
+    ['muted', 'shelf-a', 'secondary text on the shelf'],
+    ['on-primary', 'primary', 'play / Add reading'],
+    ['soft-ink', 'soft', 'secondary buttons'],
+    ['page-ink', 'page', 'the page'],
+    ['page-meta', 'bg', 'reading header meta'],
+    ['primary-deep', 'shelf-a', 'wordmark'],
+    ['warn', 'shelf-a', 'File moved on the shelf'],
+    ['warn', 'warn-soft', 'errors'],
+    ['ok', 'bg', 'Saved'],
+    ['bg', 'bubble', 'bubble text']
+  ]
+  it.each(pairs)('%s on %s is at least 4.5:1 (%s)', (fg, bgk) => {
+    expect(contrast(pq[fg], pq[bgk])).toBeGreaterThanOrEqual(4.5)
+  })
+  it('the dialogue box text and white badge text are at least 4.5:1', () => {
+    expect(contrast('#22223a', '#fdf3dc')).toBeGreaterThanOrEqual(4.5)
+    for (const b of ['#b83d73', '#2b6fa8', '#8c6420', '#3a7d30', '#c8432b'])
+      expect(contrast('#ffffff', b), b).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
 describe('design tokens', () => {
   it('Sky & Sea tokens match spec 5.2', () => expect(block('sky-sea')).toEqual(lower(SKY)))
   it('Deep Sea tokens match spec 5.2', () => expect(block('deep-sea')).toEqual(lower(DEEP)))
