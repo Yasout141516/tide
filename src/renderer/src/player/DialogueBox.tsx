@@ -15,7 +15,7 @@ export function DialogueBox(): React.JSX.Element | null {
   return (
     <div data-testid="dialogue-box" aria-hidden="true" className="pq-dialogue">
       <span className="pq-dialogue-who">NOW READING</span>
-      {text}
+      <span className="pq-dialogue-text line-clamp-2">{text}</span>
       <span className="pq-dialogue-cursor">▼</span>
     </div>
   )

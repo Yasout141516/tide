@@ -10,8 +10,8 @@ export function PixelWaves(): React.JSX.Element {
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
-      <rect x="0" y="4" width="160" height="3" fill="#2A7BA0" />
-      <g fill="#4FC3D1">
+      <rect x="0" y="4" width="160" height="3" style={{ fill: 'var(--wave-sea)' }} />
+      <g style={{ fill: 'var(--wave-on)' }}>
         {crests.map((x, i) => (
           <rect key={x} x={x} y={i % 2 === 0 ? 3 : 2} width={i % 2 === 0 ? 6 : 4} height="1" />
         ))}

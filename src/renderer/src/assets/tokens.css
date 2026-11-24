@@ -32,6 +32,11 @@
   --logo-sun: #9dd2f5;
   --logo-wave-a: #1e88c7;
   --logo-wave-b: #4fb0e8;
+  --dialogue-bg: #ffffff;
+  --dialogue-ink: #1d2b36;
+  --dialogue-label: #0f6fa8;
+  --badge-ink: #ffffff;
+  --wave-sea: #c9e6fa;
 }
 
 :root[data-theme='deep-sea'] {
@@ -67,6 +72,11 @@
   --logo-sun: #a9daf7;
   --logo-wave-a: #6cc3f2;
   --logo-wave-b: #4fb0e8;
+  --dialogue-bg: #11293d;
+  --dialogue-ink: #e4f1fa;
+  --dialogue-label: #6cc3f2;
+  --badge-ink: #06192a;
+  --wave-sea: #1c3a54;
 }
 
 /* Pixel Quest: ocean-blue map, sand dialogue, 3px pixel borders. Pixel shape tokens live in main.css. */
@@ -103,6 +113,11 @@
   --logo-sun: #ffd66b;
   --logo-wave-a: #4fc3d1;
   --logo-wave-b: #3aa9b8;
+  --dialogue-bg: #fdf3dc;
+  --dialogue-ink: #22223a;
+  --dialogue-label: #2a6f92;
+  --badge-ink: #ffffff;
+  --wave-sea: #2a7ba0;
 }
 
 body {

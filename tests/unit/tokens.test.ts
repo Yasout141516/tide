@@ -61,7 +61,12 @@ const SKY = {
   shadow: 'rgba(11,88,132,.16)',
   'logo-sun': '#9DD2F5',
   'logo-wave-a': '#1E88C7',
-  'logo-wave-b': '#4FB0E8'
+  'logo-wave-b': '#4FB0E8',
+  'dialogue-bg': '#FFFFFF',
+  'dialogue-ink': '#1D2B36',
+  'dialogue-label': '#0F6FA8',
+  'badge-ink': '#FFFFFF',
+  'wave-sea': '#C9E6FA'
 }
 const DEEP = {
   bg: '#0B1D2C',
@@ -95,7 +100,12 @@ const DEEP = {
   shadow: 'rgba(0,0,0,.45)',
   'logo-sun': '#A9DAF7',
   'logo-wave-a': '#6CC3F2',
-  'logo-wave-b': '#4FB0E8'
+  'logo-wave-b': '#4FB0E8',
+  'dialogue-bg': '#11293D',
+  'dialogue-ink': '#E4F1FA',
+  'dialogue-label': '#6CC3F2',
+  'badge-ink': '#06192A',
+  'wave-sea': '#1C3A54'
 }
 
 const PQ = {
@@ -124,7 +134,12 @@ const PQ = {
   'warn-soft': '#3A1F1A',
   ok: '#7FD06E',
   bubble: '#FDF3DC',
-  'primary-deep': '#FFD66B'
+  'primary-deep': '#FFD66B',
+  'dialogue-bg': '#FDF3DC',
+  'dialogue-ink': '#22223A',
+  'dialogue-label': '#2A6F92',
+  'badge-ink': '#FFFFFF',
+  'wave-sea': '#2A7BA0'
 }
 
 // WCAG 2.x relative luminance and contrast ratio for #rrggbb.
@@ -164,7 +179,9 @@ describe('Pixel Quest tokens', () => {
     ['warn', 'shelf-a', 'File moved on the shelf'],
     ['warn', 'warn-soft', 'errors'],
     ['ok', 'bg', 'Saved'],
-    ['bg', 'bubble', 'bubble text']
+    ['bg', 'bubble', 'bubble text'],
+    ['dialogue-ink', 'dialogue-bg', 'dialogue text'],
+    ['dialogue-label', 'dialogue-bg', 'dialogue label']
   ]
   it.each(pairs)('%s on %s is at least 4.5:1 (%s)', (fg, bgk) => {
     expect(contrast(pq[fg], pq[bgk])).toBeGreaterThanOrEqual(4.5)

@@ -56,6 +56,8 @@ describe('Pixel Quest dialogue box', () => {
     const box = await screen.findByTestId('dialogue-box')
     expect(box.getAttribute('aria-hidden')).toBe('true')
     expect(box.textContent).toContain('Memory is shaped by attention.')
+    // Two-line clamp keeps the box one height for every sentence.
+    expect(box.querySelector('.pq-dialogue-text')!.classList.contains('line-clamp-2')).toBe(true)
     expect(within(screen.getByLabelText('Player')).getByTestId('dialogue-box')).toBe(box)
   })
 
@@ -105,7 +107,7 @@ describe('Pixel Quest course badges', () => {
     expect(badges.map((b) => b.style.backgroundColor)).toEqual(
       NAMES.map((_, i) => hexToRgb(BADGE_COLOURS['pixel-quest']![i % 5]))
     )
-    expect(badges[0].style.color).toBe('rgb(255, 255, 255)')
+    expect(badges[0].style.color).toBe('var(--badge-ink)')
     expect(badges[0].getAttribute('aria-hidden')).toBe('true')
     expect(badges.map((b) => b.textContent).sort()).toEqual([
       'ART',

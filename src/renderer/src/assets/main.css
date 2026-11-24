@@ -185,7 +185,7 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   font-size: 10px;
 }
 /* Course headings on the shelf: pixel labels with a type badge. */
-:root[data-theme='pixel-quest'] nav[aria-label='Readings'] section > button[aria-expanded] {
+:root[data-theme='pixel-quest'] .pq-course {
   font-family: var(--pq-font);
   font-size: 7px;
   font-weight: 400;
@@ -240,22 +240,26 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   flex: 1 1 100%;
   margin: 6px 9px 10px;
   padding: 10px 28px 10px 14px;
-  background: #fdf3dc;
-  color: #22223a;
+  box-sizing: border-box;
+  /* Fixed height: the label plus two clamped lines, so the player bar never resizes per sentence. */
+  height: 80px;
+  overflow: hidden;
+  background: var(--dialogue-bg);
+  color: var(--dialogue-ink);
   font-family: 'Nunito Sans', system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.55;
   box-shadow:
-    0 0 0 3px #071624,
-    0 0 0 6px #fdf3dc,
-    0 0 0 9px #071624;
+    0 0 0 3px var(--border),
+    0 0 0 6px var(--dialogue-bg),
+    0 0 0 9px var(--border);
 }
 .pq-dialogue-who {
   display: block;
   margin-bottom: 6px;
   font-family: var(--pq-font);
   font-size: 8px;
-  color: #2a6f92;
+  color: var(--dialogue-label);
 }
 .pq-dialogue-cursor {
   position: absolute;
@@ -273,4 +277,10 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   .pq-dialogue-cursor {
     animation: none;
   }
+}
+
+/* Pixel Quest: let the cream page colour show through the PDF's opaque white canvas. The highlight and
+   text layers are separate elements above it; the dark-pages filter only applies in deep-sea. */
+:root[data-theme='pixel-quest'] canvas[data-pdf-canvas] {
+  mix-blend-mode: multiply;
 }
