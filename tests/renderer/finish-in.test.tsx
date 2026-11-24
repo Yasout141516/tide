@@ -88,6 +88,11 @@ describe('Finish in…', () => {
     expect(label()).toBe('Emma · 2×')
   })
 
+  it('a slower own speed plays as chosen when Finish in is off', async () => {
+    await open({ speed: 0.8 })
+    expect(label()).toBe('Emma · 0.8×')
+  })
+
   it('Off restores her chosen speed', async () => {
     await open({ finishIn: 60 })
     await waitFor(() => expect(label()).not.toBe('Emma · 1×'))

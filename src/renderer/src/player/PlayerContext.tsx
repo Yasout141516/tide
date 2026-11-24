@@ -204,7 +204,7 @@ export function PlayerProvider({
         : finishInSpeed(readingSeconds(texts, voiceRate(voice)), finishIn),
     [finishIn, voice, texts]
   )
-  const effectiveSpeed = Math.max(speed, fin?.speed ?? 1)
+  const effectiveSpeed = fin ? Math.max(speed, fin.speed) : speed
   const finRef = useLatest({ fin, finishIn })
   // The estimate shows for 5 s after the limit is set (not when a reading merely opens with one).
   const [finishNote, setFinishNote] = useState<string | null>(null)
@@ -477,7 +477,8 @@ export function PlayerProvider({
       },
       setSpeed: (s) => {
         if (!engine) return
-        engine.setSpeed(Math.max(s, finRef.current.fin?.speed ?? 1))
+        const f = finRef.current.fin
+        engine.setSpeed(f ? Math.max(s, f.speed) : s)
         void tide()
           .library.setVoice(engine.snapshot().voice, s)
           .catch(() => {})
