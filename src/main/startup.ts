@@ -88,3 +88,28 @@ export function createShowWindow(o: {
     }
   }
 }
+
+/**
+ * Process-level error hook. Always logs. If it happens before any window exists (a failed start),
+ * Tide would otherwise sit windowless holding the single-instance lock, so say so plainly and exit.
+ */
+export function createFatalHandler(d: {
+  hasWindow: () => boolean
+  showError: (title: string, body: string) => void
+  exit: (code: number) => void
+}): (scope: string, err: unknown) => void {
+  let exiting = false
+  return (scope, err) => {
+    logError(scope, err)
+    if (d.hasWindow() || exiting) return
+    exiting = true
+    try {
+      d.showError(
+        'Tide could not start',
+        'Something went wrong while starting Tide. Please quit and open it again.'
+      )
+    } finally {
+      d.exit(1)
+    }
+  }
+}

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createLog, diagnosticInfo, logError, setLog } from '../../src/main/log'
+import { createLog, createRendererGate, diagnosticInfo, logError, setLog } from '../../src/main/log'
 import type { LibrarySettings } from '../../src/shared/library/types'
 
 const tmp = (): string => mkdtempSync(join(tmpdir(), 'tide-log-'))
@@ -90,5 +90,84 @@ describe('log', () => {
     expect(text).toContain('Theme: deep-sea')
     expect(text).toContain('something broke')
     expect(text).not.toMatch(/Nguyen|Siobhan|shivawn/)
+  })
+})
+
+describe('path scrubbing', () => {
+  function written(home: string, message: string): string {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    createLog(dir, { home }).error('x', message)
+    return readFileSync(join(dir, 'tide.log'), 'utf8')
+  }
+
+  it('replaces a path on another drive with <path>', () => {
+    const t = written('C:\\Users\\Mia', 'ENOENT D:\\Lectures\\Smith.pdf missing')
+    expect(t).toContain('ENOENT <path> missing')
+    expect(t).not.toContain('Smith')
+  })
+
+  it('replaces a UNC path', () => {
+    const t = written('C:\\Users\\Mia', 'cannot read \\\\nas\\share\\Course\\Jones.pdf now')
+    expect(t).toContain('cannot read <path> now')
+    expect(t).not.toMatch(/Jones|nas/)
+  })
+
+  it('replaces a JSON-escaped path', () => {
+    const t = written('C:\\Users\\Mia', JSON.stringify({ path: 'D:\\Lectures\\Smith.pdf' }))
+    expect(t).toContain('{"path":"<path>"}')
+    expect(t).not.toContain('Smith')
+  })
+
+  it('replaces an absolute POSIX path but keeps URLs and lone slashes', () => {
+    const t = written('/home/mia', 'open /Volumes/usb/Smith.pdf and http://a/b and a/b')
+    expect(t).toContain('open <path> and http://a/b and a/b')
+  })
+
+  it('matches the home dir in a different case', () => {
+    const t = written('C:\\Users\\Mia', 'c:\\users\\MIA\\Docs\\a.pdf')
+    expect(t).toContain('~\\Docs\\a.pdf')
+  })
+
+  it('does not turn C:\\Users\\Mia2 into ~2', () => {
+    const t = written('C:\\Users\\Mia', 'C:\\Users\\Mia2\\x.pdf')
+    expect(t).not.toContain('~2')
+    expect(t).toContain('<path>')
+  })
+})
+
+describe('renderer gate', () => {
+  it('collapses identical consecutive messages into a repeat count', () => {
+    const log = { error: vi.fn() }
+    const g = createRendererGate(log)
+    g.push('boom')
+    g.push('boom')
+    g.push('boom')
+    g.push('other')
+    expect(log.error.mock.calls.map((c) => c[1])).toEqual([
+      'boom',
+      '(previous message repeated 2 times)',
+      'other'
+    ])
+  })
+
+  it('flush writes a pending repeat count', () => {
+    const log = { error: vi.fn() }
+    const g = createRendererGate(log)
+    g.push('a')
+    g.push('a')
+    g.flush()
+    expect(log.error).toHaveBeenLastCalledWith('renderer', '(previous message repeated 1 times)')
+  })
+
+  it('keeps at most 20 entries a minute, then resumes', () => {
+    const log = { error: vi.fn() }
+    let t = 0
+    const g = createRendererGate(log, { now: () => t })
+    for (let i = 0; i < 50; i++) g.push(`m${i}`)
+    expect(log.error).toHaveBeenCalledTimes(20)
+    t = 60_000
+    g.push('later')
+    expect(log.error).toHaveBeenCalledTimes(21)
   })
 })

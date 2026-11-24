@@ -39,10 +39,7 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
   const home = o.home ?? homedir()
   const file = join(dir, 'tide.log')
   const old = join(dir, 'tide.1.log')
-  const scrub = (s: string): string => {
-    if (!home) return s
-    return s.split(home).join('~').split(home.replace(/\\/g, '/')).join('~')
-  }
+  const scrub = makeScrub(home)
   return {
     error(scope, err) {
       try {
@@ -73,6 +70,82 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
       const lines = (readOrEmpty(old) + readOrEmpty(file)).split('\n').filter((l) => l !== '')
       const tail = lines.slice(-TAIL_LINES).join('\n')
       return scrub([...head, '', '--- Recent log ---', tail || '(empty)'].join('\n')) + '\n'
+    }
+  }
+}
+
+// One path segment: no whitespace, separators, quotes, brackets or colons (so `file.js:1:2)` keeps its tail).
+const SEG = '[^\\s\\\\/"\'<>|*?():]+'
+// A separator, including JSON-escaped (doubled) backslashes.
+const SEP = '(?:\\\\+|/)'
+const DRIVE_PATH = new RegExp(`(?<!\\w)[A-Za-z]:${SEP}(?:${SEG}(?:${SEP}${SEG})*)?`, 'g')
+const UNC_PATH = new RegExp(`\\\\\\\\+[\\w.$-]+(?:\\\\+${SEG})+`, 'g')
+const POSIX_PATH = new RegExp(`(?<![\\w.:/<~\\\\])/${SEG}(?:/${SEG})+`, 'g')
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Home dir becomes `~` (boundary-aware, case-insensitive for Windows paths, also in forward-slash
+ * and JSON-escaped forms); then every other absolute path becomes `<path>`. A path containing a
+ * space is cut at the space (the rest stays): the price of not eating whole sentences.
+ */
+function makeScrub(home: string): (s: string) => string {
+  let homeRe: RegExp | null = null
+  if (home) {
+    const win = /^[A-Za-z]:/.test(home)
+    const forms = new Set([home, home.replace(/\\/g, '/'), home.replace(/\\/g, '\\\\')])
+    homeRe = new RegExp(`(?:${[...forms].map(escapeRe).join('|')})(?!\\w)`, win ? 'gi' : 'g')
+  }
+  return (s) => {
+    const t = homeRe ? s.replace(homeRe, '~') : s
+    return t.replace(DRIVE_PATH, '<path>').replace(UNC_PATH, '<path>').replace(POSIX_PATH, '<path>')
+  }
+}
+
+/**
+ * Sits between the renderer's app:log and the log: identical consecutive messages are counted, not
+ * rewritten, and at most `max` entries per window are kept (the rest dropped), so an error loop
+ * cannot flood the file or push out useful history.
+ */
+export function createRendererGate(
+  log: Pick<Log, 'error'>,
+  o: { now?: () => number; max?: number; windowMs?: number } = {}
+): { push(message: string): void; flush(): void } {
+  const now = o.now ?? Date.now
+  const max = o.max ?? 20
+  const windowMs = o.windowMs ?? 60_000
+  let last: string | null = null
+  let repeats = 0
+  let start = -Infinity
+  let used = 0
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const flush = (): void => {
+    if (timer) clearTimeout(timer)
+    timer = null
+    if (repeats > 0) log.error('renderer', `(previous message repeated ${repeats} times)`)
+    repeats = 0
+  }
+  return {
+    flush,
+    push(message) {
+      if (message === last) {
+        repeats++
+        if (!timer) {
+          timer = setTimeout(flush, 2000)
+          timer.unref?.()
+        }
+        return
+      }
+      flush()
+      const t = now()
+      if (t - start >= windowMs) {
+        start = t
+        used = 0
+      }
+      if (used >= max) return
+      used++
+      last = message
+      log.error('renderer', message)
     }
   }
 }

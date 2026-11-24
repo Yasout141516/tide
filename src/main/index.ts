@@ -1,5 +1,5 @@
 import { resolveInitialTheme, windowBackground } from './window-bg'
-import { createLog, diagnosticInfo, logError, setLog } from './log'
+import { createLog, createRendererGate, diagnosticInfo, logError, setLog } from './log'
 import {
   app,
   BrowserWindow,
@@ -25,7 +25,12 @@ import { courseNameOf } from '../shared/library/shelf'
 import { registerLibraryIpc } from './library/ipc'
 import { buildMenu } from './menu'
 import { filesFromArgv, openWithHandler, OpenWithQueue } from './open-with'
-import { createQuitHandler, createShowWindow, openLibraryOrReport } from './startup'
+import {
+  createFatalHandler,
+  createQuitHandler,
+  createShowWindow,
+  openLibraryOrReport
+} from './startup'
 
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
@@ -151,19 +156,26 @@ app.on('second-instance', (_e, argv, workingDirectory) => {
 
 // Unexpected errors go to the log, never to a dialog. Handlers log through logError, which is
 // console-only until the log below is installed.
-process.on('uncaughtException', (err) => logError('uncaught exception', err))
-process.on('unhandledRejection', (reason) => logError('unhandled rejection', reason))
+const onFatal = createFatalHandler({
+  hasWindow: () => mainWindow !== null,
+  showError: (title, body) => dialog.showErrorBox(title, body),
+  exit: (code) => app.exit(code)
+})
+process.on('uncaughtException', (err) => onFatal('uncaught exception', err))
+process.on('unhandledRejection', (reason) => onFatal('unhandled rejection', reason))
 
 app.whenReady().then(async () => {
   if (!gotLock) return
   const log = createLog(join(app.getPath('userData'), 'logs'))
   setLog(log)
   // Renderer errors arrive here. Anything but a 'renderer' scope and a string is ignored silently.
+  const rendererGate = createRendererGate(log)
   ipcMain.on('app:log', (_e, scope: unknown, message: unknown) => {
     if (scope !== 'renderer' || typeof message !== 'string') return
-    log.error('renderer', message.slice(0, 4000))
+    rendererGate.push(message.slice(0, 4000))
   })
   ipcMain.handle('app:copy-diagnostics', async () => {
+    rendererGate.flush()
     const text = await log.diagnostics(
       diagnosticInfo({
         appVersion: app.getVersion(),
