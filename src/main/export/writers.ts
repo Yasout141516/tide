@@ -40,6 +40,7 @@ function ffmpegError(code: number | string | null, stderr: string): Error {
 class FfmpegRun {
   readonly closed: Promise<void>
   private readonly child: ChildProcess
+  private exited = false
 
   constructor(args: string[], stdin: boolean) {
     this.child = spawn(ffmpegPath(), [...ffmpegBaseArgs, ...args], {
@@ -54,10 +55,15 @@ class FfmpegRun {
     // ffmpeg exiting early closes the pipe: EPIPE here is expected, the exit code tells.
     this.child.stdin?.on('error', () => {})
     this.closed = new Promise<void>((resolve, reject) => {
-      this.child.on('error', (err) => reject(new Error(`ffmpeg failed to start: ${err.message}`)))
-      this.child.on('close', (code, sig) =>
-        code === 0 ? resolve() : reject(ffmpegError(code ?? sig, stderr))
-      )
+      this.child.on('error', (err) => {
+        this.exited = true
+        reject(new Error(`ffmpeg failed to start: ${err.message}`))
+      })
+      this.child.on('close', (code, sig) => {
+        this.exited = true
+        if (code === 0) resolve()
+        else reject(ffmpegError(code ?? sig, stderr))
+      })
     })
     this.closed.catch(() => {}) // the owner awaits it; never an unhandled rejection
   }
@@ -66,13 +72,25 @@ class FfmpegRun {
   async write(buf: Buffer): Promise<void> {
     const stdin = this.child.stdin!
     if (stdin.write(buf)) return
+    if (this.exited) return this.closed
+    // One pair of listeners per wait, each removed when either fires (none pile up over a long export).
     await new Promise<void>((resolve, reject) => {
-      const onDrain = (): void => resolve()
-      stdin.once('drain', onDrain)
-      this.closed.then(resolve, (err) => {
+      const stop = (): void => {
         stdin.off('drain', onDrain)
-        reject(err)
-      })
+        this.child.off('close', onExit)
+        this.child.off('error', onExit)
+      }
+      const onDrain = (): void => {
+        stop()
+        resolve()
+      }
+      const onExit = (): void => {
+        stop()
+        this.closed.then(resolve, reject) // ffmpeg died while waiting: its error, or fine on code 0
+      }
+      stdin.once('drain', onDrain)
+      this.child.once('close', onExit)
+      this.child.once('error', onExit)
     })
   }
 
