@@ -304,7 +304,7 @@ export function PlayerProvider({
     void tide()
       .library.flush()
       .catch(() => {})
-  }, [engine, readingId])
+  }, [engine, readingId, sentencesRef])
 
   /** The list was rebuilt (not opened or switched) while she was listening: carry on afterwards. */
   const resume = useRef(false)
@@ -408,7 +408,7 @@ export function PlayerProvider({
       }
     }, SLEEP_TICK_MS)
     return () => clearInterval(id)
-  }, [sleepOn, engine, timer, nowFn])
+  }, [sleepOn, engine, timer, nowFn, sentencesRef])
 
   // Another reading starts with the timer off.
   useEffect(() => {
@@ -436,7 +436,7 @@ export function PlayerProvider({
             ms: Infinity
           })
       }),
-    []
+    [latestProps]
   )
 
   // --- Actions ------------------------------------------------------------------------------
@@ -543,7 +543,7 @@ export function PlayerProvider({
         forward: () => latest.current.skip(SKIP_SEC)
       }
     )
-  }, [title, artist])
+  }, [title, artist, latest])
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return
     navigator.mediaSession.playbackState =
@@ -572,7 +572,7 @@ export function PlayerProvider({
         if (!e.repeat) latest.current.toggle()
       } else latest.current.skip(e.key === 'ArrowRight' ? SKIP_SEC : -SKIP_SEC)
     },
-    [hasText]
+    [hasText, latest]
   )
   useEffect(() => {
     const onUp = (e: KeyboardEvent): void => {

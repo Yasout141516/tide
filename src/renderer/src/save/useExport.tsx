@@ -11,6 +11,7 @@ import {
 import type { ExportEvent, ExportFailure, ExportSpec } from '../../../shared/ipc-types'
 import type { ReadingView } from '../../../shared/library/types'
 import { tide } from '../lib/tide'
+import { useLatest } from '../lib/useLatest'
 import { useToast } from '../shell/Toast'
 import { ExportProgress } from './ExportProgress'
 import { SavePanel } from './SavePanel'
@@ -23,6 +24,8 @@ const REASONS: Record<ExportFailure, string> = {
   'folder-missing': 'the folder is missing',
   failed: 'something went wrong'
 }
+
+type StartFn = (spec: ExportSpec, label: string, chooseFolder?: boolean) => Promise<void>
 
 interface Job {
   id: string | null
@@ -38,7 +41,9 @@ interface ExportUi {
   progress: ReactNode
 }
 
-const Ctx = createContext<ExportUi>({ openPanel: () => {}, progress: null })
+// eslint-disable-next-line react-refresh/only-export-components -- tests supply a fake export UI
+export const ExportUiContext = createContext<ExportUi>({ openPanel: () => {}, progress: null })
+const Ctx = ExportUiContext
 
 // eslint-disable-next-line react-refresh/only-export-components -- the hook belongs with its provider
 export function useExportUi(): ExportUi {
@@ -64,14 +69,10 @@ export function ExportProvider({
     setJob(j)
   }, [])
 
-  const startRef = useRef<
-    ((spec: ExportSpec, label: string, chooseFolder?: boolean) => Promise<void>) | null
-  >(null)
-  const toastRef = useRef(toast)
-  useEffect(() => {
-    toastRef.current = toast
-  })
-  const currentJob = (): Job | null => jobRef.current
+  const toastRef = useLatest(toast)
+
+  // showFailure's retry actions call the latest `start`, which is defined below it.
+  const startRef = useRef<StartFn | null>(null)
 
   const showFailure = useCallback(
     (spec: ExportSpec, label: string, reason: ExportFailure): void => {
@@ -85,11 +86,11 @@ export function ExportProvider({
         ]
       })
     },
-    []
+    [toastRef]
   )
 
-  const start = useCallback(
-    async (spec: ExportSpec, label: string, chooseFolder = false): Promise<void> => {
+  const start = useCallback<StartFn>(
+    async (spec, label, chooseFolder = false) => {
       // A stale toast's action (or anything else) never overwrites a running job.
       if (jobRef.current) {
         toast.show({ text: BUSY })
@@ -99,20 +100,22 @@ export function ExportProvider({
       toast.dismiss()
       // Busy from the moment of asking: the folder dialog and a quick event can both come first.
       set({ id: null, label, percent: 0, spec })
+      // Events may replace the job across the awaits below, so read it afresh each time.
+      const live = jobRef as { current: Job | null }
       let r
       try {
         r = await tide().export.start(spec, chooseFolder ? { chooseFolder: true } : undefined)
       } catch {
-        if (currentJob()?.spec === spec) set(null)
+        if (live.current?.spec === spec) set(null)
         showFailure(spec, label, 'failed')
         return
       }
       if ('jobId' in r) {
-        const cur = currentJob()
+        const cur = live.current
         if (cur && cur.spec === spec) set({ ...cur, id: cur.id ?? r.jobId })
         return
       }
-      if (currentJob()?.spec === spec) set(null)
+      if (live.current?.spec === spec) set(null)
       if ('busy' in r) toast.show({ text: BUSY })
     },
     [set, toast, showFailure]
@@ -146,7 +149,7 @@ export function ExportProvider({
         } else if (e.kind === 'failed') showFailure(cur.spec, cur.label, e.reason)
         else t.show({ text: 'Audio not saved.' })
       }),
-    [set, showFailure]
+    [set, showFailure, toastRef]
   )
 
   const busy = job !== null
@@ -167,7 +170,7 @@ export function ExportProvider({
         />
       ) : null
     }),
-    [job]
+    [job, toastRef]
   )
 
   return (

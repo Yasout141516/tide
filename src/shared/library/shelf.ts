@@ -9,6 +9,15 @@ export interface ShelfGroup {
   finished: ReadingView[]
 }
 
+/** The name of the course a reading is filed under, or null (no snapshot, no reading, or "Other"). */
+export function courseNameOf(
+  s: LibrarySnapshot | null,
+  readingId: ReadingId | null
+): string | null {
+  const courseId = s?.readings.find((r) => r.id === readingId)?.courseId
+  return s?.courses.find((c) => c.id === courseId)?.name ?? null
+}
+
 /** Courses alphabetical, case-insensitive: the order of the shelf and of the course picker. */
 export function sortCourses(courses: Course[]): Course[] {
   return [...courses].sort((a, b) =>

@@ -7,7 +7,9 @@ import { sentenceAt, spanRects, type Rect } from '../../../shared/text/highlight
 import type { PageText, ReadingFilters } from '../../../shared/text/types'
 import { tide } from '../lib/tide'
 import { focusOwnsKeys } from '../lib/keys'
+import { useLatest } from '../lib/useLatest'
 import { usePlayer } from '../player/PlayerContext'
+import { useExportUi } from '../save/useExport'
 import { MessageDialog } from '../add/MessageDialog'
 import { ChoiceDialog, ghostButton, primaryButton } from '../reading/ChoiceDialog'
 import { FileMovedDialog } from '../reading/FileMovedDialog'
@@ -29,8 +31,6 @@ type Props = {
   snapshot: LibrarySnapshot
   /** Back to the empty stage (Keep, Cancel, or a reading that went away). */
   onClose(): void
-  /** Save as audio on a selection: the inclusive sentence range it snapped to. */
-  onSaveSelection(range: [number, number]): void
 }
 
 type Open =
@@ -41,6 +41,9 @@ type Open =
   | { kind: 'ready'; doc: PdfDoc }
 
 type Size = { width: number; height: number }
+
+const sameRect = (a: DOMRect, b: DOMRect): boolean =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 
 /** The one definition of "the read line is in view": wholly inside the stage. */
 const fullyInView = (b: { r: DOMRect; s: DOMRect }): boolean =>
@@ -75,7 +78,6 @@ function ReaderSession({
   reading,
   snapshot,
   onClose,
-  onSaveSelection,
   fresh,
   onReopen
 }: Props & {
@@ -84,6 +86,7 @@ function ReaderSession({
   onReopen(fresh: boolean): void
 }): React.JSX.Element {
   const deps = useReaderDeps()
+  const { openPanel } = useExportUi()
   const report = useReportReader()
   const { current, setCurrent, sentences: reported } = useReaderState()
   const zoom = snapshot.settings.zoom
@@ -259,13 +262,13 @@ function ReaderSession({
   }, [zoom, colWidth])
 
   // --- Text: the page of her place is drawn first, then every page's text -------------------
-  const anchorRef = useRef(anchor)
-  useEffect(() => {
-    anchorRef.current = anchor
-  })
-  const settle = useCallback((n: number) => {
-    if (n === anchorRef.current) setAnchorDone(true)
-  }, [])
+  const anchorRef = useLatest(anchor)
+  const settle = useCallback(
+    (n: number) => {
+      if (n === anchorRef.current) setAnchorDone(true)
+    },
+    [anchorRef]
+  )
 
   useEffect(() => {
     if (!doc || !anchorDone) return
@@ -479,10 +482,7 @@ function ReaderSession({
   const TIP = 'select-text'
   const [bubble, setBubble] = useState<{ rect: DOMRect; range: [number, number] } | null>(null)
   const tipSeen = snapshot.ui.tipsSeen.includes(TIP)
-  const tipSeenRef = useRef(tipSeen)
-  useEffect(() => {
-    tipSeenRef.current = tipSeen
-  })
+  const tipSeenRef = useLatest(tipSeen)
   const markTipSeen = useCallback(() => {
     if (!tipSeenRef.current) {
       tipSeenRef.current = true
@@ -490,41 +490,51 @@ function ReaderSession({
         .library.tipSeen(TIP)
         .catch(() => {})
     }
-  }, [])
+  }, [tipSeenRef])
   const selectionOf = (): { rect: DOMRect; range: [number, number] } | null => {
     const root = scroller.current
     const sel = root && sentences ? currentSelection(root) : null
     const range = sel && sentences ? selectionSentences(sentences, sel.a, sel.b) : null
     return sel && range ? { rect: sel.rect, range } : null
   }
-  const selectionRef = useRef(selectionOf)
-  useEffect(() => {
-    selectionRef.current = selectionOf
-  })
+  const selectionRef = useLatest(selectionOf)
+  /** The bubble state to keep: the same object when its range and box have not changed. */
+  const keepIfSame = (prev: typeof bubble, next: typeof bubble): typeof bubble =>
+    prev &&
+    next &&
+    prev.range[0] === next.range[0] &&
+    prev.range[1] === next.range[1] &&
+    sameRect(prev.rect, next.rect)
+      ? prev
+      : next
   useEffect(() => {
     const update = (): void => {
       const next = selectionRef.current()
-      setBubble(next)
+      setBubble((b) => keepIfSame(b, next))
       if (next) markTipSeen()
     }
     document.addEventListener('selectionchange', update)
-    // The box moves when the page scrolls under a held selection.
+    return () => document.removeEventListener('selectionchange', update)
+    // keepIfSame and selectionRef are stable in effect: one is pure, the other a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markTipSeen])
+  const bubbleOpen = bubble !== null
+  // The box moves when the page scrolls under a held selection: listen only while a bubble is open.
+  useEffect(() => {
     const el = scroller.current
+    if (!bubbleOpen || !el) return
     const reposition = (): void => {
       const next = selectionRef.current()
-      setBubble((b) => (b && next ? next : b))
+      setBubble((b) => (b && next ? keepIfSame(b, next) : b))
     }
-    el?.addEventListener('scroll', reposition, { passive: true })
-    return () => {
-      document.removeEventListener('selectionchange', update)
-      el?.removeEventListener('scroll', reposition)
-    }
-  }, [markTipSeen])
+    el.addEventListener('scroll', reposition, { passive: true })
+    return () => el.removeEventListener('scroll', reposition)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bubbleOpen])
   const dismissBubble = useCallback(() => {
     window.getSelection()?.removeAllRanges()
     setBubble(null)
   }, [])
-  const bubbleOpen = bubble !== null
   useEffect(() => {
     if (!bubbleOpen) return
     // Not prevented or stopped: other Escape handling (menus, dialogs) still runs.
@@ -561,11 +571,8 @@ function ReaderSession({
     }
   }, [sentences, itemOf, sizeOf])
   // Pages are memoised: a stable handler that reads the latest closure.
-  const pickRef = useRef(pickNow)
-  useEffect(() => {
-    pickRef.current = pickNow
-  })
-  const pick = useCallback((n: number, x: number, y: number) => pickRef.current(n, x, y), [])
+  const pickRef = useLatest(pickNow)
+  const pick = useCallback((n: number, x: number, y: number) => pickRef.current(n, x, y), [pickRef])
 
   // The highlight each page gets: a page whose highlight did not change keeps the same value.
   const highlights = useMemo(() => {
@@ -731,7 +738,7 @@ function ReaderSession({
           onSave={() => {
             const r = bubble.range
             dismissBubble()
-            onSaveSelection(r)
+            openPanel(r)
           }}
         />
       ) : null}

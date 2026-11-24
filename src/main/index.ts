@@ -8,6 +8,7 @@ import { registerExportIpc, type ExportController } from './export/ipc'
 import { PlayingBlocker, releaseWhenRendererLost } from './playing'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
+import { courseNameOf } from '../shared/library/shelf'
 import { registerLibraryIpc } from './library/ipc'
 import { buildMenu } from './menu'
 import { filesFromArgv, openWithHandler, OpenWithQueue } from './open-with'
@@ -161,9 +162,7 @@ app.whenReady().then(async () => {
       host: ttsHost,
       window: () => mainWindow,
       albumFor: (id) => {
-        const snap = lib.snapshot()
-        const courseId = snap.readings.find((r) => r.id === id)?.courseId
-        return snap.courses.find((c) => c.id === courseId)?.name ?? null
+        return courseNameOf(lib.snapshot(), id)
       }
     })
     const { send } = libraryIpc

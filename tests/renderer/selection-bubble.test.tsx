@@ -11,6 +11,7 @@ import { setTide } from '../../src/renderer/src/lib/tide'
 import type { LibrarySnapshot, ReadingView } from '../../src/shared/library/types'
 import { DEFAULT_FILTERS } from '../../src/shared/text/types'
 import type { PageText } from '../../src/shared/text/types'
+import { ExportUiContext } from '../../src/renderer/src/save/useExport'
 import { bodyPages, fakeDeps, fakeDoc, fakePlayer, renderApp } from './reader-fakes'
 import { fakeTide } from './setup'
 
@@ -139,12 +140,11 @@ describe('Selection bubble', () => {
                 snapshot={snapshot}
                 onPlayNext={() => {}}
               >
-                <ReaderView
-                  reading={reading}
-                  snapshot={snapshot}
-                  onClose={() => {}}
-                  onSaveSelection={(r) => saved.push(r)}
-                />
+                <ExportUiContext.Provider
+                  value={{ openPanel: (r) => r && saved.push(r), progress: null }}
+                >
+                  <ReaderView reading={reading} snapshot={snapshot} onClose={() => {}} />
+                </ExportUiContext.Provider>
               </PlayerProvider>
             </ToastProvider>
           </ReaderStateProvider>

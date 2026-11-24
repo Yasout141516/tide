@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ComponentProps } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReadingId, ReadingView } from '../../shared/library/types'
+import { courseNameOf } from '../../shared/library/shelf'
 import { AppShell } from './shell/AppShell'
 import { PlayerBar } from './player/PlayerBar'
 import { PlayerProvider } from './player/PlayerContext'
@@ -117,6 +118,7 @@ function App(): React.JSX.Element {
 
   // Derived from the library, so a removed reading is never selected (ids are never reused).
   const selected = library?.readings.find((r) => r.id === selectedId) ?? null
+  const courseName = courseNameOf(library, selected?.id ?? null)
 
   const target = dialog ? library?.readings.find((r) => r.id === dialog.id) : undefined
   const closeDialog = (): void => setDialog(null)
@@ -188,14 +190,14 @@ function App(): React.JSX.Element {
       <main className="flex h-full flex-col">
         <ReadingHeader
           reading={selected}
-          courseName={library.courses.find((c) => c.id === selected.courseId)?.name ?? null}
+          courseName={courseName}
           onRename={() => setDialog({ kind: 'rename', id: selected.id })}
           onRemove={() => setDialog({ kind: 'remove', id: selected.id })}
           onReadEverything={(on) => void tide().library.update(selected.id, { readEverything: on })}
           onFinishIn={(m) => void tide().library.update(selected.id, { finishIn: m })}
         />
         <div className="min-h-0 flex-1">
-          <ReaderWithSave
+          <ReaderView
             key={selected.id}
             reading={selected}
             snapshot={library}
@@ -219,14 +221,11 @@ function App(): React.JSX.Element {
       <ToastProvider>
         <PlayerProvider
           reading={selected}
-          courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
+          courseName={courseName}
           snapshot={library}
           onPlayNext={open}
         >
-          <ExportProvider
-            reading={selected}
-            courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
-          >
+          <ExportProvider reading={selected} courseName={courseName}>
             <AppShell
               renderShelf={(closeOverlay) =>
                 library ? (
@@ -257,14 +256,6 @@ function App(): React.JSX.Element {
       </ToastProvider>
     </ReaderStateProvider>
   )
-}
-
-/** ReaderView whose Save as audio opens the Save panel (or says the last audio is still being made). */
-function ReaderWithSave(
-  props: Omit<ComponentProps<typeof ReaderView>, 'onSaveSelection'>
-): React.JSX.Element {
-  const { openPanel } = useExportUi()
-  return <ReaderView {...props} onSaveSelection={openPanel} />
 }
 
 type HeaderProps = {
