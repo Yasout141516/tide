@@ -187,7 +187,21 @@ jobs:
             cat check-chapters.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          exit $rc
+          # M5: the audiobook the "Save as audio" e2e makes from the whole listen.pdf reading
+          # (one chapter per page with text: 3 pages, all with sentences).
+          rc2=0
+          swift scripts/check-chapters.swift test-results/whole.m4b 3 > check-chapters-whole.txt 2>&1 || rc2=$?
+          cat check-chapters-whole.txt
+          {
+            echo '### M5: AVFoundation chapter check on a saved whole reading'
+            echo
+            echo '```'
+            echo '$ swift scripts/check-chapters.swift test-results/whole.m4b 3'
+            cat check-chapters-whole.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
+          exit "$rc2"
 
       - name: Upload installers
         uses: actions/upload-artifact@v6

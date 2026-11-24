@@ -562,6 +562,13 @@ the range, and icon artwork (sky/sea wave mark, as in the mockups).
 - A moved or missing file is never offered as Next, and a Play next that fails to open leaves nothing armed.
 - Test hygiene: the jsdom renderer tests have a 15 second limit and wait on conditions rather than fixed delays; no push of the feature branch happens before the listening check.
 
+**Decided during M5 build (2026-11-24)** (details: `docs/superpowers/decisions/2026-11-24-m4-m5-rulings.md`)
+- Exports use her chosen speed (one of the five), never the Finish in speed (R26).
+- A selection counts only the text it actually covers: a selection over a running header or other skipped text offers nothing (R27).
+- The Save panel's duration estimates describe the saved file. "Try again" re-sends the export, "Choose another folder" asks for one and saves straight into it, and a second export while one runs says "Tide is still making your last audio." (R28, R30).
+- Exports are mono MP3 at 64 kbps; whole readings are `.m4b` with one chapter per page that has text, named `Page N` (R29).
+- The implementer runs everything except the push; the controller pushes the feature branch (R31).
+
 **Still open**
 - If Open Anyway fails on her Mac: guided Terminal step vs paid Apple Developer ID. *Deferred by Yasin to hand-off.*
 - **GPL ffmpeg binaries** ship in the installers: handle the source-offer obligation before any public release.

@@ -153,3 +153,12 @@ Other known rules problems: the initials rule over-merges real sentence ends (a 
 - Packaged e2e: 31 passed, 1 skipped (the macOS-only hide test), offline. Dev e2e: 30 passed, 1 skipped, and the jump test failing in that run; its check was then fixed and it passes in dev (3 of 3).
 - **Installer:** Windows `Tide Setup 1.0.0.exe` 456.6 MiB (478,741,627 bytes), unchanged in size from M4.
 - `listen.pdf` grew from 2 to 3 pages (20 sentences) so a jump target lies outside the cache.
+
+**M5 status (2026-11-24): Save as audio**
+- Measured on the Windows dev machine, one worker, e2e `tests/e2e/save-audio.spec.ts` (`listen.pdf`: 3 pages, 20 sentences, 70.2 s of audio at the default voice and speed). The rate is seconds of audio per second of export, from clicking Save audio to the saved toast, so it includes the model load of a fresh launch.
+- **Export alone** (whole reading as `.m4b`, no playback): packaged 70.2 s of audio in 42.4 s, **1.66 s of audio per second**. The clean full dev run measured 70.2 s in 39.3 s, 1.79 s per second. An earlier dev run of the spec alone, while other test processes overlapped, gave 0.85 (82.6 s), so the rate is sensitive to machine load.
+- **Export while playing** (pages 1-3 as an MP3 while the same reading plays aloud): packaged 70.3 s in 79.2 s, **0.89 s per second**; dev (clean full run) 70.3 s in 73.2 s, **0.96 s per second** (0.44 in the overlapped run). Playback keeps advancing throughout (the e2e asserts the highlight moves while the export runs). Live synthesis has priority over export, so an export made while listening takes about twice as long.
+- A selection of two sentences saves an 11.8 s MP3 with title and artist `Tide · Emma` in 12 s end to end (packaged), model load included.
+- **Installer:** Windows `Tide Setup 1.0.0.exe` 478,748,844 bytes, **456.6 MiB**, unchanged in size from M4 (+7 KB).
+- Packaged e2e (offline guard on): 36 passed, 1 skipped (the macOS-only hide test), 1 failed in the first full run: the uncached jump test at 5992 ms against the 4500 ms limit, in a run where first audio was also slow (5481 ms against the usual 2.6 s); rerun on its own it passed at 2454 ms. This is the known load-sensitive test. Dev e2e (full suite): 37 passed, 1 skipped, none failed (first audio 3360 ms, jump 1909 ms).
+- Found by the new e2e and fixed: the export IPC passed `host.synthesize` and `host.cancel` detached, so every export failed with a lost `this` (the unit test's mock hid it). It now calls them as methods, with a regression test.
