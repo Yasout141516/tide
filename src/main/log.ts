@@ -74,14 +74,22 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
   }
 }
 
-// A path run starts at an absolute-path prefix and goes to the first quote, or to a `)` that closes
-// a stack frame (optionally followed by :line:col, then end of line), or to the end of the line.
-// Spaces and parentheses inside are part of the path (`D:\My Readings\Notes (final).pdf`).
-const RUN = String.raw`(?:[^'"\x60\r\n)]|\)(?!(?::\d+)*\r?$))*`
+// A path starts at an absolute-path prefix. If a quote character (' " `) comes right before it, it
+// runs to the next occurrence of that same quote; otherwise to a `)` that closes a stack frame
+// (optionally followed by :line:col, then end of line), or to the end of the line. Spaces,
+// parentheses and (when unquoted) quotes inside are part of the path (`D:\John's Notes\a.pdf`).
+const QUOTE_BEFORE = String.raw`(?<=(['"\x60]))`
+const NOT_QUOTE_BEFORE = String.raw`(?<!['"\x60])`
+const QUOTED_RUN = String.raw`(?:(?!\1)[^\r\n])*`
+const OPEN_RUN = String.raw`(?:[^\r\n)]|\)(?!(?::\d+)*\r?$))*`
+const withRun = (starts: string): string =>
+  `(?:${QUOTE_BEFORE}(?:${starts})${QUOTED_RUN}|${NOT_QUOTE_BEFORE}(?:${starts})${OPEN_RUN})`
+
 const DRIVE = String.raw`(?:file:///)?(?<!\w)[A-Za-z]:[\\/]`
 const UNC = String.raw`\\{2,}[\w.$-]+\\+`
+const FILE_HOST = String.raw`file://(?=[\w.-])`
 const POSIX = String.raw`(?:file://(?=/)|(?<![\w.:/<\\]))/(?=[^\s/'"\x60])`
-const PATHS = new RegExp(`(?:${DRIVE}|${UNC}|${POSIX})${RUN}`, 'gm')
+const PATHS = new RegExp(withRun(`${DRIVE}|${UNC}|${FILE_HOST}|${POSIX}`), 'gm')
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -91,7 +99,8 @@ function makeScrub(home: string): (s: string) => string {
   if (home) {
     const win = /^[A-Za-z]:/.test(home)
     const forms = new Set([home, home.replace(/\\/g, '/'), home.replace(/\\/g, '\\\\')])
-    homeRe = new RegExp(`(?:${[...forms].map(escapeRe).join('|')})(?!\\w)${RUN}`, win ? 'gim' : 'gm')
+    const starts = `(?:${[...forms].map(escapeRe).join('|')})(?!\\w)`
+    homeRe = new RegExp(withRun(starts), win ? 'gim' : 'gm')
   }
   return (s) => (homeRe ? s.replace(homeRe, '<path>') : s).replace(PATHS, '<path>')
 }
@@ -110,18 +119,15 @@ export function createRendererGate(
   const windowMs = o.windowMs ?? 60_000
   let last: string | null = null
   let repeats = 0
-  let start = -Infinity
-  let used = 0
+  // Times of the last `max` writes: a sliding window, so a burst straddling a boundary still caps.
+  const times: number[] = []
   let timer: ReturnType<typeof setTimeout> | null = null
   // Every entry written, summaries included, counts against the budget.
   const allow = (): boolean => {
     const t = now()
-    if (t - start >= windowMs) {
-      start = t
-      used = 0
-    }
-    if (used >= max) return false
-    used++
+    while (times.length > 0 && t - times[0] >= windowMs) times.shift()
+    if (times.length >= max) return false
+    times.push(t)
     return true
   }
   // A repeat summary that finds the budget spent is dropped (its count is not carried forward).

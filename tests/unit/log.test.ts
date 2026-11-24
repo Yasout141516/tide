@@ -174,6 +174,24 @@ describe('path scrubbing', () => {
     expect(written('/home/mia', 'x file:///C:/My Docs/a.pdf')).toContain('x <path>\n')
   })
 
+  it('ends a quoted path at the same quote, so an apostrophe inside is part of it', () => {
+    const t = written('C:\\Users\\Mia', 'open "D:\\John\'s Notes\\a.pdf"')
+    expect(t).toContain('open "<path>"\n')
+    expect(t).not.toMatch(/John|Notes/)
+  })
+
+  it('lets quotes inside an unquoted path stay part of it', () => {
+    const t = written('C:\\Users\\Mia', "open D:\\John's Notes\\a.pdf")
+    expect(t).toContain('open <path>\n')
+    expect(t).not.toMatch(/John|Notes/)
+  })
+
+  it('scrubs a file://host/share url', () => {
+    const t = written('C:\\Users\\Mia', 'open file://nas/share/Smith.pdf')
+    expect(t).toContain('open <path>\n')
+    expect(t).not.toMatch(/nas|Smith/)
+  })
+
   it('leaves a URL alone', () => {
     const t = written('C:\\Users\\Mia', 'GET https://example.com/a/b?x=1 failed')
     expect(t).toContain('GET https://example.com/a/b?x=1 failed')
@@ -215,7 +233,7 @@ describe('renderer gate', () => {
     expect(log.error).toHaveBeenCalledTimes(21)
   })
 
-  it('counts repeat summaries against the budget (pairs of identical messages)', () => {
+  it('counts repeat summaries against the budget (each message sent three times in a row)', () => {
     const log = { error: vi.fn() }
     const g = createRendererGate(log, { now: () => 0 })
     for (let i = 0; i < 100; i++) {
@@ -226,6 +244,19 @@ describe('renderer gate', () => {
     g.flush()
     expect(log.error.mock.calls.length).toBeLessThanOrEqual(20)
     expect(log.error.mock.calls.length).toBe(20)
+  })
+
+  it('is a sliding window: 20 at 59 s plus 20 at 60.5 s is 20 writes', () => {
+    const log = { error: vi.fn() }
+    let t = 59_000
+    const g = createRendererGate(log, { now: () => t })
+    for (let i = 0; i < 20; i++) g.push(`a${i}`)
+    t = 60_500
+    for (let i = 0; i < 20; i++) g.push(`b${i}`)
+    expect(log.error).toHaveBeenCalledTimes(20)
+    t = 119_000
+    g.push('later')
+    expect(log.error).toHaveBeenCalledTimes(21)
   })
 
   it('caps an alternating A/B loop at 20 writes a minute', () => {
