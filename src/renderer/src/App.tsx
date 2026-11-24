@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ComponentProps } from 'react'
 import type { ReadingId, ReadingView } from '../../shared/library/types'
 import { AppShell } from './shell/AppShell'
 import { PlayerBar } from './player/PlayerBar'
@@ -11,12 +11,14 @@ import { tide } from './lib/tide'
 import { useAddReading } from './add/useAddReading'
 import { MessageDialog } from './add/MessageDialog'
 import { ReaderHeader } from './reading/ReaderHeader'
-import { ReadingMenu, ReadEverythingItem, FinishInItem } from './reading/ReadingMenu'
+import * as Menu from '@radix-ui/react-dropdown-menu'
+import { ReadingMenu, ReadEverythingItem, FinishInItem, menuItemClass } from './reading/ReadingMenu'
 import { ReaderView } from './reader/ReaderView'
 import { ReaderStateProvider, useReaderState } from './reader/ReaderState'
 import { FileMovedDialog } from './reading/FileMovedDialog'
 import { RenameDialog } from './reading/RenameDialog'
 import { RemoveDialog } from './reading/RemoveDialog'
+import { ExportProgressSlot, ExportProvider, useExportUi } from './save/useExport'
 
 const ZOOM_MIN = 0.8
 const ZOOM_MAX = 2.0
@@ -35,8 +37,6 @@ function App(): React.JSX.Element {
     id: ReadingId
   } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  // Save as audio was chosen on a selection; Task 14's Save panel renders from this (its value is not read yet).
-  const [, setSaveRequest] = useState<{ range: [number, number] } | null>(null)
 
   // Opening a reading stamps `opened` exactly once, here (later tasks must not stamp it again).
   // Stamp once per selection. A missing file is never stamped: it asks "Where did this one go?" instead,
@@ -195,11 +195,10 @@ function App(): React.JSX.Element {
           onFinishIn={(m) => void tide().library.update(selected.id, { finishIn: m })}
         />
         <div className="min-h-0 flex-1">
-          <ReaderView
+          <ReaderWithSave
             key={selected.id}
             reading={selected}
             snapshot={library}
-            onSaveSelection={(range) => setSaveRequest({ range })}
             onClose={() => {
               setSelectedId(null)
               stampedId.current = null
@@ -224,23 +223,33 @@ function App(): React.JSX.Element {
           snapshot={library}
           onPlayNext={open}
         >
-          <AppShell
-            renderShelf={(closeOverlay) =>
-              library ? (
-                <Shelf
-                  snapshot={library}
-                  selectedId={selectedId}
-                  onOpen={open}
-                  onAdd={add}
-                  onPicked={closeOverlay}
-                />
-              ) : (
-                <nav aria-label="Readings" className="flex-1" />
-              )
-            }
-            stage={stage}
-            player={<PlayerBar />}
-          />
+          <ExportProvider
+            reading={selected}
+            courseName={library?.courses.find((c) => c.id === selected?.courseId)?.name ?? null}
+          >
+            <AppShell
+              renderShelf={(closeOverlay) =>
+                library ? (
+                  <Shelf
+                    snapshot={library}
+                    selectedId={selectedId}
+                    onOpen={open}
+                    onAdd={add}
+                    onPicked={closeOverlay}
+                  />
+                ) : (
+                  <nav aria-label="Readings" className="flex-1" />
+                )
+              }
+              stage={stage}
+              player={
+                <>
+                  <ExportProgressSlot />
+                  <PlayerBar />
+                </>
+              }
+            />
+          </ExportProvider>
           {adding.ui}
           {dialogUi}
           {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
@@ -248,6 +257,14 @@ function App(): React.JSX.Element {
       </ToastProvider>
     </ReaderStateProvider>
   )
+}
+
+/** ReaderView whose Save as audio opens the Save panel (or says the last audio is still being made). */
+function ReaderWithSave(
+  props: Omit<ComponentProps<typeof ReaderView>, 'onSaveSelection'>
+): React.JSX.Element {
+  const { openPanel } = useExportUi()
+  return <ReaderView {...props} onSaveSelection={openPanel} />
 }
 
 type HeaderProps = {
@@ -268,6 +285,7 @@ function ReadingHeader({
   onFinishIn
 }: HeaderProps): React.JSX.Element {
   const { page, numPages } = useReaderState()
+  const { openPanel } = useExportUi()
   return (
     <ReaderHeader
       reading={reading}
@@ -283,6 +301,9 @@ function ReadingHeader({
             <>
               <ReadEverythingItem checked={reading.readEverything} onChange={onReadEverything} />
               <FinishInItem value={reading.finishIn} onChange={onFinishIn} />
+              <Menu.Item onSelect={() => openPanel()} className={menuItemClass}>
+                Save as audio…
+              </Menu.Item>
             </>
           }
         />

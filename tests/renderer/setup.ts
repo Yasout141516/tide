@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from 'vitest'
 import type { TideApi } from '../../src/preload/index.d'
-import type { AppCommand } from '../../src/shared/ipc-types'
+import type { AppCommand, ExportEvent } from '../../src/shared/ipc-types'
 import type { LibrarySnapshot } from '../../src/shared/library/types'
 
 // This file is a setupFile for every test, including node-env unit tests: only touch the DOM
@@ -81,7 +81,7 @@ type Call = Record<string, unknown[][]>
  */
 export function fakeTide(
   init: { snapshot?: Partial<LibrarySnapshot>; platform?: string } = {}
-): TideApi & { emit(c: AppCommand): void; calls: Call } {
+): TideApi & { emit(c: AppCommand): void; emitExport(e: ExportEvent): void; calls: Call } {
   let snap: LibrarySnapshot = {
     courses: [],
     readings: [],
@@ -104,6 +104,7 @@ export function fakeTide(
   const calls: Call = {}
   const changed = new Set<(s: LibrarySnapshot) => void>()
   const commands = new Set<(c: AppCommand) => void>()
+  const exportListeners = new Set<(e: ExportEvent) => void>()
   const set = (next: LibrarySnapshot): void => {
     snap = next
     for (const cb of [...changed]) cb(snap)
@@ -124,6 +125,9 @@ export function fakeTide(
     emit: (c) => {
       for (const cb of [...commands]) cb(c)
     },
+    emitExport: (e) => {
+      for (const cb of [...exportListeners]) cb(e)
+    },
     calls,
     tts: {
       synthesize: fn('tts.synthesize', () => Promise.reject(new Error('no voice in tests'))),
@@ -135,7 +139,10 @@ export function fakeTide(
       start: fn('export.start', () => Promise.resolve({ busy: true as const })),
       cancel: fn('export.cancel', () => Promise.resolve()),
       reveal: fn('export.reveal', () => Promise.resolve()),
-      onEvent: () => () => {}
+      onEvent: (cb) => {
+        exportListeners.add(cb)
+        return () => exportListeners.delete(cb)
+      }
     },
     app: {
       setPlaying: fn('app.setPlaying', () => undefined),

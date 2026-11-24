@@ -11,7 +11,7 @@ type Props = {
   extraItems?: ReactNode
 }
 
-const item =
+export const menuItemClass =
   'flex min-h-9 cursor-pointer items-center rounded-[10px] px-3 py-2 font-sans text-[13px] font-semibold text-ink outline-none data-[highlighted]:bg-soft data-[highlighted]:text-soft-ink'
 
 export function ReadingMenu({ reading, onRename, onRemove, extraItems }: Props): React.JSX.Element {
@@ -30,10 +30,10 @@ export function ReadingMenu({ reading, onRename, onRemove, extraItems }: Props):
           className="z-50 min-w-[200px] rounded-2xl border border-border bg-surface p-1.5 shadow-[0_12px_30px_var(--shadow)]"
         >
           {extraItems}
-          <Menu.Item onSelect={onRename} className={item}>
+          <Menu.Item onSelect={onRename} className={menuItemClass}>
             Rename…
           </Menu.Item>
-          <Menu.Item onSelect={onRemove} className={item}>
+          <Menu.Item onSelect={onRemove} className={menuItemClass}>
             Remove from shelf…
           </Menu.Item>
         </Menu.Content>
@@ -51,7 +51,11 @@ export function ReadEverythingItem({
   onChange(on: boolean): void
 }): React.JSX.Element {
   return (
-    <Menu.CheckboxItem checked={checked} onCheckedChange={onChange} className={`${item} gap-2`}>
+    <Menu.CheckboxItem
+      checked={checked}
+      onCheckedChange={onChange}
+      className={`${menuItemClass} gap-2`}
+    >
       <span aria-hidden="true" className="w-4 text-primary">
         <Menu.ItemIndicator>✓</Menu.ItemIndicator>
       </span>
@@ -72,7 +76,7 @@ export function FinishInItem({
 }): React.JSX.Element {
   return (
     <Menu.Sub>
-      <Menu.SubTrigger className={`${item} justify-between gap-3`}>
+      <Menu.SubTrigger className={`${menuItemClass} justify-between gap-3`}>
         <span>Finish in…</span>
         <span className="font-semibold text-muted">
           {value === null ? 'Off' : finishName(value)}
@@ -89,7 +93,7 @@ export function FinishInItem({
             onValueChange={(v) => onChange(v === 'off' ? null : Number(v))}
           >
             {['off', ...FINISH_IN_CHOICES.map(String)].map((v) => (
-              <Menu.RadioItem key={v} value={v} className={`${item} gap-2`}>
+              <Menu.RadioItem key={v} value={v} className={`${menuItemClass} gap-2`}>
                 <span aria-hidden="true" className="w-4 text-primary">
                   <Menu.ItemIndicator>✓</Menu.ItemIndicator>
                 </span>
