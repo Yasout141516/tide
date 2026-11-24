@@ -6,6 +6,7 @@ import { voiceName } from '../../../shared/voices'
 import { usePlayer } from '../player/PlayerContext'
 import { useReaderState } from '../reader/ReaderState'
 import { defaultBaseName, durationLabel, type SaveScope } from './names'
+import { buildExportSpec, exportSentences, TOO_LONG_MESSAGE, tooLongForOneFile } from './spec'
 
 type Kind = 'selection' | 'pages' | 'whole'
 
@@ -83,10 +84,20 @@ export function SavePanel({
         : sentences.length > 0
           ? [0, sentences.length - 1]
           : null
-  const chosen = span ? sentences.slice(span[0], span[1] + 1) : []
-  const spoken = chosen
-    .map((s) => ({ text: s.text, page: pageOf(s) }))
-    .filter((s) => s.text.trim() !== '')
+  // Sentences as main takes them: long ones split into pieces on the same page.
+  const spoken = useMemo(
+    () =>
+      exportSentences(
+        (span ? sentences.slice(span[0], span[1] + 1) : []).map((s) => ({
+          text: s.text,
+          page: pageOf(s)
+        }))
+      ),
+    // span is a fresh array each render; its ends are what matter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sentences, span?.[0], span?.[1]]
+  )
+  const tooLong = tooLongForOneFile(spoken)
 
   const scope: SaveScope =
     kind === 'selection'
@@ -114,7 +125,7 @@ export function SavePanel({
 
   const save = (): void => {
     onSave(
-      {
+      buildExportSpec({
         readingId: reading.id,
         format,
         baseName,
@@ -122,7 +133,7 @@ export function SavePanel({
         sentences: spoken,
         voice: snapshot.voice,
         speed: chosenSpeed
-      },
+      }),
       scopeLabel
     )
   }
@@ -192,6 +203,11 @@ export function SavePanel({
               Nothing to read on those pages.
             </p>
           ) : null}
+          {tooLong ? (
+            <p role="alert" className="m-0 mb-1 px-1 text-[12.5px] font-semibold text-warn">
+              {TOO_LONG_MESSAGE}
+            </p>
+          ) : null}
           <label className={row}>
             <input
               type="radio"
@@ -249,7 +265,7 @@ export function SavePanel({
             </button>
             <button
               type="button"
-              disabled={spoken.length === 0}
+              disabled={spoken.length === 0 || tooLong}
               onClick={save}
               className={`min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60 ${focus}`}
             >

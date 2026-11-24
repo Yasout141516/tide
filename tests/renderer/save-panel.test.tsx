@@ -42,19 +42,23 @@ afterEach(() => window.getSelection()?.removeAllRanges())
 type FakeTide = ReturnType<typeof fakeTide>
 
 async function open(
-  opts: { platform?: string; pages?: PageText[]; speed?: number } = {}
+  opts: { platform?: string; pages?: PageText[]; speed?: number; title?: string } = {}
 ): Promise<FakeTide> {
   const t = fakeTide({
     platform: opts.platform,
     snapshot: {
-      readings: [reading],
+      readings: [opts.title ? { ...reading, title: opts.title } : reading],
       settings: { reading: DEFAULT_FILTERS, zoom: 1, voice: 'bf_emma', speed: opts.speed ?? 1 },
       ui: { collapsed: [], tipsSeen: ['select-text'] }
     }
   })
   setTide(t)
   renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(opts.pages ?? bodyPages(3)) }))
-  await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: new RegExp('^' + (opts.title ?? 'Memory and Attention').slice(0, 20))
+    })
+  )
   await waitFor(
     () => expect(document.querySelector('[data-testid="sentence-highlight"]')).toBeTruthy(),
     { timeout: 10_000 }
@@ -93,6 +97,73 @@ const saveButton = (): HTMLButtonElement =>
   screen.getByRole('button', { name: /Save audio/ }) as HTMLButtonElement
 const lastStart = (t: FakeTide): [ExportSpec, unknown?] =>
   t.calls['export.start'].at(-1) as [ExportSpec, unknown?]
+
+describe('Save as audio panel: the export limits of main', () => {
+  it('cuts a long title and file name to 200 characters and splits a 6000-character sentence', async () => {
+    const title = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ') // 480+ characters
+    const longSentence = Array.from({ length: 1000 }, (_, i) => `term${i}`).join(' ') + '.' // ~6900
+    const pages = [textPage(1, [longSentence, 'A short one after it.']), textPage(2, ['Page two.'])]
+    const t = await open({ title, pages })
+    fakeStart(t, () => ({ jobId: 'j1' }))
+    await openFromMenu()
+    await userEvent.click(saveButton())
+    const [spec] = lastStart(t)
+    expect(spec.baseName.length).toBeLessThanOrEqual(200)
+    expect(spec.title.length).toBeLessThanOrEqual(200)
+    expect(title.startsWith(spec.title)).toBe(true) // cut at a word boundary, not mid-word
+    expect(spec.title.endsWith('word')).toBe(false)
+    expect(spec.sentences.length).toBeGreaterThanOrEqual(3)
+    for (const x of spec.sentences) expect(x.text.length).toBeLessThanOrEqual(5000)
+    const pageOne = spec.sentences.filter((x) => x.page === 1)
+    expect(pageOne.map((x) => x.text).join(' ')).toContain('term999.')
+    expect(spec.sentences.at(-1)).toEqual({ text: 'A short one after it.', page: 1 })
+  })
+
+  it('a typed file name over 200 characters is cut too', async () => {
+    const t = await open()
+    fakeStart(t, () => ({ jobId: 'j1' }))
+    await openFromMenu()
+    const name = screen.getByLabelText('File name')
+    await userEvent.clear(name)
+    fireEvent.change(name, {
+      target: { value: Array.from({ length: 60 }, () => 'notes').join(' ') }
+    })
+    await userEvent.click(saveButton())
+    expect(lastStart(t)[0].baseName.length).toBeLessThanOrEqual(200)
+  })
+
+  it('more than 20,000 sentences: says so and disables Save; a page range works', async () => {
+    // One long line per page holds 2,100 sentences, so 10 pages make 21,000.
+    const line = (k: number): string =>
+      Array.from({ length: 2100 }, (_, i) => `Item ${k}-${i} is here.`).join(' ')
+    const pages = [
+      ...Array.from({ length: 10 }, (_, k) => textPage(k + 1, [line(k)])),
+      textPage(11, ['Last page.'])
+    ]
+    const t = await open({ pages })
+    fakeStart(t, () => ({ jobId: 'j1' }))
+    await openFromMenu()
+    expect(
+      await screen.findByText(
+        'This reading is too long for one file. Save a range of pages instead.',
+        {},
+        { timeout: 30_000 }
+      )
+    ).toBeTruthy()
+    expect(saveButton().disabled).toBe(true)
+    await userEvent.click(radio(/^Pages/))
+    const from = screen.getByLabelText('From page')
+    await userEvent.clear(from)
+    await userEvent.type(from, '11')
+    const to = screen.getByLabelText('To page')
+    await userEvent.clear(to)
+    await userEvent.type(to, '11')
+    expect(
+      screen.queryByText('This reading is too long for one file. Save a range of pages instead.')
+    ).toBeNull()
+    await waitFor(() => expect(saveButton().disabled).toBe(false), { timeout: 30_000 })
+  }, 90_000)
+})
 
 describe('Save as audio panel', () => {
   it('from a selection the panel picks The text I selected', async () => {

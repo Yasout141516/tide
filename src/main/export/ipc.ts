@@ -8,11 +8,9 @@ import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ip
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
 import { runExport, type ExportDeps } from './job'
 import { exportDir, failureReason, safeFileName, uniquePath } from './files'
+import { MAX_NAME, MAX_SENTENCES, MAX_TEXT } from '../../shared/export-limits'
 import { createM4bWriter, createMp3Writer, type AudioWriter } from './writers'
 
-export const MAX_SENTENCES = 20_000
-export const MAX_TEXT = 5_000
-export const MAX_NAME = 200
 const PROGRESS_MS = 100
 /** Saved paths kept for `reveal`: a reveal comes right after the saved event. */
 const KEEP_SAVED = 20
