@@ -1,3 +1,5 @@
+import { formatMinutes } from '../lib/minutes'
+
 export function estimateSec(text: string, speed: number): number {
   return text.length / (14.5 * speed) + 0.25
 }
@@ -56,5 +58,5 @@ export class Timeline {
 
 export function timeLeftLabel(sec: number): string {
   if (sec < 60) return 'Less than a minute left'
-  return `About ${Math.max(1, Math.round(sec / 60))} min left`
+  return `About ${formatMinutes(Math.max(1, Math.round(sec / 60)))} left`
 }

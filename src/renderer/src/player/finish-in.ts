@@ -1,3 +1,4 @@
+import { formatMinutes } from '../lib/minutes'
 import { speedLabel } from '../../../shared/voices'
 
 // Finish in…: the speed that fits a whole reading into a time limit. Pure.
@@ -35,16 +36,9 @@ export function finishInSpeed(totalSec: number, limitMin: number): FinishInResul
   }
 }
 
-function duration(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  if (h === 0) return `${m} min`
-  return m === 0 ? `${h} h` : `${h} h ${m} min`
-}
-
 export function finishInLabel(r: FinishInResult, _limitMin: number): string {
   void _limitMin
   return r.fits
-    ? `Finishes in about ${duration(r.minutes)} at ${speedLabel(r.speed)}`
-    : `Needs ${duration(r.neededMinAt2x)} even at 2×`
+    ? `Finishes in about ${formatMinutes(r.minutes, true)} at ${speedLabel(r.speed)}`
+    : `Needs ${formatMinutes(r.neededMinAt2x, true)} even at 2×`
 }

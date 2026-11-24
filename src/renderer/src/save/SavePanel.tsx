@@ -48,7 +48,6 @@ export function SavePanel({
 
   // The estimates describe the file being saved, so they use her chosen speed, not a Finish in… one.
   const scale = chosenSpeed > 0 ? snapshot.speed / chosenSpeed : 1
-  const estimate = (a: number, b: number): string => durationLabel(estimateSec(a, b) * scale)
 
   const selectionPage = range && sentences[range[0]] ? pageOf(sentences[range[0]]) : page
   const f = Number(from)
@@ -75,6 +74,22 @@ export function SavePanel({
     })
     return a < 0 ? null : [a, b]
   }, [rangeOk, sentences, f, t])
+
+  const lastSentence = sentences.length - 1
+  const selectionEstimate = useMemo(
+    () => (range ? durationLabel(estimateSec(range[0], range[1]) * scale) : ''),
+    // range is a fresh array each render; its ends are what matter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estimateSec, scale, range?.[0], range?.[1]]
+  )
+  const pagesEstimate = useMemo(
+    () => (pagesSpan ? durationLabel(estimateSec(pagesSpan[0], pagesSpan[1]) * scale) : ''),
+    [estimateSec, scale, pagesSpan]
+  )
+  const wholeEstimate = useMemo(
+    () => (lastSentence >= 0 ? durationLabel(estimateSec(0, lastSentence) * scale) : ''),
+    [estimateSec, scale, lastSentence]
+  )
 
   const span: [number, number] | null =
     kind === 'selection'
@@ -180,7 +195,7 @@ export function SavePanel({
                 className="accent-primary"
               />
               The text I selected
-              <span className={small}>{estimate(range[0], range[1])}</span>
+              <span className={small}>{selectionEstimate}</span>
             </label>
           ) : null}
           <div className={row}>
@@ -196,7 +211,7 @@ export function SavePanel({
             {pageField('From page', from, setFrom)}
             <span>to</span>
             {pageField('To page', to, setTo)}
-            <span className={small}>{pagesSpan ? estimate(pagesSpan[0], pagesSpan[1]) : ''}</span>
+            <span className={small}>{pagesEstimate}</span>
           </div>
           {pagesMessage ? (
             <p role="alert" className="m-0 mb-1 px-1 text-[12.5px] font-semibold text-warn">
@@ -217,9 +232,7 @@ export function SavePanel({
               className="accent-primary"
             />
             The whole reading
-            <span className={small}>
-              {sentences.length > 0 ? estimate(0, sentences.length - 1) : ''}
-            </span>
+            <span className={small}>{wholeEstimate}</span>
           </label>
           {kind === 'whole' ? (
             <div className="px-1 pb-1 text-[12.5px] leading-[1.45] text-muted">

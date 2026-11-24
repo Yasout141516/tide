@@ -3,8 +3,7 @@
 // failure removes every file the writer made.
 import { spawn } from 'child_process'
 import type { ChildProcess } from 'child_process'
-import { mkdtempSync } from 'fs'
-import { rename, rm, writeFile } from 'fs/promises'
+import { mkdtemp, rename, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { SAMPLE_RATE, toS16le } from '../../shared/pcm'
@@ -92,7 +91,7 @@ class FfmpegRun {
  */
 function lifecycle(
   signal: AbortSignal,
-  current: () => FfmpegRun,
+  current: () => FfmpegRun | null,
   cleanup: () => Promise<void>
 ): {
   aborted: () => boolean
@@ -105,8 +104,8 @@ function lifecycle(
     aborted = true
     aborting ??= (async () => {
       const run = current()
-      run.kill()
-      await run.closed.catch(() => {})
+      run?.kill()
+      await run?.closed.catch(() => {})
       await cleanup()
     })()
     return aborting
@@ -188,28 +187,42 @@ export function createM4bWriter(
   signal: AbortSignal
 ): AudioWriter {
   const part = outPath + '.part'
-  const dir = mkdtempSync(join(tmpdir(), 'tide-m4b-'))
-  const pass1 = join(dir, 'pass1.m4a')
-  let run = new FfmpegRun([...pcmInput, '-c:a', 'aac', '-b:a', '64k', '-f', 'ipod', pass1], true)
+  // The temp folder is made without blocking the event loop; pass 1 starts on the first write or finish.
+  const dirReady = mkdtemp(join(tmpdir(), 'tide-m4b-'))
+  dirReady.catch(() => {}) // a failure surfaces from the first write; never an unhandled rejection
+  let run: FfmpegRun | null = null
+  let pass1 = ''
   let samples = 0
   const life = lifecycle(
     signal,
     () => run,
     async () => {
       await rm(part, { force: true })
-      await rm(dir, { recursive: true, force: true })
+      const dir = await dirReady.catch(() => null)
+      if (dir) await rm(dir, { recursive: true, force: true })
     }
   )
+  /** The pass-1 encoder, started once the temp folder exists (never after an abort). */
+  const pass1Run = async (): Promise<FfmpegRun> => {
+    if (run) return run
+    const dir = await dirReady
+    if (life.aborted()) throw abortError()
+    pass1 = join(dir, 'pass1.m4a')
+    run = new FfmpegRun([...pcmInput, '-c:a', 'aac', '-b:a', '64k', '-f', 'ipod', pass1], true)
+    return run
+  }
   return {
     write: (pcm) =>
       life.guard(async () => {
-        await run.write(toS16le(pcm))
+        await (await pass1Run()).write(toS16le(pcm))
         samples += pcm.length
       }),
     finish: (chapters) =>
       life.guard(async () => {
-        run.end()
-        await run.closed
+        const first = await pass1Run()
+        first.end()
+        await first.closed
+        const dir = await dirReady
         const list = chapters.length > 0 ? chapters : [{ title: meta.title, startSec: 0 }]
         const metaFile = join(dir, 'meta.txt')
         await writeFile(metaFile, ffmetadata(meta, list, samples / SAMPLE_RATE), 'utf8')

@@ -2,7 +2,8 @@ import {
   GlobalWorkerOptions,
   TextLayer,
   getDocument,
-  RenderingCancelledException
+  RenderingCancelledException,
+  type PDFPageProxy
 } from 'pdfjs-dist'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { pageTextFromContent, type RawTextItem } from '../../../shared/text/page-text'
@@ -11,6 +12,8 @@ import type { PageText } from '../../../shared/text/types'
 
 // pdf.js runs in its own Web Worker, loaded same-origin (the CSP's `script-src 'self'` covers it).
 GlobalWorkerOptions.workerSrc = workerSrc
+
+type TextContent = Awaited<ReturnType<PDFPageProxy['getTextContent']>>
 
 export interface PdfDoc {
   numPages: number
@@ -70,6 +73,21 @@ export async function openPdf(data: Uint8Array, password?: string): Promise<Open
     // metadata is optional
   }
 
+  // One text extraction per page, shared by pageText and renderTextLayer (a zoom rebuild reuses it).
+  const texts = new Map<number, Promise<{ page: PDFPageProxy; content: TextContent }>>()
+  const textOf = (n: number): Promise<{ page: PDFPageProxy; content: TextContent }> => {
+    let p = texts.get(n)
+    if (!p) {
+      p = (async () => {
+        const page = await pdf.getPage(n)
+        return { page, content: await page.getTextContent({ disableNormalization: true }) }
+      })()
+      texts.set(n, p)
+      p.catch(() => texts.delete(n)) // a failure is retried, not remembered
+    }
+    return p
+  }
+
   const doc: PdfDoc = {
     numPages: pdf.numPages,
     metaTitle,
@@ -78,8 +96,7 @@ export async function openPdf(data: Uint8Array, password?: string): Promise<Open
       return { width: x1 - x0, height: y1 - y0 }
     },
     async pageText(n) {
-      const page = await pdf.getPage(n)
-      const content = await page.getTextContent({ disableNormalization: true })
+      const { page, content } = await textOf(n)
       return pageTextFromContent(n, page.view, content.items as RawTextItem[])
     },
     async render(n, canvas, scale, signal) {
@@ -113,8 +130,7 @@ export async function openPdf(data: Uint8Array, password?: string): Promise<Open
     },
     async renderTextLayer(n, container, scale, signal) {
       signal.throwIfAborted()
-      const page = await pdf.getPage(n)
-      const content = await page.getTextContent({ disableNormalization: true })
+      const { page, content } = await textOf(n)
       signal.throwIfAborted()
       const viewport = page.getViewport({ scale })
       // The text-layer CSS sizes everything from these two (see .textLayer in main.css).

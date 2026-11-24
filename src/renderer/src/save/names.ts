@@ -1,3 +1,5 @@
+import { formatMinutes } from '../lib/minutes'
+
 export type SaveScope =
   | { kind: 'selection'; page: number }
   | { kind: 'pages'; from: number; to: number }
@@ -20,5 +22,5 @@ export function defaultBaseName(o: {
 
 /** How long a saved file will play, in her words. */
 export function durationLabel(sec: number): string {
-  return sec < 60 ? 'under a minute' : `about ${Math.round(sec / 60)} min`
+  return sec < 60 ? 'under a minute' : `about ${formatMinutes(Math.round(sec / 60))}`
 }
