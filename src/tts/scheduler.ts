@@ -1,7 +1,7 @@
 // The worker's job scheduler, free of Electron and Kokoro so it can be tested and measured.
 // One job runs at a time (ONNX inference is not re-entrant), but a running job of lower priority
-// steps aside between its chunks for any waiting job of higher priority (live > preview > export),
-// then resumes with its remaining chunks in order.
+// steps aside between its chunks for one waiting job of higher priority (live > preview > export),
+// then advances a chunk and resumes in order, so a busy higher lane cannot starve it.
 import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
 import type { JobQueue } from './queue'
 import type { Priority, TtsResponse } from './protocol'
@@ -74,14 +74,16 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     }
   }
 
-  /** Runs every waiting higher-priority job; true if it ran any. */
+  /**
+   * Runs at most ONE waiting higher-priority job (R38b, fairness): the stepping-aside job then
+   * advances a chunk before the next boundary, so a live job that is always pending cannot starve it.
+   * True if it ran one.
+   */
   async function runHigher(priority: Priority): Promise<boolean> {
-    let ran = false
-    for (let h = d.queue.nextAbove(priority); h; h = d.queue.nextAbove(priority)) {
-      await runOne(h)
-      ran = true
-    }
-    return ran
+    const h = d.queue.nextAbove(priority)
+    if (!h) return false
+    await runOne(h)
+    return true
   }
 
   let running = false

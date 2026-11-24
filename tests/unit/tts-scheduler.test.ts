@@ -199,3 +199,27 @@ describe('worker scheduler: priority between chunks (R35)', () => {
     expect(r.audioOf(exp)).toEqual([1, 2])
   })
 })
+
+describe('worker scheduler: fairness (R38b)', () => {
+  it('an export still completes when a live job is always pending: the chunks alternate', async () => {
+    const r = rig()
+    const exp = job('e1|e2|e3', 'export')
+    const lives: Job[] = []
+    r.queue.push(exp)
+    let requeued = 0
+    r.onGenerate((c) => {
+      // a live job is re-queued after every live job (and one arrives mid-export): always pending
+      if (c === 'e1' || (c === 'l1' && requeued < 20)) {
+        const l = job('l1', 'live')
+        lives.push(l)
+        r.queue.push(l)
+        if (c === 'l1') requeued += 1
+      }
+    })
+    await r.pump()
+    expect(r.generated.slice(0, 5)).toEqual(['e1', 'l1', 'e2', 'l1', 'e3'])
+    expect(r.audioOf(exp)).toEqual([1, 2, 3])
+    expect(r.typeOf(exp)).toEqual(['started', 'started', 'started', 'audio']) // R36 per step-aside
+    expect(r.order().indexOf(String(exp.id))).toBe(2) // answered after only two live jobs
+  })
+})
