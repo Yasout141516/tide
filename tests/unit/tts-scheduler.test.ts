@@ -16,6 +16,7 @@ const job = (text: string, priority: Priority, gen = `g${nextId}`): Job => ({
 })
 
 /** Chunks are the '|'-separated parts of the text; each chunk's "audio" is one sample holding its number. */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function rig(opts: { preempt?: boolean } = {}) {
   const queue = new JobQueue<Job>()
   const cancelled = new Set<string>()

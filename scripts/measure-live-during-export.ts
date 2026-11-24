@@ -42,7 +42,6 @@ async function main(): Promise<void> {
   async function once(preempt: boolean): Promise<{ liveMs: number; exportMs: number }> {
     const queue = new JobQueue<SynthJobLike>()
     const t: Record<string, number> = {}
-    let t0 = 0
     const pump = createPump<SynthJobLike>({
       queue,
       chunks: speechChunks,
@@ -62,7 +61,7 @@ async function main(): Promise<void> {
     const mk = (id: number, text: string, priority: 'live' | 'export'): SynthJobLike => ({
       id, text, voice: 'af_heart', speed: 1, priority, gen: `g${id}`
     }) // prettier-ignore
-    t0 = performance.now()
+    const t0 = performance.now()
     queue.push(mk(1, LONG, 'export'))
     const running = pump()
     // The live job arrives once the first export chunk is under way.
