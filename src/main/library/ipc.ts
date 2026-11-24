@@ -17,6 +17,7 @@ import type {
 } from '../../shared/library/types'
 import { SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import type { Library } from './library'
+import { isObj, isStr } from '../validate'
 
 const FOCUS_CHECK_MS = 5000
 /** Position-only changes (autosave while reading) reach the renderer at most this often. */
@@ -29,9 +30,6 @@ const DOMAIN_ERRORS = new Set([
   'invalid course name'
 ])
 
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-const isStr = (v: unknown): v is string => typeof v === 'string'
 const isInt = (v: unknown, min: number): v is number => Number.isInteger(v) && (v as number) >= min
 
 /** Bad arguments from the renderer; the message names the channel and shape, never a path. */

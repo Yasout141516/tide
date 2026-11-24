@@ -6,6 +6,7 @@ import { SAMPLE_RATE } from '../shared/pcm'
 import { DEFAULT_VOICE, VOICE_IDS } from '../shared/voices'
 import type { TtsHost } from './tts-host'
 import { assembleChapters, ffmpegHasMp3 } from './audio-export'
+import { boundedId, isStr } from './validate'
 import { createM4bWriter } from './export/writers'
 
 /** Registers the renderer-facing IPC handlers. `e2e` adds test-only hooks (TIDE_E2E=1). */
@@ -37,7 +38,7 @@ export function registerIpc(
       typeof voice !== 'string' ||
       !VOICE_IDS.has(voice) ||
       (priority !== undefined && priority !== 'live' && priority !== 'preview') ||
-      (gen !== undefined && (typeof gen !== 'string' || gen.length > 64)) ||
+      (gen !== undefined && !isStr(gen, 64)) ||
       (front !== undefined && typeof front !== 'boolean') ||
       typeof speed !== 'number' ||
       !Number.isFinite(speed) ||
@@ -58,10 +59,7 @@ export function registerIpc(
   })
 
   ipcMain.handle('tts:cancel', (_e, gen: unknown) => {
-    if (typeof gen !== 'string' || gen.length > 64) {
-      throw new Error('tts:cancel expects (gen: string up to 64 characters)')
-    }
-    host.cancel(gen)
+    host.cancel(boundedId('tts:cancel', 'gen', gen))
   })
 
   if (e2e) {

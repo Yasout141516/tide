@@ -7,6 +7,7 @@ import type { BrowserWindow, OpenDialogOptions } from 'electron'
 import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ipc-types'
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
 import { pathExists } from '../fs-util'
+import { boundedId, isStr } from '../validate'
 import { runExport, type ExportDeps } from './job'
 import { exportDir, failureReason, safeFileName, uniquePath } from './files'
 import { MAX_NAME, MAX_SENTENCES, MAX_TEXT } from '../../shared/export-limits'
@@ -27,7 +28,25 @@ export function resolveMusicDir(
   return (env.TIDE_E2E === '1' && env.TIDE_MUSIC_DIR) || appMusicPath()
 }
 
-const isStr = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
+/** Every sentence is { text up to MAX_TEXT, page a positive integer }, and at least one has text. */
+function validSentences(sentences: unknown[]): boolean {
+  let hasText = false
+  for (const x of sentences) {
+    const t = x as { text?: unknown; page?: unknown } | null
+    if (
+      typeof t !== 'object' ||
+      t === null ||
+      !isStr(t.text, MAX_TEXT) ||
+      typeof t.page !== 'number' ||
+      !Number.isInteger(t.page) ||
+      t.page <= 0
+    ) {
+      return false
+    }
+    if (t.text.trim() !== '') hasText = true
+  }
+  return hasText
+}
 
 export function parseSpec(v: unknown): ExportSpec {
   const s = (v ?? {}) as Record<string, unknown>
@@ -45,22 +64,7 @@ export function parseSpec(v: unknown): ExportSpec {
     !Array.isArray(sentences) ||
     sentences.length < 1 ||
     sentences.length > MAX_SENTENCES ||
-    !sentences.some(
-      (x) =>
-        typeof (x as { text?: unknown })?.text === 'string' &&
-        (x as { text: string }).text.trim() !== ''
-    ) ||
-    !sentences.every((x) => {
-      const t = x as { text?: unknown; page?: unknown } | null
-      return (
-        typeof t === 'object' &&
-        t !== null &&
-        isStr(t.text, MAX_TEXT) &&
-        typeof t.page === 'number' &&
-        Number.isInteger(t.page) &&
-        t.page > 0
-      )
-    })
+    !validSentences(sentences)
   ) {
     throw new Error(USAGE)
   }
@@ -84,6 +88,15 @@ export interface ExportController {
   abortAndWait(): Promise<void>
 }
 
+interface RunningJob {
+  jobId: string
+  abort: AbortController
+  /** Set once run() has started: only then is there writer cleanup to wait for. */
+  done: Promise<void> | null
+  /** The writer, once made: aborting it is what kills ffmpeg and removes the part and temp files. */
+  writer: AudioWriter | null
+}
+
 export function registerExportIpc(o: {
   host: Pick<ExportDeps, 'synthesize' | 'cancel'>
   window: () => BrowserWindow | null
@@ -92,14 +105,7 @@ export function registerExportIpc(o: {
   env?: Record<string, string | undefined>
 }): ExportController {
   const env = o.env ?? process.env
-  let running: {
-    jobId: string
-    abort: AbortController
-    /** Set once run() has started: only then is there writer cleanup to wait for. */
-    done: Promise<void> | null
-    /** The writer, once made: aborting it is what kills ffmpeg and removes the part and temp files. */
-    writer: AudioWriter | null
-  } | null = null
+  let running: RunningJob | null = null
   const savedPaths = new Map<string, string>()
 
   const send = (e: ExportEvent): void => {
@@ -122,7 +128,7 @@ export function registerExportIpc(o: {
     jobId: string,
     folder: string,
     ac: AbortController,
-    job: { writer: AudioWriter | null }
+    job: RunningJob
   ): Promise<void> {
     try {
       await mkdir(folder, { recursive: true })
@@ -136,6 +142,7 @@ export function registerExportIpc(o: {
       const writer = make(outPath, meta, ac.signal)
       job.writer = writer
       let lastSent = 0
+      let lastPct = -1
       await runExport(
         spec,
         {
@@ -147,8 +154,10 @@ export function registerExportIpc(o: {
         },
         (done, total) => {
           const now = Date.now()
-          if (done === total || now - lastSent >= PROGRESS_MS) {
+          const pct = Math.round((done / total) * 100)
+          if (done === total || (now - lastSent >= PROGRESS_MS && pct !== lastPct)) {
             lastSent = now
+            lastPct = pct
             send({ jobId, kind: 'progress', done, total })
           }
         },
@@ -169,12 +178,7 @@ export function registerExportIpc(o: {
     if (running) return { busy: true }
     const jobId = randomUUID()
     const ac = new AbortController()
-    const job = {
-      jobId,
-      abort: ac,
-      done: null as Promise<void> | null,
-      writer: null as AudioWriter | null
-    }
+    const job: RunningJob = { jobId, abort: ac, done: null, writer: null }
     running = job // claimed before any await, so a second start sees busy
     let folder = exportDir(resolveMusicDir(env, () => app.getPath('music')))
     if ((opts as { chooseFolder?: unknown } | null)?.chooseFolder === true) {
@@ -198,12 +202,7 @@ export function registerExportIpc(o: {
   // Validation throws synchronously, so a bad request rejects before anything starts.
   ipcMain.handle('export:start', (_e, raw: unknown, opts: unknown) => start(parseSpec(raw), opts))
 
-  const idArg = (name: string, v: unknown): string => {
-    if (typeof v !== 'string' || v.length > 64) {
-      throw new Error(`${name} expects (jobId: string up to 64 characters)`)
-    }
-    return v
-  }
+  const idArg = (name: string, v: unknown): string => boundedId(name, 'jobId', v)
 
   ipcMain.handle('export:cancel', (_e, jobId: unknown) => {
     const id = idArg('export:cancel', jobId)
