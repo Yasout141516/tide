@@ -41,4 +41,23 @@ describe('selectionSentences', () => {
     expect(selectionSentences(sentences, p(1, 0, 2), p(2, 0, 0))).toEqual([0, 1])
     expect(selectionSentences(sentences, p(1, 0, 2), p(1, 1, 0))).toEqual([0, 0])
   })
+
+  it('a selection in the gap between the spans of a cross-page sentence maps to no sentences', () => {
+    // Sentence 1 runs from page 1 item 3 to page 2 item 1; page 1 item 4 and page 2 item 0 (a header) lie between.
+    const split: Sentence[] = [
+      { id: 0, text: 'a', spans: [{ page: 1, itemIndex: 0, start: 0, end: 10 }] },
+      {
+        id: 1,
+        text: 'b',
+        spans: [
+          { page: 1, itemIndex: 3, start: 0, end: 5 },
+          { page: 2, itemIndex: 1, start: 0, end: 5 }
+        ]
+      },
+      { id: 2, text: 'c', spans: [{ page: 2, itemIndex: 2, start: 0, end: 9 }] }
+    ]
+    expect(selectionSentences(split, p(1, 4, 0), p(2, 0, 3))).toBeNull()
+    // From inside the first span into the gap: only that sentence.
+    expect(selectionSentences(split, p(1, 3, 2), p(2, 0, 3))).toEqual([1, 1])
+  })
 })
