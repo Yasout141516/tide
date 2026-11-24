@@ -13,13 +13,13 @@ afterEach(() => {
 })
 
 describe('log', () => {
-  it('appends with time and scope and replaces the home dir with ~', () => {
+  it('appends with time and scope and replaces the home dir with <path>', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const dir = tmp()
     const log = createLog(dir, { home: 'C:\\Users\\Mia' })
     log.error('library', new Error('cannot open C:\\Users\\Mia\\Docs\\a.pdf for C:\\Users\\Mia'))
     const text = readFileSync(join(dir, 'tide.log'), 'utf8')
-    expect(text).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \[library\] cannot open ~\\Docs\\a\.pdf for ~/)
+    expect(text).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \[library\] cannot open <path>\n/)
     expect(text).not.toContain('Mia')
     expect(text).toContain('at ')
   })
@@ -103,13 +103,13 @@ describe('path scrubbing', () => {
 
   it('replaces a path on another drive with <path>', () => {
     const t = written('C:\\Users\\Mia', 'ENOENT D:\\Lectures\\Smith.pdf missing')
-    expect(t).toContain('ENOENT <path> missing')
+    expect(t).toContain('ENOENT <path>\n')
     expect(t).not.toContain('Smith')
   })
 
   it('replaces a UNC path', () => {
     const t = written('C:\\Users\\Mia', 'cannot read \\\\nas\\share\\Course\\Jones.pdf now')
-    expect(t).toContain('cannot read <path> now')
+    expect(t).toContain('cannot read <path>\n')
     expect(t).not.toMatch(/Jones|nas/)
   })
 
@@ -121,18 +121,62 @@ describe('path scrubbing', () => {
 
   it('replaces an absolute POSIX path but keeps URLs and lone slashes', () => {
     const t = written('/home/mia', 'open /Volumes/usb/Smith.pdf and http://a/b and a/b')
-    expect(t).toContain('open <path> and http://a/b and a/b')
+    expect(t).toContain('open <path>\n')
+    expect(written('/home/mia', 'a /Smith.pdf')).toContain('a <path>\n')
+    expect(written('/home/mia', 'x "/Smith.pdf" c')).toContain('x "<path>" c')
+    const u = written('/home/mia', 'see http://a/b and a/b and 1/2')
+    expect(u).toContain('see http://a/b and a/b and 1/2')
   })
 
   it('matches the home dir in a different case', () => {
     const t = written('C:\\Users\\Mia', 'c:\\users\\MIA\\Docs\\a.pdf')
-    expect(t).toContain('~\\Docs\\a.pdf')
+    expect(t).toMatch(/\[x\] <path>\n/)
+    expect(t).not.toMatch(/Docs|MIA/)
   })
 
   it('does not turn C:\\Users\\Mia2 into ~2', () => {
     const t = written('C:\\Users\\Mia', 'C:\\Users\\Mia2\\x.pdf')
-    expect(t).not.toContain('~2')
+    expect(t).not.toContain('~')
     expect(t).toContain('<path>')
+  })
+
+  it('takes a spaced path inside quotes whole', () => {
+    const t = written('C:\\Users\\Mia', 'failed "D:\\My Readings\\Week 3 Social Class.pdf" twice')
+    expect(t).toContain('failed "<path>" twice')
+    expect(t).not.toMatch(/Readings|Social/)
+  })
+
+  it('takes a spaced path with no quotes to the end of the line', () => {
+    const t = written('C:\\Users\\Mia', 'cannot open D:\\My Readings\\Week 3 Social Class.pdf')
+    expect(t).toContain('cannot open <path>\n')
+    expect(t).not.toMatch(/Readings|Social/)
+  })
+
+  it('takes parentheses in a file name', () => {
+    const t = written('C:\\Users\\Mia', 'bad D:\\Notes (final).pdf')
+    expect(t).toContain('bad <path>\n')
+    expect(t).not.toContain('final')
+  })
+
+  it('scrubs a stack frame with a spaced path, keeping the function name', () => {
+    const t = written(
+      'C:\\Users\\Mia',
+      'boom\n    at f (C:\\Program Files\\Tide\\resources\\app.asar\\out\\main\\index.js:12:3)'
+    )
+    expect(t).toContain('    at f (<path>)')
+    expect(t).not.toMatch(/Program|asar/)
+  })
+
+  it('scrubs a home path with spaces and a file:/// url', () => {
+    const t = written('C:\\Users\\Mia Smith', 'a C:\\Users\\Mia Smith\\Docs\\a.pdf')
+    expect(t).toContain('a <path>\n')
+    expect(t).not.toMatch(/Smith|Docs/)
+    expect(written('/home/mia', 'x file:///C:/My Docs/a.pdf')).toContain('x <path>\n')
+  })
+
+  it('leaves a URL alone', () => {
+    const t = written('C:\\Users\\Mia', 'GET https://example.com/a/b?x=1 failed')
+    expect(t).toContain('GET https://example.com/a/b?x=1 failed')
   })
 })
 
@@ -169,5 +213,35 @@ describe('renderer gate', () => {
     t = 60_000
     g.push('later')
     expect(log.error).toHaveBeenCalledTimes(21)
+  })
+
+  it('counts repeat summaries against the budget (pairs of identical messages)', () => {
+    const log = { error: vi.fn() }
+    const g = createRendererGate(log, { now: () => 0 })
+    for (let i = 0; i < 100; i++) {
+      g.push(`m${i}`)
+      g.push(`m${i}`)
+      g.push(`m${i}`)
+    }
+    g.flush()
+    expect(log.error.mock.calls.length).toBeLessThanOrEqual(20)
+    expect(log.error.mock.calls.length).toBe(20)
+  })
+
+  it('caps an alternating A/B loop at 20 writes a minute', () => {
+    const log = { error: vi.fn() }
+    const g = createRendererGate(log, { now: () => 0 })
+    for (let i = 0; i < 200; i++) g.push(i % 2 ? 'A' : 'B')
+    g.flush()
+    expect(log.error.mock.calls.length).toBe(20)
+  })
+
+  it('drops a repeat summary when the budget is spent', () => {
+    const log = { error: vi.fn() }
+    const g = createRendererGate(log, { now: () => 0, max: 1 })
+    g.push('a')
+    g.push('a')
+    g.flush()
+    expect(log.error).toHaveBeenCalledTimes(1)
   })
 })

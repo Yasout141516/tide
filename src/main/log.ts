@@ -74,32 +74,26 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
   }
 }
 
-// One path segment: no whitespace, separators, quotes, brackets or colons (so `file.js:1:2)` keeps its tail).
-const SEG = '[^\\s\\\\/"\'<>|*?():]+'
-// A separator, including JSON-escaped (doubled) backslashes.
-const SEP = '(?:\\\\+|/)'
-const DRIVE_PATH = new RegExp(`(?<!\\w)[A-Za-z]:${SEP}(?:${SEG}(?:${SEP}${SEG})*)?`, 'g')
-const UNC_PATH = new RegExp(`\\\\\\\\+[\\w.$-]+(?:\\\\+${SEG})+`, 'g')
-const POSIX_PATH = new RegExp(`(?<![\\w.:/<~\\\\])/${SEG}(?:/${SEG})+`, 'g')
+// A path run starts at an absolute-path prefix and goes to the first quote, or to a `)` that closes
+// a stack frame (optionally followed by :line:col, then end of line), or to the end of the line.
+// Spaces and parentheses inside are part of the path (`D:\My Readings\Notes (final).pdf`).
+const RUN = String.raw`(?:[^'"\x60\r\n)]|\)(?!(?::\d+)*\r?$))*`
+const DRIVE = String.raw`(?:file:///)?(?<!\w)[A-Za-z]:[\\/]`
+const UNC = String.raw`\\{2,}[\w.$-]+\\+`
+const POSIX = String.raw`(?:file://(?=/)|(?<![\w.:/<\\]))/(?=[^\s/'"\x60])`
+const PATHS = new RegExp(`(?:${DRIVE}|${UNC}|${POSIX})${RUN}`, 'gm')
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-/**
- * Home dir becomes `~` (boundary-aware, case-insensitive for Windows paths, also in forward-slash
- * and JSON-escaped forms); then every other absolute path becomes `<path>`. A path containing a
- * space is cut at the space (the rest stays): the price of not eating whole sentences.
- */
+/** Every absolute path (drive, UNC, POSIX, file://, the home dir) becomes `<path>`, file name and all. */
 function makeScrub(home: string): (s: string) => string {
   let homeRe: RegExp | null = null
   if (home) {
     const win = /^[A-Za-z]:/.test(home)
     const forms = new Set([home, home.replace(/\\/g, '/'), home.replace(/\\/g, '\\\\')])
-    homeRe = new RegExp(`(?:${[...forms].map(escapeRe).join('|')})(?!\\w)`, win ? 'gi' : 'g')
+    homeRe = new RegExp(`(?:${[...forms].map(escapeRe).join('|')})(?!\\w)${RUN}`, win ? 'gim' : 'gm')
   }
-  return (s) => {
-    const t = homeRe ? s.replace(homeRe, '~') : s
-    return t.replace(DRIVE_PATH, '<path>').replace(UNC_PATH, '<path>').replace(POSIX_PATH, '<path>')
-  }
+  return (s) => (homeRe ? s.replace(homeRe, '<path>') : s).replace(PATHS, '<path>')
 }
 
 /**
@@ -119,10 +113,24 @@ export function createRendererGate(
   let start = -Infinity
   let used = 0
   let timer: ReturnType<typeof setTimeout> | null = null
+  // Every entry written, summaries included, counts against the budget.
+  const allow = (): boolean => {
+    const t = now()
+    if (t - start >= windowMs) {
+      start = t
+      used = 0
+    }
+    if (used >= max) return false
+    used++
+    return true
+  }
+  // A repeat summary that finds the budget spent is dropped (its count is not carried forward).
   const flush = (): void => {
     if (timer) clearTimeout(timer)
     timer = null
-    if (repeats > 0) log.error('renderer', `(previous message repeated ${repeats} times)`)
+    if (repeats > 0 && allow()) {
+      log.error('renderer', `(previous message repeated ${repeats} times)`)
+    }
     repeats = 0
   }
   return {
@@ -137,13 +145,7 @@ export function createRendererGate(
         return
       }
       flush()
-      const t = now()
-      if (t - start >= windowMs) {
-        start = t
-        used = 0
-      }
-      if (used >= max) return
-      used++
+      if (!allow()) return
       last = message
       log.error('renderer', message)
     }

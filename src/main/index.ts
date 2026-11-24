@@ -42,6 +42,8 @@ const QUIT_FLUSH_TIMEOUT_MS = 3000
 
 let quitting = false
 let mainWindow: BrowserWindow | null = null
+// True once any window has been made: after that, a stray error is only logged (never "could not start").
+let windowEverCreated = false
 let ttsHost: TtsHost | null = null
 const playing = new PlayingBlocker(powerSaveBlocker)
 let library: Library | null = null
@@ -86,6 +88,7 @@ function createWindow(): BrowserWindow {
     }
   })
   mainWindow = win
+  windowEverCreated = true
   libraryIpc?.attachWindow(win)
 
   win.on('ready-to-show', () => win.show())
@@ -157,7 +160,7 @@ app.on('second-instance', (_e, argv, workingDirectory) => {
 // Unexpected errors go to the log, never to a dialog. Handlers log through logError, which is
 // console-only until the log below is installed.
 const onFatal = createFatalHandler({
-  hasWindow: () => mainWindow !== null,
+  hasWindow: () => windowEverCreated,
   showError: (title, body) => dialog.showErrorBox(title, body),
   exit: (code) => app.exit(code)
 })
