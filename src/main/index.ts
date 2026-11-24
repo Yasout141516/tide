@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import { TtsHost } from './tts-host'
 import { registerIpc } from './ipc'
-import { registerExportIpc } from './export/ipc'
+import { registerExportIpc, type ExportController } from './export/ipc'
 import { PlayingBlocker } from './playing'
 import { resourcePath } from './paths'
 import { Library } from './library/library'
@@ -27,6 +27,7 @@ let ttsHost: TtsHost | null = null
 const playing = new PlayingBlocker(powerSaveBlocker)
 let library: Library | null = null
 let libraryIpc: ReturnType<typeof registerLibraryIpc> | null = null
+let exportCtl: ExportController | null = null
 const openWith = new OpenWithQueue()
 
 // macOS delivers Open With / drop-on-Dock as `open-file`, possibly before `ready`: queue it.
@@ -106,6 +107,8 @@ app.on('before-quit', (e) => {
 
 const quitHandler = createQuitHandler({
   getLibrary: () => library,
+  // Restart Tide goes through app.quit() too, so one hook covers both.
+  beforeQuit: () => exportCtl?.abortAndWait() ?? Promise.resolve(),
   quit: () => app.quit(),
   timeoutMs: QUIT_FLUSH_TIMEOUT_MS
 })
@@ -153,7 +156,7 @@ app.whenReady().then(async () => {
   if (library) {
     const lib = library
     libraryIpc = registerLibraryIpc(lib, { window: () => mainWindow })
-    registerExportIpc({
+    exportCtl = registerExportIpc({
       host: ttsHost,
       window: () => mainWindow,
       albumFor: (id) => {

@@ -45,6 +45,7 @@ describe('export:start and friends', () => {
   let events: ExportEvent[]
   let gate: { resolve(): void } | null
   let pendingRejects: ((e: Error) => void)[]
+  let ctl: ReturnType<typeof registerExportIpc>
   const host = {
     synthesize: vi.fn(
       () =>
@@ -83,7 +84,7 @@ describe('export:start and friends', () => {
     showItemInFolder.mockReset()
     host.synthesize.mockClear()
     host.cancel.mockClear()
-    registerExportIpc({
+    ctl = registerExportIpc({
       host,
       window: () => win,
       env: { TIDE_E2E: '1', TIDE_MUSIC_DIR: music },
@@ -158,6 +159,35 @@ describe('export:start and friends', () => {
 
     await handlers.get('export:reveal')!({}, jobId)
     expect(showItemInFolder).toHaveBeenCalledWith(join(music, 'Tide', 'Week 3- Memory.m4b'))
+  })
+
+  it('abortAndWait (quit) aborts the running export, waits for cleanup and leaves nothing behind', async () => {
+    await ctl.abortAndWait() // nothing running: resolves at once
+    for (const format of ['mp3', 'm4b'] as const) {
+      events = []
+      const { jobId } = (await start(spec({ format }))) as { jobId: string }
+      await vi.waitFor(() => expect(host.synthesize).toHaveBeenCalled())
+      gate!.resolve() // one sentence reaches the writer, so ffmpeg is really running
+      await vi.waitFor(() => expect(host.synthesize.mock.calls.length).toBeGreaterThan(1))
+      await ctl.abortAndWait()
+      // by the time it resolves the writer's cleanup is finished
+      expect(readdirSync(join(music, 'Tide'))).toEqual([])
+      expect(host.cancel).toHaveBeenCalledWith(`export-${jobId}`)
+      expect(await until((e) => e.kind === 'cancelled')).toMatchObject({ jobId })
+      host.synthesize.mockClear()
+    }
+  })
+
+  it('abortAndWait also releases a start that is waiting on the folder dialog', async () => {
+    let choose!: (v: unknown) => void
+    showOpenDialog.mockReturnValueOnce(new Promise((r) => (choose = r)))
+    const pending = start(spec(), { chooseFolder: true })
+    await vi.waitFor(() => expect(showOpenDialog).toHaveBeenCalled())
+    await ctl.abortAndWait()
+    choose({ canceled: false, filePaths: [join(music, 'picked')] })
+    expect(await pending).toEqual({ cancelled: true })
+    expect(host.synthesize).not.toHaveBeenCalled()
+    expect(existsSync(join(music, 'picked'))).toBe(false)
   })
 
   it('reports a failure when the folder cannot be made', async () => {

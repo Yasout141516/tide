@@ -66,6 +66,58 @@ describe('createQuitHandler', () => {
   })
 })
 
+describe('createQuitHandler with beforeQuit (running export)', () => {
+  const ev = (): { preventDefault: () => void } => ({ preventDefault: vi.fn() })
+
+  it('waits for beforeQuit as well as the flush before quitting', async () => {
+    const quit = vi.fn()
+    let abortDone!: () => void
+    const beforeQuit = vi.fn(() => new Promise<void>((r) => (abortDone = r)))
+    const handler = createQuitHandler({
+      getLibrary: () => ({ flush: () => Promise.resolve(true) }),
+      beforeQuit,
+      quit,
+      timeoutMs: 1000
+    })
+    const e = ev()
+    handler(e)
+    expect(e.preventDefault).toHaveBeenCalled()
+    expect(beforeQuit).toHaveBeenCalledTimes(1)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(quit).not.toHaveBeenCalled() // flush is done but the export abort is not
+    abortDone()
+    await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
+  })
+
+  it('quits after the bound when the abort hangs', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const quit = vi.fn()
+    const handler = createQuitHandler({
+      getLibrary: () => ({ flush: () => Promise.resolve(true) }),
+      beforeQuit: () => new Promise<void>(() => {}),
+      quit,
+      timeoutMs: 40
+    })
+    handler(ev())
+    await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
+  })
+
+  it('still aborts when the flush hangs', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const quit = vi.fn()
+    const beforeQuit = vi.fn(() => Promise.resolve())
+    const handler = createQuitHandler({
+      getLibrary: () => ({ flush: () => new Promise<boolean>(() => {}) }),
+      beforeQuit,
+      quit,
+      timeoutMs: 20
+    })
+    handler(ev())
+    expect(beforeQuit).toHaveBeenCalled()
+    await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
+  })
+})
+
 describe('createShowWindow', () => {
   it('does nothing until the first window has been created by whenReady', () => {
     let ready = false

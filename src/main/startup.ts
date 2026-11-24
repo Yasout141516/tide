@@ -21,6 +21,8 @@ export async function openLibraryOrReport<L>(
  */
 export function createQuitHandler(o: {
   getLibrary: () => { flush(): Promise<boolean> } | null
+  /** Runs alongside the flush (e.g. abort a running export and wait for its cleanup). Should not reject. */
+  beforeQuit?: () => Promise<void>
   quit: () => void
   timeoutMs: number
 }): (e: { preventDefault(): void }) => void {
@@ -37,7 +39,12 @@ export function createQuitHandler(o: {
     const timeout = new Promise<false>((r) => {
       timer = setTimeout(() => r(false), o.timeoutMs)
     })
-    Promise.race([library.flush(), timeout])
+    // One shared bound covers both: a stuck disk or a stuck export cleanup cannot hang the quit.
+    const work = Promise.all([
+      library.flush(),
+      (o.beforeQuit?.() ?? Promise.resolve()).catch(() => {})
+    ]).then(([ok]) => ok)
+    Promise.race([work, timeout])
       .then((ok) => {
         if (!ok) console.error('[tide] library.json could not be written before quitting')
       })

@@ -8,11 +8,11 @@ import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ip
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
 import { runExport, type ExportDeps } from './job'
 import { exportDir, failureReason, safeFileName, uniquePath } from './files'
-import { createM4bWriter, createMp3Writer } from './writers'
+import { createM4bWriter, createMp3Writer, type AudioWriter } from './writers'
 
-const MAX_SENTENCES = 20_000
-const MAX_TEXT = 5_000
-const MAX_NAME = 200
+export const MAX_SENTENCES = 20_000
+export const MAX_TEXT = 5_000
+export const MAX_NAME = 200
 const PROGRESS_MS = 100
 /** Saved paths kept for `reveal`: a reveal comes right after the saved event. */
 const KEEP_SAVED = 20
@@ -30,7 +30,7 @@ export function resolveMusicDir(
 
 const isStr = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
 
-function parseSpec(v: unknown): ExportSpec {
+export function parseSpec(v: unknown): ExportSpec {
   const s = (v ?? {}) as Record<string, unknown>
   const sentences = s.sentences
   if (
@@ -82,15 +82,31 @@ const exists = (p: string): Promise<boolean> =>
     () => false
   )
 
+export interface ExportController {
+  /**
+   * Quit / relaunch: abort the running export and resolve once the writer has removed its part and
+   * temp files and ffmpeg is dead (the writer kills it hard, before any stdin EOF). Never rejects;
+   * the caller bounds the wait.
+   */
+  abortAndWait(): Promise<void>
+}
+
 export function registerExportIpc(o: {
   host: Pick<ExportDeps, 'synthesize' | 'cancel'>
   window: () => BrowserWindow | null
   /** The reading's course name, or null when it has none (album falls back to "Tide"). */
   albumFor?: (readingId: string) => string | null
   env?: Record<string, string | undefined>
-}): void {
+}): ExportController {
   const env = o.env ?? process.env
-  let running: { jobId: string; abort: AbortController } | null = null
+  let running: {
+    jobId: string
+    abort: AbortController
+    /** Set once run() has started: only then is there writer cleanup to wait for. */
+    done: Promise<void> | null
+    /** The writer, once made: aborting it is what kills ffmpeg and removes the part and temp files. */
+    writer: AudioWriter | null
+  } | null = null
   const savedPaths = new Map<string, string>()
 
   const send = (e: ExportEvent): void => {
@@ -112,7 +128,8 @@ export function registerExportIpc(o: {
     spec: ExportSpec,
     jobId: string,
     folder: string,
-    ac: AbortController
+    ac: AbortController,
+    job: { writer: AudioWriter | null }
   ): Promise<void> {
     try {
       await mkdir(folder, { recursive: true })
@@ -124,6 +141,7 @@ export function registerExportIpc(o: {
       }
       const make = spec.format === 'mp3' ? createMp3Writer : createM4bWriter
       const writer = make(outPath, meta, ac.signal)
+      job.writer = writer
       let lastSent = 0
       await runExport(
         spec,
@@ -158,7 +176,13 @@ export function registerExportIpc(o: {
     if (running) return { busy: true }
     const jobId = randomUUID()
     const ac = new AbortController()
-    running = { jobId, abort: ac } // claimed before any await, so a second start sees busy
+    const job = {
+      jobId,
+      abort: ac,
+      done: null as Promise<void> | null,
+      writer: null as AudioWriter | null
+    }
+    running = job // claimed before any await, so a second start sees busy
     let folder = exportDir(resolveMusicDir(env, () => app.getPath('music')))
     if ((opts as { chooseFolder?: unknown } | null)?.chooseFolder === true) {
       let chosen: string | null = null
@@ -168,9 +192,13 @@ export function registerExportIpc(o: {
         if (!chosen) running = null
       }
       if (!chosen) return { cancelled: true }
+      if (ac.signal.aborted) {
+        running = null // quitting while the dialog was open: start nothing
+        return { cancelled: true }
+      }
       folder = chosen
     }
-    void run(spec, jobId, folder, ac)
+    job.done = run(spec, jobId, folder, ac, job)
     return { jobId }
   }
 
@@ -189,8 +217,20 @@ export function registerExportIpc(o: {
     if (running?.jobId === id) running.abort.abort()
   })
 
+  const abortAndWait = async (): Promise<void> => {
+    const job = running
+    if (!job) return
+    job.abort.abort()
+    // Not job.done: that also waits for the worker to answer the cancel, up to one chunk away. The
+    // writer's own cleanup is what must finish. Before the writer exists, run() ends within a tick.
+    if (job.writer) await job.writer.abort().catch(() => {})
+    else await job.done?.catch(() => {})
+  }
+
   ipcMain.handle('export:reveal', (_e, jobId: unknown) => {
     const p = savedPaths.get(idArg('export:reveal', jobId))
     if (p) shell.showItemInFolder(p)
   })
+
+  return { abortAndWait }
 }
