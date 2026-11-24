@@ -1,4 +1,9 @@
-import { GlobalWorkerOptions, getDocument, RenderingCancelledException } from 'pdfjs-dist'
+import {
+  GlobalWorkerOptions,
+  TextLayer,
+  getDocument,
+  RenderingCancelledException
+} from 'pdfjs-dist'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { pageTextFromContent, type RawTextItem } from '../../../shared/text/page-text'
 import { classifyPdfError, type PdfOpenFailure } from '../../../shared/text/pdf-errors'
@@ -16,6 +21,17 @@ export interface PdfDoc {
   pageText(n: number): Promise<PageText>
   /** Draws page `n` into `canvas` at `scale` (CSS px per PDF point). Rejects with an AbortError on abort. */
   render(n: number, canvas: HTMLCanvasElement, scale: number, signal: AbortSignal): Promise<void>
+  /**
+   * Builds the selectable text layer of page `n` inside `container` (an empty element sized to the page).
+   * Each text div carries `data-item-index`, its index in the page's text items (the same indexing as
+   * `pageText`). Rejects with an AbortError on abort.
+   */
+  renderTextLayer(
+    n: number,
+    container: HTMLElement,
+    scale: number,
+    signal: AbortSignal
+  ): Promise<void>
   destroy(): Promise<void>
 }
 
@@ -94,6 +110,37 @@ export async function openPdf(data: Uint8Array, password?: string): Promise<Open
         signal.removeEventListener('abort', cancel)
         page.cleanup()
       }
+    },
+    async renderTextLayer(n, container, scale, signal) {
+      signal.throwIfAborted()
+      const page = await pdf.getPage(n)
+      const content = await page.getTextContent({ disableNormalization: true })
+      signal.throwIfAborted()
+      const viewport = page.getViewport({ scale })
+      // The text-layer CSS sizes everything from these two (see .textLayer in main.css).
+      container.style.setProperty('--scale-factor', String(scale))
+      container.style.setProperty('--total-scale-factor', String(scale))
+      container.style.setProperty('--scale-round-x', '1px')
+      container.style.setProperty('--scale-round-y', '1px')
+      const layer = new TextLayer({ textContentSource: content, container, viewport })
+      const cancel = (): void => layer.cancel()
+      signal.addEventListener('abort', cancel, { once: true })
+      try {
+        await layer.render()
+      } catch (err) {
+        if (signal.aborted) throw signal.reason ?? err
+        throw err
+      } finally {
+        signal.removeEventListener('abort', cancel)
+      }
+      // TextLayer makes one div per item that has a `str` and appends it when non-empty, in item order.
+      const divs = layer.textDivs
+      let k = 0
+      content.items.forEach((item, i) => {
+        if (!('str' in item) || item.str === undefined) return
+        const div = divs[k++]
+        if (div && div.isConnected) div.dataset.itemIndex = String(i)
+      })
     },
     async destroy() {
       await task.destroy()

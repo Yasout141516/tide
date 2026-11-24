@@ -291,3 +291,37 @@ test('Read everything is remembered per reading', async () => {
   await expect(item()).toHaveAttribute('aria-checked', 'false')
   await app.close()
 })
+
+test('pages have a text layer whose items match the page text', async () => {
+  const app = await launchTide()
+  const win = await app.firstWindow()
+  await addAndOpen(app, win, 'single-column.pdf')
+  await expect.poll(() => drawn(win, 1)).toBe(true)
+  await win.waitForFunction(() => '__tidePdfProbe' in window)
+  const bytes = Array.from(await readFile(fixture('single-column.pdf')))
+  const items = await win.evaluate(
+    async (b) =>
+      (
+        window as unknown as {
+          __tidePdfProbe: (
+            b: number[]
+          ) => Promise<{ firstPageItems: { index: number; str: string }[] }>
+        }
+      )
+        .__tidePdfProbe(b)
+        .then((r) => r.firstPageItems),
+    bytes
+  )
+  expect(items.length).toBeGreaterThan(0)
+  await expect(win.locator('[data-page="1"] [data-item-index]').first()).toBeAttached()
+  const divs = await win.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-page="1"] [data-item-index]')].map((d) => [
+      Number(d.dataset.itemIndex),
+      d.textContent
+    ])
+  )
+  expect(divs.length).toBeGreaterThan(0)
+  const byIndex = new Map(items.map((it) => [it.index, it.str]))
+  for (const [i, text] of divs) expect(text, `item ${i}`).toBe(byIndex.get(i as number))
+  await app.close()
+})

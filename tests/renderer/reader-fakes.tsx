@@ -49,6 +49,15 @@ export function fakeDoc(pages: PageText[]): FakeDoc {
       log.push(`render:${n}`)
       return Promise.resolve()
     }),
+    renderTextLayer: vi.fn((n: number, container: HTMLElement) => {
+      pages[n - 1].items.forEach((item, i) => {
+        const div = document.createElement('span')
+        div.dataset.itemIndex = String(i)
+        div.textContent = item.str
+        container.append(div)
+      })
+      return Promise.resolve()
+    }),
     destroy: () => Promise.resolve()
   }
 }

@@ -4,6 +4,8 @@ export interface PdfProbeResult {
   kind: string
   numPages?: number
   firstPageText?: string
+  /** The `str` of each text item on page 1, with its `index` (its position in pdf.js's item list). */
+  firstPageItems?: { index: number; str: string }[]
   /** True when the same bytes opened a second time (pdf.js must not have detached the caller's copy). */
   reopened?: boolean
 }
@@ -29,6 +31,7 @@ export function installPdfProbe(): void {
       return {
         kind: 'ok',
         numPages: r.doc.numPages,
+        firstPageItems: page.items.map((i) => ({ index: i.index, str: i.str })),
         firstPageText: page.items.map((i) => i.str).join(' '),
         reopened: again.kind === 'ok'
       }

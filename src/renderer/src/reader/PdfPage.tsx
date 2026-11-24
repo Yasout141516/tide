@@ -57,6 +57,18 @@ function PdfPageView({
     return () => ctl.abort()
   }, [doc, n, scale, active])
 
+  const textLayer = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = textLayer.current
+    if (!el) return
+    // Clear first: a previous (scale change) or aborted render leaves its divs behind.
+    el.replaceChildren()
+    if (!active) return
+    const ctl = new AbortController()
+    doc.renderTextLayer(n, el, scale, ctl.signal).catch(() => {})
+    return () => ctl.abort()
+  }, [doc, n, scale, active])
+
   return (
     <div
       data-page={n}
@@ -65,6 +77,8 @@ function PdfPageView({
       className="relative shrink-0 overflow-hidden rounded-[3px] bg-page shadow-[0_8px_24px_var(--shadow)]"
       style={{ width, height }}
       onClick={(e) => {
+        // A drag-selection ends in a click too: only a plain click picks a sentence.
+        if (window.getSelection()?.isCollapsed === false) return
         const box = e.currentTarget.getBoundingClientRect()
         onPick?.(n, (e.clientX - box.left) / scale, (e.clientY - box.top) / scale)
       }}
@@ -73,6 +87,7 @@ function PdfPageView({
       {highlight && highlight.rects.length > 0 ? (
         <HighlightLayer rects={highlight.rects} scale={scale} sentenceId={highlight.sentenceId} />
       ) : null}
+      <div ref={textLayer} className="textLayer" />
       {textless ? (
         <p className="absolute inset-x-0 top-0 m-0 bg-warn-soft px-3 py-1 text-center text-[12px] font-bold text-warn">
           No readable text on this page, skipping.

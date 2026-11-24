@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
@@ -304,5 +304,33 @@ describe('Lazy canvases', () => {
     await waitFor(() => expect(canvas(7).width).toBe(100))
     expect(canvas(5).width).toBe(100)
     expect(canvas(8).width).toBe(0)
+  })
+})
+
+describe('Selectable text', () => {
+  afterEach(() => window.getSelection()?.removeAllRanges())
+
+  const highlightId = (): string | undefined =>
+    document.querySelector<HTMLElement>('[data-testid="sentence-highlight"]')?.dataset.sentenceId
+  // Second line of page 1 (baseline 114 pt, 12 pt text), at 820 px per 612 pt.
+  const click = (): void => {
+    fireEvent.click(pageBox(1), { clientX: 100 * (820 / 612), clientY: 110 * (820 / 612) })
+  }
+
+  it('a drag-selection does not move the highlight; a plain click still does', async () => {
+    await openReading(fakeDeps())
+    await waitFor(() => expect(highlightId()).toBe('0'), { timeout: 10_000 })
+    await waitFor(() => expect(pageBox(1).querySelector('[data-item-index]')).toBeTruthy())
+
+    // She drags across the second line: the selection is not collapsed, so the click that ends the drag is ignored.
+    const line = pageBox(1).querySelector('[data-item-index="1"]')!.firstChild!
+    window.getSelection()!.setBaseAndExtent(line, 2, line, 9)
+    click()
+    expect(highlightId()).toBe('0')
+
+    // A plain click (collapsed selection) picks the sentence under the pointer.
+    window.getSelection()!.removeAllRanges()
+    click()
+    await waitFor(() => expect(highlightId()).toBe('1'), { timeout: 10_000 })
   })
 })
