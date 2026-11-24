@@ -180,6 +180,21 @@ describe('path scrubbing', () => {
     expect(t).not.toMatch(/John|Notes/)
   })
 
+  it('keeps an apostrophe followed by a letter inside a single-quoted path (Node ENOENT)', () => {
+    const msg = "ENOENT: no such file or directory, open 'D:\\John's Notes\\a.pdf'"
+    const t = written('C:\\Users\\Mia', msg)
+    expect(t).toContain("ENOENT: no such file or directory, open '<path>'\n")
+    expect(t).not.toMatch(/John|Notes/)
+    const h = written('C:\\Users\\Mia', "open 'C:\\Users\\Mia\\John's Notes\\a.pdf'")
+    expect(h).toContain("open '<path>'\n")
+    expect(h).not.toMatch(/John|Notes/)
+  })
+
+  it('closes a quoted path on a quote followed by punctuation', () => {
+    const t = written('C:\\Users\\Mia', "open 'D:\\a.pdf', retrying")
+    expect(t).toContain("open '<path>', retrying\n")
+  })
+
   it('lets quotes inside an unquoted path stay part of it', () => {
     const t = written('C:\\Users\\Mia', "open D:\\John's Notes\\a.pdf")
     expect(t).toContain('open <path>\n')

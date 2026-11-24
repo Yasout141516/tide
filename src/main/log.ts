@@ -75,12 +75,13 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
 }
 
 // A path starts at an absolute-path prefix. If a quote character (' " `) comes right before it, it
-// runs to the next occurrence of that same quote; otherwise to a `)` that closes a stack frame
+// runs to the next occurrence of that same quote not followed by a word character (an apostrophe
+// inside a name, `John's`, is part of it; no such quote means end of line); otherwise to a `)` that closes a stack frame
 // (optionally followed by :line:col, then end of line), or to the end of the line. Spaces,
 // parentheses and (when unquoted) quotes inside are part of the path (`D:\John's Notes\a.pdf`).
 const QUOTE_BEFORE = String.raw`(?<=(['"\x60]))`
 const NOT_QUOTE_BEFORE = String.raw`(?<!['"\x60])`
-const QUOTED_RUN = String.raw`(?:(?!\1)[^\r\n])*`
+const QUOTED_RUN = String.raw`(?:(?!\1(?![\p{L}\p{N}_]))[^\r\n])*`
 const OPEN_RUN = String.raw`(?:[^\r\n)]|\)(?!(?::\d+)*\r?$))*`
 const withRun = (starts: string): string =>
   `(?:${QUOTE_BEFORE}(?:${starts})${QUOTED_RUN}|${NOT_QUOTE_BEFORE}(?:${starts})${OPEN_RUN})`
@@ -89,7 +90,7 @@ const DRIVE = String.raw`(?:file:///)?(?<!\w)[A-Za-z]:[\\/]`
 const UNC = String.raw`\\{2,}[\w.$-]+\\+`
 const FILE_HOST = String.raw`file://(?=[\w.-])`
 const POSIX = String.raw`(?:file://(?=/)|(?<![\w.:/<\\]))/(?=[^\s/'"\x60])`
-const PATHS = new RegExp(withRun(`${DRIVE}|${UNC}|${FILE_HOST}|${POSIX}`), 'gm')
+const PATHS = new RegExp(withRun(`${DRIVE}|${UNC}|${FILE_HOST}|${POSIX}`), 'gmu')
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -100,7 +101,7 @@ function makeScrub(home: string): (s: string) => string {
     const win = /^[A-Za-z]:/.test(home)
     const forms = new Set([home, home.replace(/\\/g, '/'), home.replace(/\\/g, '\\\\')])
     const starts = `(?:${[...forms].map(escapeRe).join('|')})(?!\\w)`
-    homeRe = new RegExp(withRun(starts), win ? 'gim' : 'gm')
+    homeRe = new RegExp(withRun(starts), win ? 'gimu' : 'gmu')
   }
   return (s) => (homeRe ? s.replace(homeRe, '<path>') : s).replace(PATHS, '<path>')
 }
