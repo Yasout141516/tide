@@ -8,6 +8,8 @@ import {
   useState,
   type ReactNode
 } from 'react'
+import { PawPrint } from '../theme/mascots/Mochi'
+import { useTheme } from '../theme/theme'
 
 export interface ToastSpec {
   text: string
@@ -31,6 +33,7 @@ const actionButton =
 
 /** Shows one toast at a time, bottom-centre above the player. */
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
+  const kitty = useTheme().resolved === 'kitty'
   const [toast, setToast] = useState<(ToastSpec & { key: number }) | null>(null)
   const counter = useRef(0)
   // What is showing, kept in step with the state so show/dismiss can answer synchronously.
@@ -80,6 +83,9 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
             key={toast.key}
             className="toast-in pointer-events-auto flex items-center gap-3.5 rounded-[14px] bg-bubble py-2.5 pr-3 pl-4 text-[13.5px] font-bold text-bg shadow-[0_12px_30px_var(--shadow)]"
           >
+            {kitty && toast.text.startsWith('✓') ? (
+              <PawPrint size={16} attr="data-toast-paw" />
+            ) : null}
             <span>{toast.text}</span>
             {toast.actions?.map((a) => (
               <button

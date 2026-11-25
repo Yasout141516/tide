@@ -1,9 +1,13 @@
 import type { ReadingView } from '../../../shared/library/types'
 import { rowLabel } from '../../../shared/library/shelf'
+import { useTheme } from '../theme/theme'
+import { themeCopy } from '../theme/copy'
 
 type Props = { reading: ReadingView; selected: boolean; onOpen(): void }
 
 export function ShelfRow({ reading, selected, onOpen }: Props): React.JSX.Element {
+  const { resolved } = useTheme()
+  const moved = reading.missing ? themeCopy(resolved, 'moved') : null
   const labelColour = reading.missing
     ? 'font-bold text-warn'
     : selected
@@ -20,7 +24,16 @@ export function ShelfRow({ reading, selected, onOpen }: Props): React.JSX.Elemen
       }`}
     >
       <span className="block">{reading.title}</span>
-      <small className={`mt-0.5 block text-[11.5px] ${labelColour}`}>{rowLabel(reading)}</small>
+      <small className={`mt-0.5 block text-[11.5px] ${labelColour}`}>
+        {moved ? (
+          <>
+            <span className="sr-only">{rowLabel(reading)}</span>
+            <span aria-hidden="true">{moved}</span>
+          </>
+        ) : (
+          rowLabel(reading)
+        )}
+      </small>
     </button>
   )
 }

@@ -13,7 +13,7 @@ function bgOf(theme: string): string | null {
 describe('window background', () => {
   it('matches --bg in tokens.css for every theme present in both', () => {
     const keys = Object.keys(WINDOW_BG).filter((k) => bgOf(k) !== null)
-    expect(keys).toEqual(expect.arrayContaining(['sky-sea', 'deep-sea']))
+    expect(keys).toEqual(expect.arrayContaining(['sky-sea', 'deep-sea', 'kitty']))
     for (const k of keys)
       expect(WINDOW_BG[k as keyof typeof WINDOW_BG]!.toLowerCase(), k).toBe(bgOf(k)!.toLowerCase())
   })

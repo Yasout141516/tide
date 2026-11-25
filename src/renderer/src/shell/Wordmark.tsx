@@ -1,3 +1,4 @@
+import { MochiHead } from '../theme/mascots/Mochi'
 import { Sprout } from '../theme/mascots/Sprout'
 import { useTheme } from '../theme/theme'
 
@@ -5,7 +6,9 @@ export function Wordmark(): React.JSX.Element {
   const { resolved } = useTheme()
   return (
     <div className="mx-1 flex items-center gap-2">
-      {resolved === 'pixel-quest' ? (
+      {resolved === 'kitty' ? (
+        <MochiHead size={32} />
+      ) : resolved === 'pixel-quest' ? (
         <Sprout size={28} />
       ) : (
         <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">

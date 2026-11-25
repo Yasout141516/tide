@@ -5,6 +5,8 @@ import { timeLeftLabel } from './timeline'
 import { DialogueBox } from './DialogueBox'
 import { PixelWaves } from '../theme/PixelWaves'
 import { useTheme } from '../theme/theme'
+import { themeCopy } from '../theme/copy'
+import { MochiPeek, PawToes, YarnBall } from '../theme/mascots/Mochi'
 import { SleepPopover } from './SleepPopover'
 import { VoicePopover } from './VoicePopover'
 
@@ -44,12 +46,55 @@ function Spinner(): React.JSX.Element {
   )
 }
 
+/** Kitty's progress: a yarn thread with a ball at the current position. Same progress, new picture. */
+function YarnThread({ progress }: { progress: number }): React.JSX.Element {
+  const THREAD = 'M2 16 C 60 6, 120 24, 180 14 S 300 8, 398 15'
+  return (
+    <div className="relative h-[26px]">
+      <svg
+        viewBox="0 0 400 26"
+        width="100%"
+        height="26"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d={THREAD}
+          fill="none"
+          strokeWidth="3"
+          strokeDasharray="2 6"
+          strokeLinecap="round"
+          style={{ stroke: 'var(--wave-off)' }}
+        />
+        <path
+          d={THREAD}
+          fill="none"
+          strokeWidth="3"
+          strokeLinecap="round"
+          className="transition-[clip-path] duration-200 motion-reduce:transition-none"
+          style={{
+            stroke: 'var(--wave-on)',
+            clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
+          }}
+        />
+      </svg>
+      <span
+        className="absolute top-0.5 transition-[left] duration-200 motion-reduce:transition-none"
+        style={{ left: `calc((100% - 22px) * ${progress.toFixed(4)})` }}
+      >
+        <YarnBall />
+      </span>
+    </div>
+  )
+}
+
 /** The five controls: Back 15s, Play / Pause, Forward 15s, voice & speed, Sleep. */
 export function PlayerBar(): React.JSX.Element {
   const { snapshot, finished, finishNote } = usePlayerState()
   const { toggle, skip, playNext, dismissFinished } = usePlayerActions()
   const { sentences, page, numPages, current } = useReaderState()
   const { resolved } = useTheme()
+  const kitty = resolved === 'kitty'
   const { phase, secondsLeft } = snapshot
   const ready = sentences.length > 0
   const wantsPlay = isListening(phase)
@@ -68,49 +113,59 @@ export function PlayerBar(): React.JSX.Element {
       className="relative flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border bg-surface px-[22px] py-3"
     >
       {resolved === 'pixel-quest' ? <PixelWaves /> : null}
+      {kitty && wantsPlay ? (
+        <span data-peek-slot className="kt-peek pointer-events-none absolute right-24 -top-[46px]">
+          <MochiPeek />
+        </span>
+      ) : null}
       <DialogueBox />
       <button type="button" className={skipButton} disabled={!ready} onClick={() => skip(-15)}>
         Back 15s
       </button>
       <button
         type="button"
-        className={`pq-play ${playButton} ${phase === 'buffering' ? 'play-buffering' : ''}`}
+        className={`pq-play kt-play relative ${playButton} ${phase === 'buffering' ? 'play-buffering' : ''}`}
         disabled={!ready}
         onClick={toggle}
       >
+        {kitty ? <PawToes /> : null}
         {phase === 'loading-voice' ? <Spinner /> : wantsPlay ? <PauseIcon /> : <PlayIcon />}
         {wantsPlay ? 'Pause' : 'Play'}
       </button>
       <button type="button" className={skipButton} disabled={!ready} onClick={() => skip(15)}>
         Forward 15s
       </button>
-      <div className="min-w-[120px] flex-1">
-        <svg
-          viewBox="0 0 400 20"
-          width="100%"
-          height="20"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d={WAVE}
-            fill="none"
-            strokeWidth="3.2"
-            strokeLinecap="round"
-            style={{ stroke: 'var(--wave-off)' }}
-          />
-          <path
-            d={WAVE}
-            fill="none"
-            strokeWidth="3.2"
-            strokeLinecap="round"
-            className="transition-[clip-path] duration-200 motion-reduce:transition-none"
-            style={{
-              stroke: 'var(--wave-on)',
-              clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
-            }}
-          />
-        </svg>
+      <div className="relative min-w-[120px] flex-1">
+        {kitty ? (
+          <YarnThread progress={progress} />
+        ) : (
+          <svg
+            viewBox="0 0 400 20"
+            width="100%"
+            height="20"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d={WAVE}
+              fill="none"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              style={{ stroke: 'var(--wave-off)' }}
+            />
+            <path
+              d={WAVE}
+              fill="none"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              className="transition-[clip-path] duration-200 motion-reduce:transition-none"
+              style={{
+                stroke: 'var(--wave-on)',
+                clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
+              }}
+            />
+          </svg>
+        )}
         {finished ? (
           <div
             aria-live="polite"
@@ -141,7 +196,12 @@ export function PlayerBar(): React.JSX.Element {
             aria-live="polite"
             className="mt-0.5 flex min-h-[1em] justify-between gap-3 text-[11.5px] font-semibold text-muted"
           >
-            <span>{left}</span>
+            <span>
+              {kitty && phase === 'playing' ? (
+                <span aria-hidden="true">{themeCopy(resolved, 'playing')} · </span>
+              ) : null}
+              {left}
+            </span>
             <span>{right}</span>
           </div>
         )}

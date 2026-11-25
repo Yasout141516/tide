@@ -284,3 +284,124 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 :root[data-theme='pixel-quest'] canvas[data-pdf-canvas] {
   mix-blend-mode: multiply;
 }
+
+/* ===== Kitty: shapes, fonts and kitten decorations (colours come from the tokens) =====
+   Fredoka for headings and buttons, Nunito for UI text. The PDF and the reading text keep their own
+   fonts. Nothing here animates under prefers-reduced-motion (the global rule above also applies). */
+:root[data-theme='kitty'] {
+  --kt-ui: 'Nunito', 'Nunito Sans', system-ui, sans-serif;
+  --kt-head: 'Fredoka', 'Nunito', system-ui, sans-serif;
+}
+:root[data-theme='kitty'] body,
+:root[data-theme='kitty'] .font-sans {
+  font-family: var(--kt-ui);
+}
+:root[data-theme='kitty'] .font-display,
+:root[data-theme='kitty'] button.font-sans,
+:root[data-theme='kitty'] button.pq-add {
+  font-family: var(--kt-head);
+}
+:root[data-theme='kitty'] .font-display {
+  font-weight: 600;
+}
+/* Rounder shapes: 14 to 24 px. Pills and circles keep their own shape. */
+:root[data-theme='kitty'] button:not(.rounded-full):not(.kt-play) {
+  border-radius: 16px;
+}
+:root[data-theme='kitty'] [role='dialog'],
+:root[data-theme='kitty'] [role='menu'] {
+  border-radius: 24px;
+}
+:root[data-theme='kitty'] [data-reading-id] {
+  border-radius: 14px;
+}
+:root[data-theme='kitty'] aside {
+  border-right: 2px dashed var(--border);
+}
+:root[data-theme='kitty'] footer[aria-label='Player'] {
+  border-top: 2px solid var(--border);
+}
+:root[data-theme='kitty'] [data-page] {
+  border-radius: 16px 16px 0 0;
+}
+/* Add reading and primary buttons: cat-ear tips on top, and a soft pressed edge. */
+:root[data-theme='kitty'] .kt-add {
+  position: relative;
+  border-radius: 16px;
+  box-shadow: 0 3px 0 var(--soft-ink);
+}
+:root[data-theme='kitty'] .kt-add::before,
+:root[data-theme='kitty'] .kt-add::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 12px solid var(--primary);
+  pointer-events: none;
+}
+:root[data-theme='kitty'] .kt-add::before {
+  left: 16px;
+  transform: rotate(-12deg);
+}
+:root[data-theme='kitty'] .kt-add::after {
+  right: 16px;
+  transform: rotate(12deg);
+}
+/* The play / pause button is a paw pad with four toe beans above it. */
+:root[data-theme='kitty'] .kt-play {
+  margin-top: 10px;
+  border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  box-shadow: 0 3px 0 var(--soft-ink);
+}
+:root[data-theme='kitty'] .kt-toes {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  fill: var(--primary);
+  pointer-events: none;
+}
+/* Course labels: a paw print in rose. Playing row: a rose marker. */
+:root[data-theme='kitty'] [data-course-paw] {
+  flex: none;
+  color: var(--primary);
+}
+:root[data-theme='kitty'] [data-reading-id][aria-current='true'] {
+  position: relative;
+}
+:root[data-theme='kitty'] [data-reading-id][aria-current='true']::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  width: 5px;
+  height: 60%;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  background: var(--primary);
+}
+/* Mochi peeks over the player bar while it plays, with a small bob (none under reduced motion). */
+.kt-peek {
+  animation: kt-peek 3.2s ease-in-out infinite;
+}
+@keyframes kt-peek {
+  0%,
+  100% {
+    transform: translateY(3px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kt-peek {
+    animation: none;
+  }
+}
+/* The kitten's playful line on the empty shelf. */
+.kt-line {
+  font-weight: 600;
+}

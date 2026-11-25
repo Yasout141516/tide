@@ -6,7 +6,8 @@ export type ResolvedThemeId = Exclude<ThemeId, 'system'>
 export const WINDOW_BG: Partial<Record<ResolvedThemeId, string>> = {
   'sky-sea': '#f2f9ff',
   'deep-sea': '#0b1d2c',
-  'pixel-quest': '#12304a'
+  'pixel-quest': '#12304a',
+  kitty: '#fff7f2'
 }
 
 /** The theme the renderer paints first: the stored one, with 'system' following the OS. */

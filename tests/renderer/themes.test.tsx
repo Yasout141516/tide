@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { useEffect } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 import { setTide } from '../../src/renderer/src/lib/tide'
 import { Shelf } from '../../src/renderer/src/shelf/Shelf'
 import { EmptyState } from '../../src/renderer/src/shelf/EmptyState'
 import { badgeColour, BADGE_COLOURS } from '../../src/renderer/src/theme/badges'
 import { DEFAULT_FILTERS } from '../../src/shared/text/types'
 import type { LibrarySnapshot, ThemeId } from '../../src/shared/library/types'
-import { bodyPages, fakeDeps, fakeDoc, fakePlayer, renderApp } from './reader-fakes'
+import { themeCopy } from '../../src/renderer/src/theme/copy'
+import { ToastProvider, useToast } from '../../src/renderer/src/shell/Toast'
+import { VOICES } from '../../src/shared/voices'
+import { bodyPages, fakeDeps, fakeDoc, fakePlayer, renderApp, SILENCE } from './reader-fakes'
 import { fakeTide } from './setup'
 
 const reading = {
@@ -139,5 +143,170 @@ describe('Pixel Quest sprout mascot', () => {
     await themed('sky-sea')
     const b = render(<EmptyState onAdd={() => {}} platform="win32" />)
     expect(b.container.querySelector('[data-mascot="sprout"]')).toBeNull()
+  })
+})
+
+// ---------- Kitty ----------
+
+async function openKitty(
+  theme: Exclude<ThemeId, 'system'> = 'kitty',
+  over: Partial<typeof reading> = {}
+): Promise<ReturnType<typeof fakeTide>> {
+  const t = fakeTide({
+    snapshot: {
+      readings: [{ ...reading, ...over }],
+      settings: {
+        reading: DEFAULT_FILTERS,
+        zoom: 1,
+        voice: 'bf_emma',
+        speed: 1,
+        theme,
+        darkPages: true,
+        pronunciations: []
+      }
+    },
+    initialTheme: theme
+  })
+  t.tts.synthesize = vi.fn(() => Promise.resolve(SILENCE))
+  t.tts.status = () => Promise.resolve('ready' as const)
+  setTide(t)
+  renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(2)) }), fakePlayer().deps)
+  await userEvent.click(await screen.findByRole('button', { name: /^Memory and Attention/ }))
+  if (!over.missing)
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid="sentence-highlight"]')).toBeTruthy()
+    )
+  return t
+}
+
+const playerBar = (): HTMLElement => screen.getByLabelText('Player')
+const peek = (): Element | null => document.querySelector('[data-mascot="mochi"][data-pose="peek"]')
+
+describe('themeCopy', () => {
+  it('has the Kitty lines and null elsewhere', () => {
+    expect(themeCopy('kitty', 'playing')).toBe('Purring along')
+    expect(themeCopy('kitty', 'moved')).toBe('File wandered off · Find it')
+    expect(themeCopy('kitty', 'sleep')).toBe('Nap timer')
+    expect(themeCopy('kitty', 'emptyShelf')).toBe('Mochi is waiting for a story')
+    for (const th of ['sky-sea', 'deep-sea', 'pixel-quest'] as const)
+      for (const k of ['playing', 'moved', 'sleep', 'emptyShelf'] as const)
+        expect(themeCopy(th, k)).toBeNull()
+  })
+})
+
+describe('Kitty Nap timer', () => {
+  it('shows "Nap timer" with a kitten while the accessible name stays "Sleep"', async () => {
+    await openKitty()
+    const btn = within(playerBar()).getByRole('button', { name: 'Sleep' })
+    expect(btn.textContent).toContain('Nap timer')
+    expect(btn.querySelector('[data-mascot="sleepy"]')).toBeTruthy()
+  })
+  it('is plain "Sleep" under sky-sea', async () => {
+    await openKitty('sky-sea')
+    const btn = within(playerBar()).getByRole('button', { name: 'Sleep' })
+    expect(btn.textContent).toBe('Sleep')
+    expect(btn.querySelector('[data-mascot]')).toBeNull()
+  })
+})
+
+describe('Kitty Mochi peeking', () => {
+  it('peeks only while playing', async () => {
+    await openKitty()
+    expect(peek()).toBeNull()
+    await userEvent.click(within(playerBar()).getByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(peek()).toBeTruthy())
+    expect(peek()!.getAttribute('aria-hidden')).toBe('true')
+    expect(playerBar().textContent).toContain('Purring along')
+    await userEvent.click(within(playerBar()).getByRole('button', { name: 'Pause' }))
+    await waitFor(() => expect(peek()).toBeNull())
+    expect(playerBar().textContent).not.toContain('Purring along')
+  })
+  it('never appears under sky-sea', async () => {
+    await openKitty('sky-sea')
+    await userEvent.click(within(playerBar()).getByRole('button', { name: 'Play' }))
+    await waitFor(() =>
+      expect(within(playerBar()).getByRole('button', { name: 'Pause' })).toBeTruthy()
+    )
+    expect(document.querySelector('[data-mascot="mochi"]')).toBeNull()
+  })
+  it('the Play button keeps its plain name and gets a paw pad under kitty', async () => {
+    await openKitty()
+    const play = within(playerBar()).getByRole('button', { name: 'Play' })
+    expect(play.querySelector('[data-paw-pad]')).toBeTruthy()
+  })
+  it('the progress thread has a yarn ball under kitty only', async () => {
+    await openKitty()
+    expect(playerBar().querySelector('[data-yarn-ball]')).toBeTruthy()
+  })
+})
+
+describe('Kitty voice avatars', () => {
+  it('gives each voice a distinct tint, under kitty only', async () => {
+    await openKitty()
+    await userEvent.click(within(playerBar()).getByRole('button', { name: /^Emma · 1×$/ }))
+    const pop = await screen.findByRole('dialog', { name: 'Choose a voice' })
+    const av = [...pop.querySelectorAll<HTMLElement>('[data-voice-avatar]')]
+    expect(av).toHaveLength(VOICES.length)
+    expect(new Set(av.map((a) => a.getAttribute('data-tint'))).size).toBe(VOICES.length)
+    // Plain names are unchanged.
+    expect(within(pop).getByRole('button', { name: /^Kore/ })).toBeTruthy()
+  })
+  it('has no avatars under sky-sea', async () => {
+    await openKitty('sky-sea')
+    await userEvent.click(within(playerBar()).getByRole('button', { name: /^Emma · 1×$/ }))
+    const pop = await screen.findByRole('dialog', { name: 'Choose a voice' })
+    expect(pop.querySelector('[data-voice-avatar]')).toBeNull()
+  })
+})
+
+describe('Kitty shelf', () => {
+  it('keeps "File moved · Find it" in the accessible name and shows the playful line', async () => {
+    await openKitty('kitty', { missing: true })
+    const row = document.querySelector<HTMLElement>('[data-reading-id]')!
+    const name = row.textContent ?? ''
+    expect(name).toContain('File moved · Find it')
+    expect(row.querySelector('.sr-only')!.textContent).toBe('File moved · Find it')
+    const shown = [...row.querySelectorAll('[aria-hidden="true"]')].map((e) => e.textContent)
+    expect(shown).toContain('File wandered off · Find it')
+  })
+  it('puts a paw print on each course label and cat ears on Add reading', async () => {
+    const snap = await themed('kitty', {
+      courses: [{ id: 'c0', name: 'PSYC 201' }],
+      readings: [{ ...reading, id: 'r0', courseId: 'c0' }]
+    })
+    const r = render(<Shelf snapshot={snap} selectedId={null} onOpen={() => {}} onAdd={() => {}} />)
+    await waitFor(() => expect(r.container.querySelectorAll('[data-course-paw]').length).toBe(1))
+    expect(r.container.querySelector('[data-course-badge]')).toBeNull()
+    expect(r.container.querySelector('[data-ear-tips]')).toBeTruthy()
+  })
+  it('sits Mochi in a box on the empty shelf with a playful line, the plain heading intact', async () => {
+    await themed('kitty')
+    const r = render(<EmptyState onAdd={() => {}} platform="win32" />)
+    await waitFor(() =>
+      expect(r.container.querySelector('[data-mascot="mochi"][data-pose="box"]')).toBeTruthy()
+    )
+    expect(screen.getByRole('heading', { name: 'Your shelf is empty' })).toBeTruthy()
+    expect(r.container.textContent).toContain('Mochi is waiting for a story')
+  })
+})
+
+describe('Kitty toast', () => {
+  it('puts a paw print on the saved note (visual only)', async () => {
+    await themed('kitty')
+    function Show(): null {
+      const toast = useToast()
+      useEffect(() => {
+        toast.show({ text: '✓ Saved “a.mp3”' })
+      }, [toast])
+      return null
+    }
+    render(
+      <ToastProvider>
+        <Show />
+      </ToastProvider>
+    )
+    await waitFor(() => expect(document.querySelector('[data-toast-paw]')).toBeTruthy())
+    expect(document.querySelector('[data-toast-paw]')!.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByRole('status').textContent).toContain('Saved')
   })
 })

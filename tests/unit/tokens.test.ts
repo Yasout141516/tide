@@ -142,6 +142,40 @@ const PQ = {
   'wave-sea': '#2A7BA0'
 }
 
+const KITTY = {
+  bg: '#FFF7F2',
+  'shelf-a': '#FCE9EC',
+  'shelf-b': '#FFF3EE',
+  surface: '#FFFFFF',
+  ink: '#4A3236',
+  muted: '#7A5A60',
+  primary: '#B8456A',
+  'on-primary': '#FFFFFF',
+  soft: '#FBE1E8',
+  'soft-ink': '#8E2F52',
+  border: '#F3D3DA',
+  'stage-a': '#FDE3E9',
+  'stage-b': '#FFF1EC',
+  'stage-c': '#FFF7F2',
+  page: '#FFFFFF',
+  'page-ink': '#3B2A2D',
+  'page-meta': '#A93D61',
+  hl: '#FFD6E0',
+  'hl-line': '#B8456A',
+  'wave-off': '#F3D3DA',
+  'wave-on': '#B8456A',
+  warn: '#A34620',
+  'warn-soft': '#FDEEE6',
+  ok: '#1B7F5B',
+  bubble: '#4A3236',
+  'primary-deep': '#A93D61',
+  'dialogue-bg': '#FFFFFF',
+  'dialogue-ink': '#4A3236',
+  'dialogue-label': '#8E2F52',
+  'badge-ink': '#FFFFFF',
+  'wave-sea': '#FBE1E8'
+}
+
 // WCAG 2.x relative luminance and contrast ratio for #rrggbb.
 function lum(hex: string): number {
   const n = parseInt(hex.slice(1), 16)
@@ -190,6 +224,43 @@ describe('Pixel Quest tokens', () => {
     expect(contrast('#22223a', '#fdf3dc')).toBeGreaterThanOrEqual(4.5)
     for (const b of ['#b83d73', '#2b6fa8', '#8c6420', '#3a7d30', '#c8432b'])
       expect(contrast('#ffffff', b), b).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('Kitty tokens', () => {
+  const kt = block('kitty')
+  it('defines every token the Sky & Sea block defines', () => {
+    expect(Object.keys(kt).sort()).toEqual(Object.keys(block('sky-sea')).sort())
+  })
+  it('uses the spec 5.2 values', () => {
+    for (const [k, v] of Object.entries(KITTY)) expect(kt[k], k).toBe(norm(v))
+  })
+  const pairs: Array<[string, string, string]> = [
+    ['ink', 'bg', 'text on the page background'],
+    ['ink', 'surface', 'text on the player bar'],
+    ['ink', 'shelf-a', 'text on the shelf'],
+    ['ink', 'shelf-b', 'text on the shelf'],
+    ['muted', 'surface', 'secondary text on the player'],
+    ['muted', 'bg', 'secondary text'],
+    ['muted', 'shelf-a', 'secondary text on the shelf'],
+    ['muted', 'shelf-b', 'secondary text on the shelf'],
+    ['on-primary', 'primary', 'play / Add reading'],
+    ['soft-ink', 'soft', 'secondary buttons'],
+    ['page-ink', 'page', 'the page'],
+    ['page-meta', 'bg', 'reading header meta'],
+    ['page-meta', 'stage-a', 'reading header meta'],
+    ['primary-deep', 'shelf-a', 'wordmark'],
+    ['primary', 'surface', 'selected row label'],
+    ['warn', 'shelf-a', 'File moved on the shelf'],
+    ['warn', 'shelf-b', 'File moved on the shelf'],
+    ['warn', 'warn-soft', 'errors'],
+    ['ok', 'bg', 'Saved'],
+    ['bg', 'bubble', 'bubble and toast text'],
+    ['dialogue-ink', 'dialogue-bg', 'dialogue text'],
+    ['dialogue-label', 'dialogue-bg', 'dialogue label']
+  ]
+  it.each(pairs)('%s on %s is at least 4.5:1 (%s)', (fg, bgk) => {
+    expect(contrast(kt[fg], kt[bgk])).toBeGreaterThanOrEqual(4.5)
   })
 })
 

@@ -1,6 +1,8 @@
 import * as Popover from '@radix-ui/react-popover'
 import { SPEEDS, speedLabel, VOICES, voiceName, DEFAULT_VOICE } from '../../../shared/voices'
 import { usePlayerActions, usePlayerState } from './PlayerContext'
+import { useTheme } from '../theme/theme'
+import { MochiHead, VOICE_COATS } from '../theme/mascots/Mochi'
 
 const focus =
   'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
@@ -11,6 +13,7 @@ const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify
 export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Element {
   const { snapshot, chosenSpeed } = usePlayerState()
   const { setVoice, setSpeed, preview, stopPreview } = usePlayerActions()
+  const kitty = useTheme().resolved === 'kitty'
   return (
     <Popover.Root onOpenChange={(open) => !open && stopPreview()}>
       <Popover.Trigger className={trigger} disabled={disabled}>
@@ -29,7 +32,7 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
             Choose a voice
           </h2>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
-            {VOICES.map((v) => {
+            {VOICES.map((v, i) => {
               const on = v.id === snapshot.voice
               return (
                 <li key={v.id} className="flex items-center gap-2">
@@ -37,12 +40,17 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
                     type="button"
                     aria-pressed={on}
                     onClick={() => setVoice(v.id)}
-                    className={`flex min-h-9 min-w-0 flex-1 cursor-pointer flex-col items-start rounded-[12px] border-0 px-3 py-1.5 text-left font-sans transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft text-soft-ink' : 'bg-transparent text-soft-ink hover:bg-soft'} ${focus}`}
+                    className={`flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft text-soft-ink' : 'bg-transparent text-soft-ink hover:bg-soft'} ${focus}`}
                   >
-                    <span className="text-[13.5px] font-extrabold">{v.name}</span>
-                    <span className="text-[12px] font-semibold text-muted">
-                      {v.description}
-                      {v.id === DEFAULT_VOICE ? ' · default' : ''}
+                    {kitty ? (
+                      <MochiHead size={30} coat={VOICE_COATS[i % VOICE_COATS.length]} avatar />
+                    ) : null}
+                    <span className="flex min-w-0 flex-col items-start">
+                      <span className="text-[13.5px] font-extrabold">{v.name}</span>
+                      <span className="text-[12px] font-semibold text-muted">
+                        {v.description}
+                        {v.id === DEFAULT_VOICE ? ' · default' : ''}
+                      </span>
                     </span>
                   </button>
                   <button
