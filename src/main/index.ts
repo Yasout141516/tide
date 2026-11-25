@@ -35,8 +35,8 @@ import {
 // Accepted risk: the test-only IPC hooks are reachable in a packaged build too, but only when the app
 // is launched with TIDE_E2E=1. That is required so CI smoke-tests the real installer artifact.
 const e2e = process.env.TIDE_E2E === '1'
-/** e2e only: the last text main sent to the TTS host (after pronunciation fixes). */
-let lastSynthText = ''
+/** e2e only: the last 16 texts main sent to the TTS host (after pronunciation fixes). */
+const recentSynthTexts: string[] = []
 // Same gate: e2e tests give each launch its own userData dir so they never touch a real shelf.
 if (e2e && process.env.TIDE_USER_DATA) app.setPath('userData', process.env.TIDE_USER_DATA)
 
@@ -206,10 +206,15 @@ app.whenReady().then(async () => {
   const speak = makeSpeak(
     host,
     () => library?.pronunciations() ?? [],
-    e2e ? (t) => (lastSynthText = t) : undefined
+    e2e
+      ? (t) => {
+          recentSynthTexts.push(t)
+          if (recentSynthTexts.length > 16) recentSynthTexts.shift()
+        }
+      : undefined
   )
   registerIpc(host, { e2e, window: () => mainWindow, speak })
-  if (e2e) ipcMain.handle('test:last-synth-text', () => lastSynthText)
+  if (e2e) ipcMain.handle('test:recent-synth-texts', () => [...recentSynthTexts])
   ipcMain.on('app:playing', (_e, on: unknown) => {
     if (typeof on === 'boolean') playing.set(on)
   })

@@ -1,9 +1,15 @@
-import { mkdtemp } from 'fs/promises'
+import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { addFixtureReading, boxesInsideCanvas, openShelf, shelfReady } from './helpers'
+import {
+  addFixtureReading,
+  boxesInsideCanvas,
+  highlightIds,
+  openShelf,
+  shelfReady
+} from './helpers'
 import { launchTide } from './launch'
 
 /** Opens Settings from the shelf's button (the native menu accelerator is not reachable from page keys). */
@@ -66,6 +72,7 @@ test('the theme persists across a relaunch', async () => {
     await expect(win.locator('html')).toHaveAttribute('data-theme', 'kitty')
   } finally {
     await app.close().catch(() => undefined)
+    await rm(userData, { recursive: true, force: true }).catch(() => undefined)
   }
 })
 
@@ -102,6 +109,8 @@ test('the Settings menu item (Ctrl+,) opens Settings', async () => {
   }
 })
 
+const idNumber = async (win: Page): Promise<number> => Number((await highlightIds(win))[0])
+
 const phase = (win: Page): Promise<string | null> =>
   win.locator('audio[data-phase]').getAttribute('data-phase')
 
@@ -127,11 +136,14 @@ test('a pronunciation fix changes the synthesized text', async () => {
 
     await win.getByRole('button', { name: 'Play', exact: true }).click()
     await expect
-      .poll(() => win.evaluate(() => window.tideTest!.lastSynthText()), {
-        timeout: 90_000,
-        intervals: [50]
-      })
-      .toContain('uh-TEN-shun')
+      .poll(
+        async () =>
+          (await win.evaluate(() => window.tideTest!.recentSynthTexts())).some((t) =>
+            t.includes('uh-TEN-shun')
+          ),
+        { timeout: 90_000, intervals: [50] }
+      )
+      .toBe(true)
   } finally {
     await app.close()
   }
@@ -152,19 +164,26 @@ test('turning off Skip footnotes rebuilds and keeps playing', async () => {
     const dialog = win.getByRole('dialog', { name: 'Settings' })
     await dialog.getByRole('button', { name: 'Reading' }).click()
     const sw = dialog.getByRole('switch', { name: 'Skip footnotes' })
+    const countBefore = await win
+      .locator('[data-sentence-count]')
+      .getAttribute('data-sentence-count')
+    const idBefore = await idNumber(win)
     const before = await sw.getAttribute('aria-checked')
     await sw.click()
     await expect(sw).not.toHaveAttribute('aria-checked', before ?? '')
     await win.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
 
-    // The rebuild keeps her place: playback carries on and a sentence stays highlighted.
+    // The rebuild (the footnote becomes a sentence) shows as a new sentence count; her place is kept.
+    await expect
+      .poll(() => win.locator('[data-sentence-count]').getAttribute('data-sentence-count'), {
+        timeout: 30_000
+      })
+      .not.toBe(countBefore)
     await expect.poll(() => phase(win), { timeout: 30_000 }).toBe('playing')
-    await expect(win.locator('[data-testid="sentence-highlight"]').first()).toBeVisible({
-      timeout: 30_000
-    })
-    await win.waitForTimeout(2000)
-    expect(await phase(win)).toBe('playing')
+    const after = await idNumber(win)
+    expect(after).toBeGreaterThanOrEqual(idBefore)
+    await expect.poll(() => idNumber(win), { timeout: 40_000 }).toBeGreaterThan(after)
   } finally {
     await app.close()
   }

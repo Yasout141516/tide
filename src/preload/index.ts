@@ -89,7 +89,7 @@ contextBridge.exposeInMainWorld('tide', {
 if (process.argv.includes('--tide-e2e')) {
   contextBridge.exposeInMainWorld('tideTest', {
     ttsLoad: () => ipcRenderer.invoke('tts:test-load'),
-    lastSynthText: (): Promise<string> => ipcRenderer.invoke('test:last-synth-text'),
+    recentSynthTexts: (): Promise<string[]> => ipcRenderer.invoke('test:recent-synth-texts'),
     exportM4b: (outPath: string) => ipcRenderer.invoke('test:export-m4b', outPath)
   })
 }
