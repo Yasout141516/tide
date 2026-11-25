@@ -5,6 +5,7 @@ import { useLibrary } from '../state/useLibrary'
 import { tide } from '../lib/tide'
 import { usePlayerActions } from '../player/PlayerContext'
 import { useToast } from '../shell/Toast'
+import { useAttempt } from './useAttempt'
 
 type Row = { key: number; word: string; sayAs: string }
 
@@ -22,6 +23,7 @@ const complete = (rows: Row[]): Pronunciation[] =>
 export function PronunciationTab(): React.JSX.Element {
   const library = useLibrary()
   const toast = useToast()
+  const attempt = useAttempt()
   const { previewClip, stopPreview } = usePlayerActions()
   const voice = library?.settings.voice ?? DEFAULT_VOICE
   /** Counts Listen presses; a clip that is not from the latest press (or arrives after leaving) is dropped. */
@@ -54,10 +56,28 @@ export function PronunciationTab(): React.JSX.Element {
     focusKey.current = null
   }, [rows.length])
 
-  const save = (next: Row[]): void =>
-    void tide()
-      .library.setPronunciations(complete(next))
-      .catch(() => toast.show({ text: "Couldn't save that word. Please try again." }))
+  const rowsRef = useRef(rows)
+  /** The complete rows last sent (or seeded), so closing only saves what changed. */
+  const saved = useRef(JSON.stringify(complete(rows)))
+  const save = (next: Row[]): void => {
+    const list = complete(next)
+    saved.current = JSON.stringify(list)
+    attempt(tide().library.setPronunciations(list), "Couldn't save that word. Please try again.")
+  }
+  const saveRef = useRef(save)
+  useEffect(() => {
+    rowsRef.current = rows
+    saveRef.current = save
+  })
+  // Escape or a click outside closes Settings without a blur: save what she typed on the way out.
+  useEffect(
+    () => () => {
+      if (JSON.stringify(complete(rowsRef.current)) !== saved.current) {
+        saveRef.current(rowsRef.current)
+      }
+    },
+    []
+  )
   const edit = (key: number, patch: Partial<Row>): void =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const listen = (sayAs: string): void => {
@@ -115,6 +135,7 @@ export function PronunciationTab(): React.JSX.Element {
           <button
             type="button"
             className={button}
+            aria-label={r.word.trim() ? `Listen to ${r.word.trim()}` : 'Listen'}
             disabled={r.sayAs.trim() === ''}
             onClick={() => listen(r.sayAs)}
           >
@@ -123,6 +144,7 @@ export function PronunciationTab(): React.JSX.Element {
           <button
             type="button"
             className={button}
+            aria-label={r.word.trim() ? `Remove ${r.word.trim()}` : 'Remove'}
             onClick={() => {
               const next = rows.filter((x) => x.key !== r.key)
               setRows(next)

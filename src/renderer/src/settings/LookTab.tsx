@@ -3,6 +3,7 @@ import { useLibrary } from '../state/useLibrary'
 import { useTheme } from '../theme/theme'
 import { tide } from '../lib/tide'
 import { Switch } from './Switch'
+import { useAttempt } from './useAttempt'
 
 /** Preview art for the tiles. They depict other themes, so they cannot be current-theme tokens. */
 const SWATCH: Record<Exclude<ThemeId, 'system'>, { bg: string; page: string; extra?: string }> = {
@@ -16,10 +17,13 @@ const MATCH_BG = 'linear-gradient(90deg,#E6F3FD 50%,#0B1D2C 50%)'
 const ctlButton =
   'min-h-9 min-w-9 cursor-pointer rounded-[11px] border-0 bg-soft px-[11px] py-[5px] font-sans text-[13px] font-extrabold text-soft-ink'
 
+const FAILED = "Couldn't change that setting. Please try again."
+
 type Props = { zoom: number; onZoomStep(d: 1 | -1): void }
 
 export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
   const library = useLibrary()
+  const attempt = useAttempt()
   const { id: current } = useTheme()
   const darkPages = library?.settings.darkPages ?? true
   const matchLabel = tide().platform === 'darwin' ? 'Match my Mac' : 'Match my PC'
@@ -30,7 +34,7 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
     { id: 'kitty', label: 'Kitty' },
     { id: 'system', label: matchLabel }
   ]
-  const pick = (theme: ThemeId): void => void tide().library.setSettings({ theme })
+  const pick = (theme: ThemeId): void => attempt(tide().library.setSettings({ theme }), FAILED)
 
   const move = (i: number, d: number): void => {
     const next = tiles[(i + d + tiles.length) % tiles.length]
@@ -110,7 +114,7 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
         <Switch
           checked={darkPages}
           labelledBy="dark-pages-label"
-          onChange={(next) => void tide().library.setSettings({ darkPages: next })}
+          onChange={(next) => attempt(tide().library.setSettings({ darkPages: next }), FAILED)}
         />
       </div>
 

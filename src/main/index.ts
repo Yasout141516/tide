@@ -242,6 +242,18 @@ app.whenReady().then(async () => {
     })
     const { send } = libraryIpc
     Menu.setApplicationMenu(buildMenu(send))
+    // The window's own background follows the stored theme (and the OS, for 'system') while running.
+    const syncBackground = (): void => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setBackgroundColor(
+          windowBackground(lib.snapshot().settings.theme, nativeTheme.shouldUseDarkColors)
+        )
+      }
+    }
+    lib.onChange((kind) => {
+      if (kind !== 'position') syncBackground()
+    })
+    nativeTheme.on('updated', syncBackground)
     lib.checkMissing().catch((err) => logError('missing-file check failed', err))
     openWith.attach(openWithHandler({ pick: (p) => lib.pick(p), send, show: showWindow }))
     for (const p of filesFromArgv(process.argv, process.cwd())) openWith.push(p)

@@ -1,5 +1,6 @@
 /* Design tokens: spec 5.2 (values as approved in the mockups). Components use these only. */
 :root[data-theme='sky-sea'] {
+  color-scheme: light;
   --bg: #f2f9ff;
   --shelf-a: #ddeffc;
   --shelf-b: #eaf5fe;
@@ -40,6 +41,7 @@
 }
 
 :root[data-theme='deep-sea'] {
+  color-scheme: dark;
   --bg: #0b1d2c;
   --shelf-a: #0a1826;
   --shelf-b: #0d2134;
@@ -81,6 +83,7 @@
 
 /* Pixel Quest: ocean-blue map, sand dialogue, 3px pixel borders. Pixel shape tokens live in main.css. */
 :root[data-theme='pixel-quest'] {
+  color-scheme: dark;
   --bg: #12304a;
   --shelf-a: #0c2236;
   --shelf-b: #0c2236;
@@ -122,6 +125,7 @@
 
 /* Kitty: blush, cream and peach with a ginger kitten. Larger radii and the font changes live in main.css. */
 :root[data-theme='kitty'] {
+  color-scheme: light;
   --bg: #fff7f2;
   --shelf-a: #fce9ec;
   --shelf-b: #fff3ee;

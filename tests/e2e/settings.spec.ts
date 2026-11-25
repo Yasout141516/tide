@@ -36,6 +36,12 @@ test('dark pages invert only the canvas in a dark theme and can be turned off', 
     await dialog.getByRole('radio', { name: 'Deep Sea' }).click()
     await win.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
+    // The native window background follows the theme too (no white flash on resize).
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())
+      )
+      .toMatch(/^#0B1D2C$/i)
 
     const filters = (): Promise<{ canvas: string; hl: string }> =>
       win.evaluate(() => ({

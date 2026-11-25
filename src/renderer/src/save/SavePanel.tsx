@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import type { ExportSpec } from '../../../shared/ipc-types'
 import type { ReadingView } from '../../../shared/library/types'
 import { voiceName } from '../../../shared/voices'
+import { useLibrary } from '../state/useLibrary'
 import { usePlayerState } from '../player/PlayerContext'
 import { useReaderState } from '../reader/ReaderState'
 import { defaultBaseName, durationLabel, type SaveScope } from './names'
@@ -39,6 +40,7 @@ export function SavePanel({
 }): React.JSX.Element {
   const { sentences, page, numPages } = useReaderState()
   const { snapshot, chosenSpeed, estimateSec } = usePlayerState()
+  const folder = useLibrary()?.exportFolder
 
   const [kind, setKind] = useState<Kind>(range ? 'selection' : 'whole')
   const [from, setFrom] = useState(String(page))
@@ -272,7 +274,7 @@ export function SavePanel({
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 text-[12.5px] text-muted">
             <span>{`Voice: ${voiceName(snapshot.voice)} · ${Number(chosenSpeed.toFixed(2))}×`}</span>
             <span className="ml-auto">
-              Saves to <b className="text-ink">Music › Tide</b>
+              Saves to <b className="text-ink">{folder?.custom ? folder.name : 'Music › Tide'}</b>
             </span>
           </div>
 

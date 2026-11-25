@@ -48,6 +48,7 @@ async function open(
     speed?: number
     title?: string
     beforeRender?: (t: FakeTide) => void
+    exportFolder?: { name: string; custom: boolean }
   } = {}
 ): Promise<FakeTide> {
   const t = fakeTide({
@@ -63,7 +64,8 @@ async function open(
         darkPages: true,
         pronunciations: []
       },
-      ui: { collapsed: [], tipsSeen: ['select-text'] }
+      ui: { collapsed: [], tipsSeen: ['select-text'] },
+      ...(opts.exportFolder ? { exportFolder: opts.exportFolder } : {})
     }
   })
   opts.beforeRender?.(t)
@@ -191,6 +193,14 @@ describe('Save as audio panel', () => {
     )
     expect(screen.getByText('Voice: Emma · 1×')).toBeTruthy()
     expect(screen.getByText(/Music › Tide/)).toBeTruthy()
+  })
+
+  it('shows her own folder name instead of Music › Tide when she has chosen one', async () => {
+    await open({ exportFolder: { name: 'Lectures', custom: true } })
+    await openFromSelection()
+    await screen.findByRole('dialog', { name: 'Save as audio' })
+    expect(screen.getByText('Lectures')).toBeTruthy()
+    expect(screen.queryByText(/Music › Tide/)).toBeNull()
   })
 
   it('from the More menu it picks the whole reading and says it saves an audiobook', async () => {

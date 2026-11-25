@@ -1,7 +1,7 @@
 import type { ReadingFilters } from '../../../shared/text/types'
 import { useLibrary } from '../state/useLibrary'
 import { tide } from '../lib/tide'
-import { useToast } from '../shell/Toast'
+import { useAttempt } from './useAttempt'
 import { Switch } from './Switch'
 
 const ROWS: { key: keyof ReadingFilters; label: string; hint?: string }[] = [
@@ -22,10 +22,7 @@ const button =
 
 export function ReadingTab(): React.JSX.Element {
   const library = useLibrary()
-  const toast = useToast()
-  // Failed library calls are told plainly; nothing is left as an unhandled rejection.
-  const attempt = (p: Promise<unknown>, text: string): void =>
-    void p.catch(() => toast.show({ text }))
+  const attempt = useAttempt()
   const filters = library?.settings.reading
   const folder = library?.exportFolder ?? { name: 'Tide', custom: false }
   return (

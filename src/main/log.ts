@@ -14,7 +14,8 @@ const DEFAULT_MAX_BYTES = 512 * 1024
 const TAIL_LINES = 200
 
 function describe(err: unknown): string {
-  if (err instanceof Error) return err.stack ? `${err.message}\n${err.stack}` : err.message
+  // A stack already starts with "Name: message", so it goes in alone.
+  if (err instanceof Error) return err.stack ?? err.message
   try {
     return typeof err === 'string' ? err : (JSON.stringify(err) ?? String(err))
   } catch {

@@ -39,6 +39,22 @@ describe('Settings dialog', () => {
     )
   })
 
+  it('a failed theme change says so plainly', async () => {
+    const t = await mount()
+    t.library.setSettings = vi.fn(() => Promise.reject(new Error('x')))
+    act(() => t.emit({ type: 'settings' }))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Deep Sea' }))
+    expect(await screen.findByText("Couldn't change that setting. Please try again.")).toBeTruthy()
+  })
+
+  it('a failed dark-pages change says so plainly', async () => {
+    const t = await mount()
+    t.library.setSettings = vi.fn(() => Promise.reject(new Error('x')))
+    act(() => t.emit({ type: 'settings' }))
+    await userEvent.click(await screen.findByRole('switch', { name: 'Dark pages in dark themes' }))
+    expect(await screen.findByText("Couldn't change that setting. Please try again.")).toBeTruthy()
+  })
+
   it('A+ steps zoom by the same step as the menu and shows the new %', async () => {
     const t = await mount()
     act(() => t.emit({ type: 'settings' }))
@@ -348,13 +364,13 @@ describe('Pronunciation tab', () => {
     const saves = (t.calls['library.setPronunciations'] ?? []).map((c) => c[0] as unknown[])
     expect(saves.every((list) => list.length === 0)).toBe(true)
     expect(
-      (within(dlg).getByRole('button', { name: '▶ Listen' }) as HTMLButtonElement).disabled
+      (within(dlg).getByRole('button', { name: /^Listen/ }) as HTMLButtonElement).disabled
     ).toBe(true)
   })
 
   it('Listen synthesizes the respelling with priority preview in her voice', async () => {
     const { t, dlg, clips } = await openTab([{ word: 'Bourdieu', sayAs: 'bor-DYUH' }])
-    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
     await waitFor(() => expect(clips).toHaveLength(1))
     expect(vi.mocked(t.tts.synthesize).mock.calls).toEqual([
       ['bor-DYUH', { voice: 'bf_emma', speed: 1, priority: 'preview' }]
@@ -363,7 +379,7 @@ describe('Pronunciation tab', () => {
 
   it('closing Settings stops a clip that is still playing', async () => {
     const { dlg, clips, pauses } = await openTab([{ word: 'a', sayAs: 'b' }])
-    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
     await waitFor(() => expect(clips).toHaveLength(1))
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(pauses()).toBe(1))
@@ -371,7 +387,7 @@ describe('Pronunciation tab', () => {
 
   it('Listen with no reading open uses her saved voice', async () => {
     const { t, dlg, clips } = await openTab([{ word: 'a', sayAs: 'b' }], 'af_bella')
-    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
     await waitFor(() => expect(clips).toHaveLength(1))
     expect(vi.mocked(t.tts.synthesize).mock.calls[0][1]).toMatchObject({ voice: 'af_bella' })
   })
@@ -380,7 +396,7 @@ describe('Pronunciation tab', () => {
     const { t, dlg, clips } = await openTab([{ word: 'a', sayAs: 'b' }])
     let resolve!: (a: typeof SILENCE) => void
     t.tts.synthesize = vi.fn(() => new Promise<typeof SILENCE>((r) => (resolve = r)))
-    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
     await userEvent.click(within(dlg).getByRole('button', { name: 'Look' }))
     await act(async () => resolve(SILENCE))
     expect(clips).toHaveLength(0)
@@ -393,7 +409,7 @@ describe('Pronunciation tab', () => {
     ])
     const pending: ((a: typeof SILENCE) => void)[] = []
     t.tts.synthesize = vi.fn(() => new Promise<typeof SILENCE>((r) => pending.push(r)))
-    const [first, second] = within(dlg).getAllByRole('button', { name: '▶ Listen' })
+    const [first, second] = within(dlg).getAllByRole('button', { name: /^Listen/ })
     await userEvent.click(first)
     await userEvent.click(second)
     await act(async () => pending[1](SILENCE))
@@ -404,7 +420,7 @@ describe('Pronunciation tab', () => {
 
   it('a second Listen and stopping revoke the previous clip URL', async () => {
     const { dlg, clips, revoked } = await openTab([{ word: 'a', sayAs: 'b' }])
-    const listen = within(dlg).getByRole('button', { name: '▶ Listen' })
+    const listen = within(dlg).getByRole('button', { name: /^Listen/ })
     await userEvent.click(listen)
     await waitFor(() => expect(clips).toHaveLength(1))
     expect(revoked).toEqual([])
@@ -418,8 +434,50 @@ describe('Pronunciation tab', () => {
   it('a failed Listen says so plainly', async () => {
     const { t, dlg } = await openTab([{ word: 'a', sayAs: 'b' }])
     t.tts.synthesize = vi.fn(() => Promise.reject(new Error('x')))
-    await userEvent.click(within(dlg).getByRole('button', { name: '▶ Listen' }))
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
     expect(await screen.findByText("Couldn't play that. Please try again.")).toBeTruthy()
+  })
+
+  it('names each row Listen and Remove buttons for their word', async () => {
+    const { dlg } = await openTab([{ word: 'Bourdieu', sayAs: 'bor-DYUH' }])
+    expect(within(dlg).getByRole('button', { name: 'Listen to Bourdieu' }).textContent).toBe(
+      '▶ Listen'
+    )
+    expect(within(dlg).getByRole('button', { name: 'Remove Bourdieu' }).textContent).toBe('Remove')
+  })
+
+  it('a row with no word yet is named plainly', async () => {
+    const { dlg } = await openTab()
+    await userEvent.click(within(dlg).getByRole('button', { name: '＋ Add a word' }))
+    expect(within(dlg).getByRole('button', { name: 'Listen' })).toBeTruthy()
+    expect(within(dlg).getByRole('button', { name: 'Remove' })).toBeTruthy()
+  })
+
+  it('Escape with a typed, unblurred row still saves it', async () => {
+    const { t, dlg } = await openTab()
+    await userEvent.click(within(dlg).getByRole('button', { name: '＋ Add a word' }))
+    await userEvent.type(within(dlg).getByRole('textbox', { name: 'Word' }), 'Vygotsky')
+    await userEvent.type(within(dlg).getByRole('textbox', { name: 'Sounds like' }), 'vih-GOT-skee')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
+    expect(lastSave(t)).toEqual([{ word: 'Vygotsky', sayAs: 'vih-GOT-skee' }])
+  })
+
+  it('the Done button closes Settings and saves a typed, unblurred row', async () => {
+    const { t, dlg } = await openTab()
+    await userEvent.click(within(dlg).getByRole('button', { name: '＋ Add a word' }))
+    await userEvent.type(within(dlg).getByRole('textbox', { name: 'Word' }), 'schema')
+    await userEvent.type(within(dlg).getByRole('textbox', { name: 'Sounds like' }), 'SKEE-muh')
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
+    expect(lastSave(t)).toEqual([{ word: 'schema', sayAs: 'SKEE-muh' }])
+  })
+
+  it('closing with the tab untouched saves nothing', async () => {
+    const { t, dlg } = await openTab([{ word: 'a', sayAs: 'b' }])
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
+    expect(t.calls['library.setPronunciations']).toBeUndefined()
   })
 
   it('Remove drops the row and saves', async () => {
@@ -427,7 +485,7 @@ describe('Pronunciation tab', () => {
       { word: 'a', sayAs: 'b' },
       { word: 'c', sayAs: 'd' }
     ])
-    await userEvent.click(within(dlg).getAllByRole('button', { name: 'Remove' })[0])
+    await userEvent.click(within(dlg).getAllByRole('button', { name: /^Remove/ })[0])
     expect(lastSave(t)).toEqual([{ word: 'c', sayAs: 'd' }])
     expect(within(dlg).getAllByRole('textbox', { name: 'Word' })).toHaveLength(1)
   })

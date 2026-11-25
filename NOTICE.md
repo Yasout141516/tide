@@ -48,7 +48,14 @@ binary (`app.asar.unpacked/node_modules/ffmpeg-static/`).
 
 ## Fonts
 
-- Fonts that Tide will bundle in later versions are under the SIL Open Font License (OFL-1.1).
+The installers bundle these fonts (from the [Fontsource](https://fontsource.org/) npm packages), all
+under the SIL Open Font License 1.1 (OFL-1.1, <https://openfontlicense.org/>):
+
+- **Nunito Sans**: <https://github.com/googlefonts/nunitosans>
+- **Fraunces**: <https://github.com/undercasetype/Fraunces>
+- **Press Start 2P**: <https://github.com/codeman38/PressStart2P>
+- **Fredoka**: <https://github.com/hafontia-zz/Fredoka-Font>
+- **Nunito**: <https://github.com/googlefonts/nunito>
 
 ## Electron
 

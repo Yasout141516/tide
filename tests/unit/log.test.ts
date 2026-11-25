@@ -19,9 +19,17 @@ describe('log', () => {
     const log = createLog(dir, { home: 'C:\\Users\\Mia' })
     log.error('library', new Error('cannot open C:\\Users\\Mia\\Docs\\a.pdf for C:\\Users\\Mia'))
     const text = readFileSync(join(dir, 'tide.log'), 'utf8')
-    expect(text).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \[library\] cannot open <path>\n/)
+    expect(text).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \[library\] Error: cannot open <path>\n/)
     expect(text).not.toContain('Mia')
     expect(text).toContain('at ')
+  })
+
+  it('writes an Error once: the stack alone, not the message and then the stack', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dir = tmp()
+    createLog(dir, { home: '/nowhere' }).error('x', new Error('uniquemsg'))
+    const text = readFileSync(join(dir, 'tide.log'), 'utf8')
+    expect(text.split('uniquemsg')).toHaveLength(2)
   })
 
   it('rotates to tide.1.log past maxBytes, keeping one old file', () => {
@@ -54,7 +62,7 @@ describe('log', () => {
     const dir = tmp()
     setLog(createLog(dir))
     logError('late', new Error('hello'))
-    expect(readFileSync(join(dir, 'tide.log'), 'utf8')).toContain('[late] hello')
+    expect(readFileSync(join(dir, 'tide.log'), 'utf8')).toContain('[late] Error: hello')
   })
 
   it('diagnostics lists the pronunciation count but not the words', async () => {
