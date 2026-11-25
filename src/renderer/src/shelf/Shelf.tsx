@@ -49,7 +49,6 @@ export function Shelf({
       <button
         type="button"
         onClick={onAdd}
-        data-ear-tips={resolved === 'kitty' ? '' : undefined}
         className="pq-add kt-add mb-3.5 flex min-h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-0 bg-primary px-3 py-[11px] font-sans text-sm font-extrabold text-on-primary"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">

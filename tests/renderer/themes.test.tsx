@@ -262,9 +262,7 @@ describe('Kitty voice avatars', () => {
 describe('Kitty shelf', () => {
   it('keeps "File moved · Find it" in the accessible name and shows the playful line', async () => {
     await openKitty('kitty', { missing: true })
-    const row = document.querySelector<HTMLElement>('[data-reading-id]')!
-    const name = row.textContent ?? ''
-    expect(name).toContain('File moved · Find it')
+    const row = screen.getByRole('button', { name: /File moved · Find it/, hidden: true })
     expect(row.querySelector('.sr-only')!.textContent).toBe('File moved · Find it')
     const shown = [...row.querySelectorAll('[aria-hidden="true"]')].map((e) => e.textContent)
     expect(shown).toContain('File wandered off · Find it')
@@ -277,7 +275,10 @@ describe('Kitty shelf', () => {
     const r = render(<Shelf snapshot={snap} selectedId={null} onOpen={() => {}} onAdd={() => {}} />)
     await waitFor(() => expect(r.container.querySelectorAll('[data-course-paw]').length).toBe(1))
     expect(r.container.querySelector('[data-course-badge]')).toBeNull()
-    expect(r.container.querySelector('[data-ear-tips]')).toBeTruthy()
+    // The class that drives the ear-tip styling in main.css.
+    expect(screen.getByRole('button', { name: 'Add reading' }).classList.contains('kt-add')).toBe(
+      true
+    )
   })
   it('sits Mochi in a box on the empty shelf with a playful line, the plain heading intact', async () => {
     await themed('kitty')

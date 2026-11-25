@@ -18,7 +18,20 @@ const ART = {
   boxFlap: '#F2D9BC',
   yarn: '#F6B9C8',
   yarnLine: '#B8456A',
-  zzz: '#8E2F52'
+  zzz: '#8E2F52',
+  /** Voice avatar coats, by voice id (fur and face). */
+  coats: {
+    af_kore: { fur: '#F2A65A', face: '#FFD9C2' },
+    af_nicole: { fur: '#9AA3AE', face: '#E3E7EC' },
+    af_sarah: { fur: '#B98B6C', face: '#F1DCCB' },
+    am_fenrir: { fur: '#6B5A66', face: '#D9CBD3' },
+    am_michael: { fur: '#E8C36A', face: '#FFF0C9' },
+    am_puck: { fur: '#8FB3D9', face: '#E1EEFA' },
+    bf_emma: { fur: '#B9A3E0', face: '#EEE6FB' },
+    bf_isabella: { fur: '#7FBF9E', face: '#DDF1E5' },
+    bm_fable: { fur: '#E58F8F', face: '#FBDCDC' },
+    bm_george: { fur: '#4F4A5C', face: '#CFCBD8' }
+  } as Record<string, { fur: string; face: string }>
 }
 
 export interface Coat {
@@ -30,20 +43,11 @@ export interface Coat {
 // eslint-disable-next-line react-refresh/only-export-components -- art data belongs with the art
 export const GINGER: Coat = { fur: ART.gingerFur, face: ART.gingerFace }
 
-/** Ten distinct kitten coats for the voice avatars (none is plain white, and every face has a mouth). */
+/** A distinct kitten coat per voice id (ginger for an unknown id); none is plain white and every face has a mouth. */
 // eslint-disable-next-line react-refresh/only-export-components -- art data belongs with the art
-export const VOICE_COATS: readonly Coat[] = [
-  GINGER,
-  { fur: '#9AA3AE', face: '#E3E7EC' },
-  { fur: '#B98B6C', face: '#F1DCCB' },
-  { fur: '#6B5A66', face: '#D9CBD3' },
-  { fur: '#E8C36A', face: '#FFF0C9' },
-  { fur: '#8FB3D9', face: '#E1EEFA' },
-  { fur: '#B9A3E0', face: '#EEE6FB' },
-  { fur: '#7FBF9E', face: '#DDF1E5' },
-  { fur: '#E58F8F', face: '#FBDCDC' },
-  { fur: '#4F4A5C', face: '#CFCBD8' }
-]
+export function voiceCoat(voiceId: string): Coat {
+  return ART.coats[voiceId] ?? GINGER
+}
 
 /** The head, in an 80x66 box. */
 function Head({ coat }: { coat: Coat }): React.JSX.Element {

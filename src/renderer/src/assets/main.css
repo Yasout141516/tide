@@ -312,9 +312,6 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 :root[data-theme='kitty'] [role='menu'] {
   border-radius: 24px;
 }
-:root[data-theme='kitty'] [data-reading-id] {
-  border-radius: 14px;
-}
 :root[data-theme='kitty'] aside {
   border-right: 2px dashed var(--border);
 }
@@ -325,13 +322,17 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   border-radius: 16px 16px 0 0;
 }
 /* Add reading and primary buttons: cat-ear tips on top, and a soft pressed edge. */
-:root[data-theme='kitty'] .kt-add {
+/* Add reading and the dialogs' primary buttons (they share bg-primary and the 11px radius). */
+:root[data-theme='kitty'] .kt-add,
+:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]'] {
   position: relative;
   border-radius: 16px;
   box-shadow: 0 3px 0 var(--soft-ink);
 }
 :root[data-theme='kitty'] .kt-add::before,
-:root[data-theme='kitty'] .kt-add::after {
+:root[data-theme='kitty'] .kt-add::after,
+:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::before,
+:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::after {
   content: '';
   position: absolute;
   top: -9px;
@@ -342,11 +343,13 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   border-bottom: 12px solid var(--primary);
   pointer-events: none;
 }
-:root[data-theme='kitty'] .kt-add::before {
+:root[data-theme='kitty'] .kt-add::before,
+:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::before {
   left: 16px;
   transform: rotate(-12deg);
 }
-:root[data-theme='kitty'] .kt-add::after {
+:root[data-theme='kitty'] .kt-add::after,
+:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::after {
   right: 16px;
   transform: rotate(12deg);
 }

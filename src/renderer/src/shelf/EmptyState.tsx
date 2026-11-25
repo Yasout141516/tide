@@ -49,7 +49,6 @@ export function EmptyState({ onAdd, platform }: Props): React.JSX.Element {
       <button
         type="button"
         onClick={onAdd}
-        data-ear-tips={resolved === 'kitty' ? '' : undefined}
         className="pq-add kt-add min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[22px] py-[13px] font-sans text-[15px] font-extrabold text-on-primary"
       >
         ＋ Add your first reading

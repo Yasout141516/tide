@@ -46,38 +46,61 @@ function Spinner(): React.JSX.Element {
   )
 }
 
-/** Kitty's progress: a yarn thread with a ball at the current position. Same progress, new picture. */
+/**
+ * The progress picture shared by every theme: a faint "off" path under an "on" path clipped to the
+ * progress. Each theme supplies its path, stroke and (optionally) a dashed off path.
+ */
+function ProgressTrack({
+  d,
+  height,
+  strokeWidth,
+  dashOff,
+  progress
+}: {
+  d: string
+  height: number
+  strokeWidth: number
+  dashOff?: string
+  progress: number
+}): React.JSX.Element {
+  return (
+    <svg
+      viewBox={`0 0 400 ${height}`}
+      width="100%"
+      height={height}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        d={d}
+        fill="none"
+        strokeWidth={strokeWidth}
+        strokeDasharray={dashOff}
+        strokeLinecap="round"
+        style={{ stroke: 'var(--wave-off)' }}
+      />
+      <path
+        d={d}
+        fill="none"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        className="transition-[clip-path] duration-200 motion-reduce:transition-none"
+        style={{
+          stroke: 'var(--wave-on)',
+          clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
+        }}
+      />
+    </svg>
+  )
+}
+
+const THREAD = 'M2 16 C 60 6, 120 24, 180 14 S 300 8, 398 15'
+
+/** Kitty's progress: the thread with a yarn ball at the current position. */
 function YarnThread({ progress }: { progress: number }): React.JSX.Element {
-  const THREAD = 'M2 16 C 60 6, 120 24, 180 14 S 300 8, 398 15'
   return (
     <div className="relative h-[26px]">
-      <svg
-        viewBox="0 0 400 26"
-        width="100%"
-        height="26"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path
-          d={THREAD}
-          fill="none"
-          strokeWidth="3"
-          strokeDasharray="2 6"
-          strokeLinecap="round"
-          style={{ stroke: 'var(--wave-off)' }}
-        />
-        <path
-          d={THREAD}
-          fill="none"
-          strokeWidth="3"
-          strokeLinecap="round"
-          className="transition-[clip-path] duration-200 motion-reduce:transition-none"
-          style={{
-            stroke: 'var(--wave-on)',
-            clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
-          }}
-        />
-      </svg>
+      <ProgressTrack d={THREAD} height={26} strokeWidth={3} dashOff="2 6" progress={progress} />
       <span
         className="absolute top-0.5 transition-[left] duration-200 motion-reduce:transition-none"
         style={{ left: `calc((100% - 22px) * ${progress.toFixed(4)})` }}
@@ -114,7 +137,7 @@ export function PlayerBar(): React.JSX.Element {
     >
       {resolved === 'pixel-quest' ? <PixelWaves /> : null}
       {kitty && wantsPlay ? (
-        <span data-peek-slot className="kt-peek pointer-events-none absolute right-24 -top-[46px]">
+        <span data-peek-slot className="kt-peek pointer-events-none absolute right-24 -top-[30px]">
           <MochiPeek />
         </span>
       ) : null}
@@ -139,32 +162,7 @@ export function PlayerBar(): React.JSX.Element {
         {kitty ? (
           <YarnThread progress={progress} />
         ) : (
-          <svg
-            viewBox="0 0 400 20"
-            width="100%"
-            height="20"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <path
-              d={WAVE}
-              fill="none"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              style={{ stroke: 'var(--wave-off)' }}
-            />
-            <path
-              d={WAVE}
-              fill="none"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              className="transition-[clip-path] duration-200 motion-reduce:transition-none"
-              style={{
-                stroke: 'var(--wave-on)',
-                clipPath: `inset(0 ${((1 - progress) * 100).toFixed(2)}% 0 0)`
-              }}
-            />
-          </svg>
+          <ProgressTrack d={WAVE} height={20} strokeWidth={3.2} progress={progress} />
         )}
         {finished ? (
           <div

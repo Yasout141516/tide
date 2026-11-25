@@ -2,7 +2,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { SPEEDS, speedLabel, VOICES, voiceName, DEFAULT_VOICE } from '../../../shared/voices'
 import { usePlayerActions, usePlayerState } from './PlayerContext'
 import { useTheme } from '../theme/theme'
-import { MochiHead, VOICE_COATS } from '../theme/mascots/Mochi'
+import { MochiHead, voiceCoat } from '../theme/mascots/Mochi'
 
 const focus =
   'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
@@ -28,11 +28,12 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
           aria-label="Choose a voice"
           className="z-50 max-h-[min(560px,var(--radix-popover-content-available-height))] w-[min(340px,calc(100vw-24px))] overflow-y-auto rounded-[18px] border border-border bg-surface p-3.5 shadow-[0_12px_32px_var(--shadow)] outline-none"
         >
-          <h2 className="m-0 mb-2 px-1 font-sans text-[13px] font-extrabold text-soft-ink">
+          <h2 className="m-0 mb-2 flex items-center gap-2 px-1 font-sans text-[13px] font-extrabold text-soft-ink">
+            {kitty ? <MochiHead size={26} /> : null}
             Choose a voice
           </h2>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
-            {VOICES.map((v, i) => {
+            {VOICES.map((v) => {
               const on = v.id === snapshot.voice
               return (
                 <li key={v.id} className="flex items-center gap-2">
@@ -42,9 +43,7 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
                     onClick={() => setVoice(v.id)}
                     className={`flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft text-soft-ink' : 'bg-transparent text-soft-ink hover:bg-soft'} ${focus}`}
                   >
-                    {kitty ? (
-                      <MochiHead size={30} coat={VOICE_COATS[i % VOICE_COATS.length]} avatar />
-                    ) : null}
+                    {kitty ? <MochiHead size={30} coat={voiceCoat(v.id)} avatar /> : null}
                     <span className="flex min-w-0 flex-col items-start">
                       <span className="text-[13.5px] font-extrabold">{v.name}</span>
                       <span className="text-[12px] font-semibold text-muted">

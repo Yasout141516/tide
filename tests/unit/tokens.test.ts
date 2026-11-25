@@ -164,6 +164,7 @@ const KITTY = {
   'hl-line': '#B8456A',
   'wave-off': '#F3D3DA',
   'wave-on': '#B8456A',
+  // Deliberate deviation from the spec's #B4532A: that is 4.27:1 on the shelf gradient (fails AA 4.5:1).
   warn: '#A34620',
   'warn-soft': '#FDEEE6',
   ok: '#1B7F5B',
