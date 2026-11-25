@@ -688,6 +688,9 @@ function ReaderSession({
         onScroll={onScroll}
         // Test-only (TIDE_E2E exposes window.tideTest): lets Playwright see that the worker built sentences.
         data-sentence-count={window.tideTest && built ? built.sentences.length : undefined}
+        data-current-sentence={
+          window.tideTest && sentences && current !== null ? sentences[current]?.text : undefined
+        }
         className="relative h-full overflow-y-auto"
       >
         {message}

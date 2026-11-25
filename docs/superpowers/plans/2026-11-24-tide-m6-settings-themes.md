@@ -527,7 +527,7 @@ test('the theme persists across a relaunch', ...)          // pick Kitty, close,
 test('Ctrl+, opens Settings', ...)
 test('a pronunciation fix changes the synthesized text', ...)
   // add {word:'attention', sayAs:'uh-TEN-shun'}; use the e2e hook to read the last text main sent to the
-  // worker. Add a test-only `tideTest.lastSynthText()` in preload behind --tide-e2e, recorded in makeSpeak.
+  // worker. Add a test-only `tideTest.recentSynthTexts()` in preload behind --tide-e2e, recorded in makeSpeak.
 test('turning off Skip footnotes rebuilds and keeps playing', ...)
 ```
 

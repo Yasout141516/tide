@@ -167,7 +167,12 @@ test('turning off Skip footnotes rebuilds and keeps playing', async () => {
     const countBefore = await win
       .locator('[data-sentence-count]')
       .getAttribute('data-sentence-count')
-    const idBefore = await idNumber(win)
+    // Start from a sentence after the first, so a reset to the start would show.
+    await expect.poll(() => idNumber(win), { timeout: 40_000 }).toBeGreaterThanOrEqual(1)
+    const currentText = (): Promise<string | null> =>
+      win.locator('[data-sentence-count]').getAttribute('data-current-sentence')
+    const textBefore = await currentText()
+    expect(textBefore).toBeTruthy()
     const before = await sw.getAttribute('aria-checked')
     await sw.click()
     await expect(sw).not.toHaveAttribute('aria-checked', before ?? '')
@@ -181,8 +186,8 @@ test('turning off Skip footnotes rebuilds and keeps playing', async () => {
       })
       .not.toBe(countBefore)
     await expect.poll(() => phase(win), { timeout: 30_000 }).toBe('playing')
+    expect(await currentText()).toBe(textBefore)
     const after = await idNumber(win)
-    expect(after).toBeGreaterThanOrEqual(idBefore)
     await expect.poll(() => idNumber(win), { timeout: 40_000 }).toBeGreaterThan(after)
   } finally {
     await app.close()
