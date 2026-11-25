@@ -1,6 +1,7 @@
 import { DEFAULT_VOICE, SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import { DEFAULT_FILTERS, type ReadingFilters } from '../../shared/text/types'
-import { THEME_IDS } from '../../shared/library/types'
+import { isThemeId } from '../../shared/theme'
+import { ZOOM_MAX, ZOOM_MIN } from '../../shared/zoom'
 import type { Anchor } from '../../shared/text/anchor'
 import type {
   Course,
@@ -8,8 +9,7 @@ import type {
   LibraryUi,
   Pronunciation,
   Reading,
-  StoredSettings,
-  ThemeId
+  StoredSettings
 } from '../../shared/library/types'
 
 export const SCHEMA_VERSION = 1
@@ -109,13 +109,11 @@ function parseSettings(v: unknown): StoredSettings | null {
   if (!reading || !isNum(zoom)) return null
   const voice = isStr(v.voice) && VOICE_IDS.has(v.voice) ? v.voice : DEFAULT_VOICE
   const speed = (SPEEDS as readonly unknown[]).includes(v.speed) ? (v.speed as number) : 1
-  const theme = (THEME_IDS as readonly unknown[]).includes(v.theme)
-    ? (v.theme as ThemeId)
-    : 'sky-sea'
+  const theme = isThemeId(v.theme) ? v.theme : 'sky-sea'
   const darkPages = typeof v.darkPages === 'boolean' ? v.darkPages : true
   return {
     reading,
-    zoom: Math.min(2, Math.max(0.8, zoom)),
+    zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom)),
     voice,
     speed,
     theme,

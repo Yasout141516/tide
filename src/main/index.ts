@@ -1,4 +1,5 @@
-import { resolveInitialTheme, windowBackground } from './window-bg'
+import { windowBackground } from './window-bg'
+import { resolveTheme } from '../shared/theme'
 import { createLog, createRendererGate, diagnosticInfo, logError, setLog } from './log'
 import {
   app,
@@ -66,8 +67,8 @@ if (!gotLock) app.quit()
 
 function createWindow(): BrowserWindow {
   // The library is open before any window is made, so the stored theme paints from the first frame.
-  const stored = library?.snapshot().settings.theme
-  const initialTheme = resolveInitialTheme(stored, nativeTheme.shouldUseDarkColors)
+  const stored = library?.theme()
+  const initialTheme = resolveTheme(stored ?? 'sky-sea', nativeTheme.shouldUseDarkColors)
   const win = new BrowserWindow({
     title: 'Tide',
     backgroundColor: windowBackground(stored, nativeTheme.shouldUseDarkColors),
@@ -245,9 +246,9 @@ app.whenReady().then(async () => {
     // The window's own background follows the stored theme (and the OS, for 'system') while running.
     const syncBackground = (): void => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setBackgroundColor(
-          windowBackground(lib.snapshot().settings.theme, nativeTheme.shouldUseDarkColors)
-        )
+        const colour = windowBackground(lib.theme(), nativeTheme.shouldUseDarkColors)
+        if (mainWindow.getBackgroundColor().toLowerCase() !== colour.toLowerCase())
+          mainWindow.setBackgroundColor(colour)
       }
     }
     lib.onChange((kind) => {

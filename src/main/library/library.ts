@@ -13,9 +13,12 @@ import type {
   ReadingId,
   ReadingPatch,
   RelinkResult,
-  SettingsPatch
+  SettingsPatch,
+  ThemeId
 } from '../../shared/library/types'
-import { PRONUNCIATION_LIMITS, THEME_IDS } from '../../shared/library/types'
+import { PRONUNCIATION_LIMITS } from '../../shared/library/types'
+import { isThemeId } from '../../shared/theme'
+import { ZOOM_MAX, ZOOM_MIN } from '../../shared/zoom'
 import type { ReadingFilters } from '../../shared/text/types'
 import { SPEEDS, VOICE_IDS } from '../../shared/voices'
 import { pathExists } from '../fs-util'
@@ -78,7 +81,7 @@ export class Library {
         speed: d.settings.speed,
         theme: d.settings.theme,
         darkPages: d.settings.darkPages,
-        pronunciations: d.settings.pronunciations.map((p) => ({ ...p }))
+        pronunciations: d.settings.pronunciations.slice()
       },
       exportFolder: {
         name: d.settings.exportFolder ? basename(d.settings.exportFolder) || 'Tide' : 'Tide',
@@ -333,7 +336,7 @@ export class Library {
 
   setZoom(zoom: number): void {
     if (!Number.isFinite(zoom)) return
-    const clamped = Math.min(2, Math.max(0.8, zoom))
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
     this.store.update(
       (d) => {
         d.settings.zoom = clamped
@@ -358,7 +361,7 @@ export class Library {
   setSettings(p: SettingsPatch): void {
     this.store.update(
       (d) => {
-        if (p.theme !== undefined && (THEME_IDS as readonly string[]).includes(p.theme))
+        if (isThemeId(p.theme))
           d.settings.theme = p.theme
         if (typeof p.darkPages === 'boolean') d.settings.darkPages = p.darkPages
         if (p.reading) {
@@ -397,6 +400,11 @@ export class Library {
   /** The cleaned pronunciation rules. The same array until a rule changes (callers may cache by identity). */
   pronunciations(): readonly Pronunciation[] {
     return this.store.data().settings.pronunciations
+  }
+
+  /** The stored theme (not resolved): main paints the window background from it. */
+  theme(): ThemeId {
+    return this.store.data().settings.theme
   }
 
   /** The chosen default export folder, or null for Music/Tide. Main only: never in the snapshot. */

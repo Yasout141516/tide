@@ -10,6 +10,7 @@ import type {
   RelinkResult,
   SettingsPatch
 } from '../shared/library/types'
+import type { ResolvedTheme } from '../shared/theme'
 import type {
   AppCommand,
   ExportEvent,
@@ -25,7 +26,7 @@ import type {
 export interface TideApi {
   platform: string
   /** The resolved theme main paints first; used until the library snapshot arrives. */
-  initialTheme: 'sky-sea' | 'deep-sea' | 'pixel-quest' | 'kitty'
+  initialTheme: ResolvedTheme
   /** The renderer has mounted: main may now send queued commands. */
   ready(): void
   onCommand(cb: (c: AppCommand) => void): () => void

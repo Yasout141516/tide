@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, statSync }
 import { homedir } from 'os'
 import { join } from 'path'
 import type { LibrarySettings } from '../shared/library/types'
+import { escapeRe } from '../shared/regex'
 
 export interface Log {
   /** Never throws. Appends to the log file and also writes to console.error. */
@@ -41,27 +42,33 @@ export function createLog(dir: string, o: { maxBytes?: number; home?: string } =
   const file = join(dir, 'tide.log')
   const old = join(dir, 'tide.1.log')
   const scrub = makeScrub(home)
+  // The folder is made once and the size tracked here, so an error costs no mkdir or stat.
+  let size = 0
+  let dirReady = false
+  try {
+    mkdirSync(dir, { recursive: true })
+    dirReady = true
+    size = statSync(file).size
+  } catch {
+    // no file yet (or no folder: the first write tries again)
+  }
   return {
     error(scope, err) {
-      try {
-        console.error(`[tide] ${scope}:`, err)
-      } catch {
-        // nothing to do
-      }
+      consoleError(scope, err)
       try {
         const entry = scrub(`${new Date().toISOString()} [${scope}] ${describe(err)}\n`)
-        mkdirSync(dir, { recursive: true })
-        let size = 0
-        try {
-          size = statSync(file).size
-        } catch {
-          // no file yet
+        if (!dirReady) {
+          mkdirSync(dir, { recursive: true })
+          dirReady = true
         }
-        if (size > 0 && size + Buffer.byteLength(entry) > maxBytes) {
+        const add = Buffer.byteLength(entry)
+        if (size > 0 && size + add > maxBytes) {
           rmSync(old, { force: true })
           renameSync(file, old)
+          size = 0
         }
         appendFileSync(file, entry)
+        size += add
       } catch {
         // The log must never be the thing that breaks Tide.
       }
@@ -93,8 +100,6 @@ const FILE_HOST = String.raw`file://(?=[\w.-])`
 const POSIX = String.raw`(?:file://(?=/)|(?<![\w.:/<\\]))/(?=[^\s/'"\x60])`
 const PATHS = new RegExp(withRun(`${DRIVE}|${UNC}|${FILE_HOST}|${POSIX}`), 'gmu')
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
 /** Every absolute path (drive, UNC, POSIX, file://, the home dir) becomes `<path>`, file name and all. */
 function makeScrub(home: string): (s: string) => string {
   let homeRe: RegExp | null = null
@@ -104,7 +109,9 @@ function makeScrub(home: string): (s: string) => string {
     const starts = `(?:${[...forms].map(escapeRe).join('|')})(?!\\w)`
     homeRe = new RegExp(withRun(starts), win ? 'gimu' : 'gmu')
   }
-  return (s) => (homeRe ? s.replace(homeRe, '<path>') : s).replace(PATHS, '<path>')
+  // Text with no slash or backslash holds no path.
+  return (s) =>
+    /[\\/]/.test(s) ? (homeRe ? s.replace(homeRe, '<path>') : s).replace(PATHS, '<path>') : s
 }
 
 /**
@@ -160,6 +167,15 @@ export function createRendererGate(
   }
 }
 
+/** The `[tide]` console output; never throws. */
+function consoleError(scope: string, err: unknown): void {
+  try {
+    console.error(`[tide] ${scope}:`, err)
+  } catch {
+    // nothing to do
+  }
+}
+
 let current: Log | null = null
 
 /** Installed once main knows userData. Until then (and in unit tests) errors go to the console only. */
@@ -170,13 +186,7 @@ export function setLog(log: Log | null): void {
 /** The one call every main-process error site uses. Keeps the `[tide]` console output. */
 export function logError(scope: string, err: unknown): void {
   if (current) current.error(scope, err)
-  else {
-    try {
-      console.error(`[tide] ${scope}:`, err)
-    } catch {
-      // ignore
-    }
-  }
+  else consoleError(scope, err)
 }
 
 /** The facts that go in the diagnostics header. Pronunciations are a count only; no paths, no titles. */

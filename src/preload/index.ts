@@ -2,6 +2,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ExportEvent, ExportSpec, SynthesizeOptions, TtsStatus } from '../shared/ipc-types'
 import { LIBRARY_ERROR_PREFIX } from '../shared/ipc-types'
+import { isResolvedTheme } from '../shared/theme'
 import type {
   AddReadingInput,
   LibrarySnapshot,
@@ -33,9 +34,8 @@ function subscribe<T>(channel: string, cb: (v: T) => void): () => void {
 }
 
 // Main passes the theme it will paint first as --tide-theme=<id>; anything else falls back to sky-sea.
-const THEMES = ['sky-sea', 'deep-sea', 'pixel-quest', 'kitty']
 const themeArg = process.argv.find((a) => a.startsWith('--tide-theme='))?.slice(13) ?? ''
-const initialTheme = THEMES.includes(themeArg) ? themeArg : 'sky-sea'
+const initialTheme = isResolvedTheme(themeArg) ? themeArg : 'sky-sea'
 
 contextBridge.exposeInMainWorld('tide', {
   platform: process.platform,

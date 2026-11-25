@@ -1,4 +1,5 @@
 import type { Pronunciation } from '../library/types'
+import { escapeRe } from '../regex'
 
 interface Compiled {
   re: RegExp
@@ -7,10 +8,6 @@ interface Compiled {
 
 /** Compiled once per rules array (the library hands out the same array until a rule changes). */
 const cache = new WeakMap<readonly Pronunciation[], Compiled | null>()
-
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 
 function compile(rules: readonly Pronunciation[]): Compiled | null {
   const say = new Map<string, string>()

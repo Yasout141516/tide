@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { LibrarySnapshot } from '../../../shared/library/types'
 import { tide } from './tide'
-
-export const ZOOM_MIN = 0.8
-export const ZOOM_MAX = 2.0
+import { ZOOM_MAX, ZOOM_MIN } from '../../../shared/zoom'
 
 /**
  * Text size in the reader (80-200% in 10% steps). The menu command and the A-/A+ buttons both call `step`.

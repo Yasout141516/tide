@@ -19,7 +19,8 @@ import type {
   RelinkResult,
   SettingsPatch
 } from '../../shared/library/types'
-import { THEME_IDS } from '../../shared/library/types'
+import { isThemeId } from '../../shared/theme'
+import { ZOOM_MAX, ZOOM_MIN } from '../../shared/zoom'
 import { DEFAULT_FILTERS } from '../../shared/text/types'
 import { SPEEDS, VOICE_IDS, isFinishInChoice } from '../../shared/voices'
 import type { Library } from './library'
@@ -116,7 +117,7 @@ function validSettingsPatch(p: unknown): p is SettingsPatch {
   for (const [k, v] of Object.entries(p)) {
     switch (k) {
       case 'theme':
-        if (!isStr(v) || !(THEME_IDS as readonly string[]).includes(v)) return false
+        if (!isThemeId(v)) return false
         break
       case 'darkPages':
         if (typeof v !== 'boolean') return false
@@ -252,7 +253,7 @@ export function registerLibraryIpc(
   })
 
   handle('library:zoom', (zoom: unknown): void => {
-    if (typeof zoom !== 'number' || !Number.isFinite(zoom) || zoom < 0.8 || zoom > 2)
+    if (typeof zoom !== 'number' || !Number.isFinite(zoom) || zoom < ZOOM_MIN || zoom > ZOOM_MAX)
       bad('library:zoom', '(zoom: a number from 0.8 to 2)')
     lib.setZoom(zoom)
   })

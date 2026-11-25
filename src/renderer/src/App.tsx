@@ -187,7 +187,7 @@ function App(): React.JSX.Element {
 
   return (
     <ReaderStateProvider>
-      <ThemeRoot />
+      <ThemeRoot>
       <ToastProvider>
         <PlayerProvider
           reading={selected}
@@ -234,6 +234,7 @@ function App(): React.JSX.Element {
           {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
         </PlayerProvider>
       </ToastProvider>
+      </ThemeRoot>
     </ReaderStateProvider>
   )
 }
