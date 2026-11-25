@@ -24,7 +24,7 @@ export function MessageDialog({ title, body, onClose }: Props): React.JSX.Elemen
             <button
               type="button"
               onClick={onClose}
-              className="min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary"
+              className="btn-primary min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary"
             >
               OK
             </button>

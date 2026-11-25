@@ -322,17 +322,17 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   border-radius: 16px 16px 0 0;
 }
 /* Add reading and primary buttons: cat-ear tips on top, and a soft pressed edge. */
-/* Add reading and the dialogs' primary buttons (they share bg-primary and the 11px radius). */
+/* Add reading and the dialogs' primary buttons (`.btn-primary`). */
 :root[data-theme='kitty'] .kt-add,
-:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]'] {
+:root[data-theme='kitty'] .btn-primary {
   position: relative;
   border-radius: 16px;
   box-shadow: 0 3px 0 var(--soft-ink);
 }
 :root[data-theme='kitty'] .kt-add::before,
 :root[data-theme='kitty'] .kt-add::after,
-:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::before,
-:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::after {
+:root[data-theme='kitty'] .btn-primary::before,
+:root[data-theme='kitty'] .btn-primary::after {
   content: '';
   position: absolute;
   top: -9px;
@@ -344,12 +344,12 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   pointer-events: none;
 }
 :root[data-theme='kitty'] .kt-add::before,
-:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::before {
+:root[data-theme='kitty'] .btn-primary::before {
   left: 16px;
   transform: rotate(-12deg);
 }
 :root[data-theme='kitty'] .kt-add::after,
-:root[data-theme='kitty'] [role='dialog'] button.bg-primary[class*='rounded-[11px]']::after {
+:root[data-theme='kitty'] .btn-primary::after {
   right: 16px;
   transform: rotate(12deg);
 }

@@ -311,3 +311,18 @@ describe('Kitty toast', () => {
     expect(screen.getByRole('status').textContent).toContain('Saved')
   })
 })
+
+describe('Kitty primary buttons', () => {
+  it('a dialog primary carries btn-primary (the ear-tip hook)', async () => {
+    await openKitty('kitty', { missing: true })
+    const dlg = await screen.findByRole('dialog', { name: 'Where did this one go?' })
+    expect(dlg.querySelector('button.btn-primary')).toBeTruthy()
+  })
+  it('a speed radio does not carry btn-primary', async () => {
+    await openKitty()
+    await userEvent.click(within(playerBar()).getByRole('button', { name: /^Emma · 1×$/ }))
+    const pop = await screen.findByRole('dialog', { name: 'Choose a voice' })
+    for (const r of within(pop).getAllByRole('radio'))
+      expect(r.classList.contains('btn-primary')).toBe(false)
+  })
+})

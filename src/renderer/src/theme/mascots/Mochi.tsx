@@ -31,7 +31,7 @@ const ART = {
     bf_isabella: { fur: '#7FBF9E', face: '#DDF1E5' },
     bm_fable: { fur: '#E58F8F', face: '#FBDCDC' },
     bm_george: { fur: '#4F4A5C', face: '#CFCBD8' }
-  } as Record<string, { fur: string; face: string }>
+  } as Record<string, Coat>
 }
 
 export interface Coat {
@@ -46,7 +46,7 @@ export const GINGER: Coat = { fur: ART.gingerFur, face: ART.gingerFace }
 /** A distinct kitten coat per voice id (ginger for an unknown id); none is plain white and every face has a mouth. */
 // eslint-disable-next-line react-refresh/only-export-components -- art data belongs with the art
 export function voiceCoat(voiceId: string): Coat {
-  return ART.coats[voiceId] ?? GINGER
+  return Object.hasOwn(ART.coats, voiceId) ? ART.coats[voiceId] : GINGER
 }
 
 /** The head, in an 80x66 box. */

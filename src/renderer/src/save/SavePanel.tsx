@@ -288,7 +288,7 @@ export function SavePanel({
               type="button"
               disabled={spoken.length === 0 || tooLong}
               onClick={save}
-              className={`min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60 ${focus}`}
+              className={`btn-primary min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60 ${focus}`}
             >
               ↓ Save audio
             </button>

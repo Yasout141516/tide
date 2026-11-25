@@ -17,7 +17,7 @@ type Props = {
 export const ghostButton =
   'min-h-9 cursor-pointer rounded-[11px] border-0 bg-transparent px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-muted disabled:cursor-default disabled:opacity-60'
 export const primaryButton =
-  'min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60'
+  'btn-primary min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60'
 
 /** The shared frame of the reading dialogs: optional tile, title, sentence, content and actions. */
 export function ChoiceDialog({
