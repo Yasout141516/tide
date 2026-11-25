@@ -7,7 +7,7 @@ import { tide } from '../lib/tide'
 import { useToast } from '../shell/Toast'
 import { useAttempt } from './useAttempt'
 
-export type SettingsTab = 'look' | 'reading' | 'pronunciation'
+type SettingsTab = 'look' | 'reading' | 'pronunciation'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: 'Look' },
@@ -18,19 +18,12 @@ const TABS: { id: SettingsTab; label: string }[] = [
 type Props = {
   open: boolean
   onOpenChange(open: boolean): void
-  initialTab?: SettingsTab
   /** Text size in the reader (shared with the menu command). */
   zoom: number
   onZoomStep(d: 1 | -1): void
 }
 
-export function SettingsDialog({
-  open,
-  onOpenChange,
-  initialTab = 'look',
-  zoom,
-  onZoomStep
-}: Props): React.JSX.Element {
+export function SettingsDialog({ open, onOpenChange, zoom, onZoomStep }: Props): React.JSX.Element {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -40,20 +33,16 @@ export function SettingsDialog({
           className="fixed top-1/2 left-1/2 h-[min(520px,calc(100%-32px))] w-[calc(100%-32px)] max-w-[760px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[18px] bg-surface text-ink shadow-[0_24px_50px_var(--shadow)]"
         >
           <Dialog.Title className="sr-only">Settings</Dialog.Title>
-          <SettingsBody initialTab={initialTab} zoom={zoom} onZoomStep={onZoomStep} />
+          <SettingsBody zoom={zoom} onZoomStep={onZoomStep} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
   )
 }
 
-/** Mounted only while the dialog is open, so every open starts on `initialTab`. */
-function SettingsBody({
-  initialTab,
-  zoom,
-  onZoomStep
-}: Pick<Props, 'zoom' | 'onZoomStep'> & { initialTab: SettingsTab }): React.JSX.Element {
-  const [tab, setTab] = useState<SettingsTab>(initialTab)
+/** Mounted only while the dialog is open, so every open starts on the Look tab. */
+function SettingsBody({ zoom, onZoomStep }: Pick<Props, 'zoom' | 'onZoomStep'>): React.JSX.Element {
+  const [tab, setTab] = useState<SettingsTab>('look')
   const toast = useToast()
   const attempt = useAttempt()
   return (

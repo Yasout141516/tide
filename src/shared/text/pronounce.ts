@@ -33,3 +33,11 @@ export function applyPronunciations(text: string, rules: readonly Pronunciation[
   const { re, say } = c
   return text.replace(re, (m) => say.get(m.toLowerCase()) ?? m)
 }
+
+/** Same rules in the same order (compared by content, not identity). */
+export function samePronunciations(
+  a: readonly Pronunciation[],
+  b: readonly Pronunciation[]
+): boolean {
+  return a.length === b.length && a.every((p, i) => p.word === b[i].word && p.sayAs === b[i].sayAs)
+}

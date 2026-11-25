@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { DEFAULT_VOICE } from '../../../shared/voices'
 import { PRONUNCIATION_LIMITS, type Pronunciation } from '../../../shared/library/types'
 import { useLibrary } from '../state/useLibrary'
 import { tide } from '../lib/tide'
 import { usePlayerActions } from '../player/PlayerContext'
-import { useToast } from '../shell/Toast'
+import { samePronunciations } from '../../../shared/text/pronounce'
+import { softButton } from './controls'
 import { useAttempt } from './useAttempt'
 
 type Row = { key: number; word: string; sayAs: string }
 
-const button =
-  'min-h-9 min-w-9 cursor-pointer rounded-[11px] border-0 bg-soft px-[11px] py-[5px] font-sans text-[13px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-50'
 const field =
   'min-h-9 min-w-0 rounded-[9px] border border-border bg-surface px-2.5 py-[5px] font-sans text-[13px] text-ink'
 
@@ -22,7 +21,6 @@ const complete = (rows: Row[]): Pronunciation[] =>
 
 export function PronunciationTab(): React.JSX.Element {
   const library = useLibrary()
-  const toast = useToast()
   const attempt = useAttempt()
   const { previewClip, stopPreview } = usePlayerActions()
   const voice = library?.settings.voice ?? DEFAULT_VOICE
@@ -58,10 +56,10 @@ export function PronunciationTab(): React.JSX.Element {
 
   const rowsRef = useRef(rows)
   /** The complete rows last sent (or seeded), so closing only saves what changed. */
-  const saved = useRef(JSON.stringify(complete(rows)))
+  const saved = useRef(complete(rows))
   const save = (next: Row[]): void => {
     const list = complete(next)
-    saved.current = JSON.stringify(list)
+    saved.current = list
     attempt(tide().library.setPronunciations(list), "Couldn't save that word. Please try again.")
   }
   const saveRef = useRef(save)
@@ -72,7 +70,7 @@ export function PronunciationTab(): React.JSX.Element {
   // Escape or a click outside closes Settings without a blur: save what she typed on the way out.
   useEffect(
     () => () => {
-      if (JSON.stringify(complete(rowsRef.current)) !== saved.current) {
+      if (!samePronunciations(complete(rowsRef.current), saved.current)) {
         saveRef.current(rowsRef.current)
       }
     },
@@ -82,14 +80,25 @@ export function PronunciationTab(): React.JSX.Element {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const listen = (sayAs: string): void => {
     const id = ++listenId.current
-    tide()
-      .tts.synthesize(sayAs.trim(), { voice, speed: 1, priority: 'preview' })
-      .then((clip) => {
-        if (listenId.current === id) previewClip(clip)
-      })
-      .catch(() => {
-        if (listenId.current === id) toast.show({ text: "Couldn't play that. Please try again." })
-      })
+    attempt(
+      tide()
+        .tts.synthesize(sayAs.trim(), { voice, speed: 1, priority: 'preview' })
+        .then((clip) => {
+          if (listenId.current === id) previewClip(clip)
+        })
+        .catch((err: unknown) => {
+          // A failure that is not from the latest press (or arrives after leaving) stays quiet.
+          if (listenId.current === id) throw err
+        }),
+      "Couldn't play that. Please try again."
+    )
+  }
+  /** Saving happens on leaving a field and on Enter; both inputs share it. */
+  const commit = {
+    onBlur: () => save(rows),
+    onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') save(rows)
+    }
   }
 
   return (
@@ -115,10 +124,7 @@ export function PronunciationTab(): React.JSX.Element {
             maxLength={L.wordLen}
             value={r.word}
             onChange={(e) => edit(r.key, { word: e.target.value })}
-            onBlur={() => save(rows)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save(rows)
-            }}
+            {...commit}
           />
           <span>says</span>
           <input
@@ -127,14 +133,11 @@ export function PronunciationTab(): React.JSX.Element {
             maxLength={L.sayAsLen}
             value={r.sayAs}
             onChange={(e) => edit(r.key, { sayAs: e.target.value })}
-            onBlur={() => save(rows)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') save(rows)
-            }}
+            {...commit}
           />
           <button
             type="button"
-            className={button}
+            className={softButton}
             aria-label={r.word.trim() ? `Listen to ${r.word.trim()}` : 'Listen'}
             disabled={r.sayAs.trim() === ''}
             onClick={() => listen(r.sayAs)}
@@ -143,7 +146,7 @@ export function PronunciationTab(): React.JSX.Element {
           </button>
           <button
             type="button"
-            className={button}
+            className={softButton}
             aria-label={r.word.trim() ? `Remove ${r.word.trim()}` : 'Remove'}
             onClick={() => {
               const next = rows.filter((x) => x.key !== r.key)
@@ -157,7 +160,7 @@ export function PronunciationTab(): React.JSX.Element {
       ))}
       <button
         type="button"
-        className={`${button} mt-1.5`}
+        className={`${softButton} mt-1.5`}
         disabled={rows.length >= L.words}
         onClick={() => {
           const key = nextKey.current++

@@ -273,11 +273,6 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .pq-dialogue-cursor {
-    animation: none;
-  }
-}
 
 /* Pixel Quest: let the cream page colour show through the PDF's opaque white canvas. The highlight and
    text layers are separate elements above it; the dark-pages filter only applies in deep-sea. */
@@ -321,8 +316,7 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 :root[data-theme='kitty'] [data-page] {
   border-radius: 16px 16px 0 0;
 }
-/* Add reading and primary buttons: cat-ear tips on top, and a soft pressed edge. */
-/* Add reading and the dialogs' primary buttons (`.btn-primary`). */
+/* Add reading and the dialogs' primary buttons (`.btn-primary`): cat-ear tips on top, and a soft pressed edge. */
 :root[data-theme='kitty'] .kt-add,
 :root[data-theme='kitty'] .btn-primary {
   position: relative;
@@ -397,11 +391,6 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   }
   50% {
     transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .kt-peek {
-    animation: none;
   }
 }
 /* The kitten's playful line on the empty shelf. */

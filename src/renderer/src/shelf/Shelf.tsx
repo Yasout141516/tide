@@ -64,7 +64,6 @@ export function Shelf({
               <button
                 type="button"
                 aria-expanded={!g.collapsed}
-                data-course-heading
                 onClick={() => void tide().library.setCollapsed(g.key, !g.collapsed)}
                 className="pq-course mx-1.5 mt-3 mb-1 flex min-h-9 w-[calc(100%-12px)] cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left font-sans text-[11px] font-extrabold tracking-[1px] text-muted uppercase"
               >

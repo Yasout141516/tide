@@ -24,3 +24,8 @@ export function defaultBaseName(o: {
 export function durationLabel(sec: number): string {
   return sec < 60 ? 'under a minute' : `about ${formatMinutes(Math.round(sec / 60))}`
 }
+
+/** Where saved audio goes, in her words. */
+export function exportFolderLabel(folder: { name: string; custom: boolean } | undefined): string {
+  return folder?.custom ? folder.name : 'Music › Tide'
+}

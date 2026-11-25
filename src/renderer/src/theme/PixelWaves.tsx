@@ -1,9 +1,9 @@
+const crests = Array.from({ length: 16 }, (_, i) => i * 10)
+
 /** A strip of pixel waves at the top edge of the player bar, in layout flow (never over the page). Decoration only. */
 export function PixelWaves(): React.JSX.Element {
-  const crests = Array.from({ length: 16 }, (_, i) => i * 10)
   return (
     <svg
-      data-pixel-waves
       className="pointer-events-none -mx-[22px] -mt-3 -mb-1 block h-3.5 shrink-0 basis-[calc(100%+44px)]"
       viewBox="0 0 160 7"
       preserveAspectRatio="none"

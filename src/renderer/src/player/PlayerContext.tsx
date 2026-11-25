@@ -9,7 +9,13 @@ import {
   type ReactNode
 } from 'react'
 import type { TtsAudio, TtsStatus } from '../../../shared/ipc-types'
-import type { LibrarySnapshot, ReadingId, ReadingView } from '../../../shared/library/types'
+import type {
+  LibrarySnapshot,
+  Pronunciation,
+  ReadingId,
+  ReadingView
+} from '../../../shared/library/types'
+import { samePronunciations } from '../../../shared/text/pronounce'
 import { DEFAULT_VOICE, voiceRate } from '../../../shared/voices'
 import { nextReading } from '../../../shared/library/shelf'
 import { leavesKeysAlone } from '../lib/keys'
@@ -132,6 +138,10 @@ const StateCtx = createContext<PlayerStateValue>(NOOP_STATE)
 /** Its own context: the sleep countdown ticks about once a second and only the sleep UI should feel it. */
 const SleepCtx = createContext<SleepState>(IDLE_SLEEP)
 
+const defaultMakeUrl = (wav: ArrayBuffer): string =>
+  URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))
+const defaultRevokeUrl = (url: string): void => URL.revokeObjectURL(url)
+
 /** A preview on a plain audio element of its own. */
 function htmlPreview(url: string): PreviewAudio {
   const el = new Audio(url)
@@ -191,6 +201,11 @@ export function PlayerProvider({
   children
 }: Props): React.JSX.Element {
   const deps = useContext(DepsCtx)
+  // The WAV object-URL pair, for the engine and for pronunciation clips alike.
+  const urlMakers = {
+    makeUrl: deps.makeUrl ?? defaultMakeUrl,
+    revokeUrl: deps.revokeUrl ?? defaultRevokeUrl
+  }
   const { sentences, current, setCurrent } = useReaderState()
   const audio = useRef<HTMLAudioElement>(null)
   const [engine, setEngine] = useState<PlayerEngine | null>(null)
@@ -245,15 +260,15 @@ export function PlayerProvider({
     if (!el) return
     const { client, dispose } = createTtsClient()
     const audioSink = deps.makeSink ? deps.makeSink(el) : new HtmlAudioSink(el)
+    const { makeUrl, revokeUrl } = urlMakers
     sinkRef.current = audioSink
     let tm: SleepTimer | null = null
     const e = new PlayerEngine(
       {
         sink: audioSink,
         tts: client,
-        makeUrl:
-          deps.makeUrl ?? ((wav) => URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))),
-        revokeUrl: deps.revokeUrl ?? ((u) => URL.revokeObjectURL(u)),
+        makeUrl,
+        revokeUrl,
         // The page option stops exactly at the sentence boundary, not on the next poll.
         holdAfter: (i) =>
           tm?.sentenceEnded(i, (k) => sentencesRef.current[k]?.spans[0]?.page ?? -1) ?? false
@@ -310,13 +325,13 @@ export function PlayerProvider({
 
   // Pronunciation fixes changed: audio already made (and prefetched) says the old thing.
   // Snapshots arrive for many reasons, so only a real change counts; the first one is the baseline.
-  const prons = snapshot ? JSON.stringify(snapshot.settings.pronunciations) : null
-  const lastProns = useRef<string | null>(null)
+  const prons = snapshot?.settings.pronunciations ?? null
+  const lastProns = useRef<readonly Pronunciation[] | null>(null)
   useEffect(() => {
     if (prons === null) return
     const prev = lastProns.current
     lastProns.current = prons
-    if (prev !== null && prev !== prons) engine?.refreshAudio()
+    if (prev !== null && !samePronunciations(prev, prons)) engine?.refreshAudio()
   }, [engine, prons])
 
   // --- Reader -> engine ---------------------------------------------------------------------
@@ -444,14 +459,13 @@ export function PlayerProvider({
   }, [readingId, timer])
 
   // --- Preview: a second element, so the reading's own audio is never touched -----------------
-  const previewing = useRef<PreviewAudio | null>(null)
-  /** Frees the running clip's object URL, if it has one. */
-  const releaseClip = useRef<(() => void) | null>(null)
+  /** The running preview; `release` frees its object URL (if it has one) once, when it is dropped. */
+  const previewing = useRef<{ a: PreviewAudio; release?: () => void } | null>(null)
   const stopPreview = useCallback(() => {
-    previewing.current?.pause()
+    const cur = previewing.current
     previewing.current = null
-    releaseClip.current?.()
-    releaseClip.current = null
+    cur?.a.pause()
+    cur?.release?.()
   }, [])
   useEffect(() => stopPreview, [stopPreview])
 
@@ -481,20 +495,12 @@ export function PlayerProvider({
         if (isListening(ph)) engine?.pause()
         stopPreview()
         const a = deps.makePreview ? deps.makePreview(url) : htmlPreview(url)
-        previewing.current = a
-        let freed = false
-        const free = (): void => {
-          if (freed) return
-          freed = true
-          release?.()
-        }
-        releaseClip.current = free
+        previewing.current = { a, release }
         a.onEnded?.(() => {
-          if (previewing.current === a) {
-            previewing.current = null
-            releaseClip.current = null
-          }
-          free()
+          // Dropped already (stopped or replaced): stopPreview released it.
+          if (previewing.current?.a !== a) return
+          previewing.current = null
+          release?.()
         })
         void Promise.resolve(a.play()).catch(() => {})
       }
@@ -542,11 +548,9 @@ export function PlayerProvider({
         refreshAudio: () => engine?.refreshAudio(),
         preview: (id) => startPreview(`./voice-previews/${id}.mp3`),
         previewClip: (clip) => {
-          const make =
-            deps.makeUrl ?? ((wav) => URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })))
-          const revoke = deps.revokeUrl ?? ((u) => URL.revokeObjectURL(u))
-          const url = make(pcmToWav(clip.pcm, clip.sampleRate))
-          startPreview(url, () => revoke(url))
+          const { makeUrl, revokeUrl } = urlMakers
+          const url = makeUrl(pcmToWav(clip.pcm, clip.sampleRate))
+          startPreview(url, () => revokeUrl(url))
         },
         stopPreview,
         playNext: () => {

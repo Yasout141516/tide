@@ -361,8 +361,7 @@ export class Library {
   setSettings(p: SettingsPatch): void {
     this.store.update(
       (d) => {
-        if (isThemeId(p.theme))
-          d.settings.theme = p.theme
+        if (isThemeId(p.theme)) d.settings.theme = p.theme
         if (typeof p.darkPages === 'boolean') d.settings.darkPages = p.darkPages
         if (p.reading) {
           for (const k of Object.keys(d.settings.reading) as (keyof ReadingFilters)[]) {

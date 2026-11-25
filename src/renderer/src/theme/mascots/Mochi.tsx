@@ -113,7 +113,6 @@ export function MochiHead({
   return (
     <svg
       data-mascot="mochi"
-      data-pose="head"
       data-voice-avatar={avatar ? '' : undefined}
       data-tint={avatar ? coat.fur : undefined}
       width={size}

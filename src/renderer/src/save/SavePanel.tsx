@@ -6,7 +6,7 @@ import { voiceName } from '../../../shared/voices'
 import { useLibrary } from '../state/useLibrary'
 import { usePlayerState } from '../player/PlayerContext'
 import { useReaderState } from '../reader/ReaderState'
-import { defaultBaseName, durationLabel, type SaveScope } from './names'
+import { defaultBaseName, durationLabel, exportFolderLabel, type SaveScope } from './names'
 import { buildExportSpec, exportSentences, TOO_LONG_MESSAGE, tooLongForOneFile } from './spec'
 
 type Kind = 'selection' | 'pages' | 'whole'
@@ -274,7 +274,7 @@ export function SavePanel({
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 text-[12.5px] text-muted">
             <span>{`Voice: ${voiceName(snapshot.voice)} · ${Number(chosenSpeed.toFixed(2))}×`}</span>
             <span className="ml-auto">
-              Saves to <b className="text-ink">{folder?.custom ? folder.name : 'Music › Tide'}</b>
+              Saves to <b className="text-ink">{exportFolderLabel(folder)}</b>
             </span>
           </div>
 

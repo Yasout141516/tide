@@ -2,7 +2,7 @@ import type { ThemeId } from '../../../shared/library/types'
 import { useLibrary } from '../state/useLibrary'
 import { useTheme } from '../theme/theme'
 import { tide } from '../lib/tide'
-import { Switch } from './Switch'
+import { softButton, SettingRow } from './controls'
 import { useAttempt } from './useAttempt'
 
 /** Preview art for the tiles. They depict other themes, so they cannot be current-theme tokens. */
@@ -13,11 +13,6 @@ const SWATCH: Record<Exclude<ThemeId, 'system'>, { bg: string; page: string; ext
   kitty: { bg: 'linear-gradient(180deg,#FCE9EC,#FFF3EE)', page: '#FFFFFF', extra: '#F6B9C8' }
 }
 const MATCH_BG = 'linear-gradient(90deg,#E6F3FD 50%,#0B1D2C 50%)'
-
-const ctlButton =
-  'min-h-9 min-w-9 cursor-pointer rounded-[11px] border-0 bg-soft px-[11px] py-[5px] font-sans text-[13px] font-extrabold text-soft-ink'
-
-const FAILED = "Couldn't change that setting. Please try again."
 
 type Props = { zoom: number; onZoomStep(d: 1 | -1): void }
 
@@ -34,7 +29,7 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
     { id: 'kitty', label: 'Kitty' },
     { id: 'system', label: matchLabel }
   ]
-  const pick = (theme: ThemeId): void => attempt(tide().library.setSettings({ theme }), FAILED)
+  const pick = (theme: ThemeId): void => attempt(tide().library.setSettings({ theme }))
 
   const move = (i: number, d: number): void => {
     const next = tiles[(i + d + tiles.length) % tiles.length]
@@ -104,17 +99,13 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
         })}
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between gap-3.5 border-b border-border px-0.5 py-[11px]">
-        <div className="text-[13.5px] font-bold">
-          <span id="dark-pages-label">Dark pages in dark themes</span>
-          <small className="mt-0.5 block text-xs font-normal text-muted">
-            Turn off for readings with lots of charts or photos.
-          </small>
-        </div>
-        <Switch
+      <div className="mt-2.5">
+        <SettingRow
+          id="dark-pages-label"
+          label="Dark pages in dark themes"
+          hint="Turn off for readings with lots of charts or photos."
           checked={darkPages}
-          labelledBy="dark-pages-label"
-          onChange={(next) => attempt(tide().library.setSettings({ darkPages: next }), FAILED)}
+          onChange={(next) => attempt(tide().library.setSettings({ darkPages: next }))}
         />
       </div>
 
@@ -125,7 +116,7 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
             type="button"
             aria-label="Smaller text"
             onClick={() => onZoomStep(-1)}
-            className={ctlButton}
+            className={softButton}
           >
             A−
           </button>
@@ -134,7 +125,7 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
             type="button"
             aria-label="Larger text"
             onClick={() => onZoomStep(1)}
-            className={ctlButton}
+            className={softButton}
           >
             A+
           </button>

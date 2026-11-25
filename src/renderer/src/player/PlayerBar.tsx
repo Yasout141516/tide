@@ -137,7 +137,7 @@ export function PlayerBar(): React.JSX.Element {
     >
       {resolved === 'pixel-quest' ? <PixelWaves /> : null}
       {kitty && wantsPlay ? (
-        <span data-peek-slot className="kt-peek pointer-events-none absolute right-24 -top-[30px]">
+        <span className="kt-peek pointer-events-none absolute right-24 -top-[30px]">
           <MochiPeek />
         </span>
       ) : null}

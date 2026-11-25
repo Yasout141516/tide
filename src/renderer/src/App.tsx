@@ -188,52 +188,52 @@ function App(): React.JSX.Element {
   return (
     <ReaderStateProvider>
       <ThemeRoot>
-      <ToastProvider>
-        <PlayerProvider
-          reading={selected}
-          courseName={courseName}
-          snapshot={library}
-          onPlayNext={open}
-        >
-          <ExportProvider reading={selected} courseName={courseName}>
-            <AppShell
-              renderShelf={(closeOverlay) =>
-                library ? (
-                  <Shelf
-                    snapshot={library}
-                    selectedId={selectedId}
-                    onOpen={open}
-                    onAdd={add}
-                    onPicked={closeOverlay}
-                    onSettings={() => {
-                      closeOverlay()
-                      setSettingsOpen(true)
-                    }}
-                  />
-                ) : (
-                  <nav aria-label="Readings" className="flex-1" />
-                )
-              }
-              stage={stage}
-              player={
-                <>
-                  <ExportProgressSlot />
-                  <PlayerBar />
-                </>
-              }
+        <ToastProvider>
+          <PlayerProvider
+            reading={selected}
+            courseName={courseName}
+            snapshot={library}
+            onPlayNext={open}
+          >
+            <ExportProvider reading={selected} courseName={courseName}>
+              <AppShell
+                renderShelf={(closeOverlay) =>
+                  library ? (
+                    <Shelf
+                      snapshot={library}
+                      selectedId={selectedId}
+                      onOpen={open}
+                      onAdd={add}
+                      onPicked={closeOverlay}
+                      onSettings={() => {
+                        closeOverlay()
+                        setSettingsOpen(true)
+                      }}
+                    />
+                  ) : (
+                    <nav aria-label="Readings" className="flex-1" />
+                  )
+                }
+                stage={stage}
+                player={
+                  <>
+                    <ExportProgressSlot />
+                    <PlayerBar />
+                  </>
+                }
+              />
+            </ExportProvider>
+            {adding.ui}
+            {dialogUi}
+            <SettingsDialog
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              zoom={zoom}
+              onZoomStep={stepZoom}
             />
-          </ExportProvider>
-          {adding.ui}
-          {dialogUi}
-          <SettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            zoom={zoom}
-            onZoomStep={stepZoom}
-          />
-          {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
-        </PlayerProvider>
-      </ToastProvider>
+            {notice ? <MessageDialog title={notice} onClose={() => setNotice(null)} /> : null}
+          </PlayerProvider>
+        </ToastProvider>
       </ThemeRoot>
     </ReaderStateProvider>
   )
