@@ -83,6 +83,8 @@ declare global {
     /** Present only when the app runs with TIDE_E2E=1. */
     tideTest?: {
       ttsLoad(): Promise<TtsLoadResult>
+      /** The last text main sent to the voice host (pronunciation fixes applied). */
+      lastSynthText(): Promise<string>
       /** Speaks two short pages and saves a 2-chapter .m4b to the absolute `outPath`. */
       exportM4b(outPath: string): Promise<ExportM4bResult>
     }

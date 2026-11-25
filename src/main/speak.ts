@@ -8,8 +8,13 @@ import type { TtsHost } from './tts-host'
  */
 export function makeSpeak(
   host: Pick<TtsHost, 'synthesize'>,
-  rules: () => readonly Pronunciation[]
+  rules: () => readonly Pronunciation[],
+  /** e2e builds only: sees the exact text handed to the host. */
+  onText?: (text: string) => void
 ): TtsHost['synthesize'] {
-  return (text, o) =>
-    host.synthesize(o.priority === 'preview' ? text : applyPronunciations(text, rules()), o)
+  return (text, o) => {
+    const spoken = o.priority === 'preview' ? text : applyPronunciations(text, rules())
+    onText?.(spoken)
+    return host.synthesize(spoken, o)
+  }
 }
