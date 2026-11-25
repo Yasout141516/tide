@@ -33,9 +33,15 @@ export function LookTab({ zoom, onZoomStep }: Props): React.JSX.Element {
 
   const move = (i: number, d: number): void => {
     const next = tiles[(i + d + tiles.length) % tiles.length]
-    pick(next.id)
-    // The newly selected tile holds the tab stop; move focus with it.
-    queueMicrotask(() => document.getElementById(`theme-tile-${next.id}`)?.focus())
+    const saving = tide().library.setSettings({ theme: next.id })
+    attempt(saving)
+    // The newly selected tile holds the tab stop: focus follows once the save has gone through,
+    // and stays on (returns to) the checked tile when it fails.
+    const focus = (id: string): void => document.getElementById(`theme-tile-${id}`)?.focus()
+    void saving.then(
+      () => focus(next.id),
+      () => focus(current)
+    )
   }
 
   return (

@@ -236,6 +236,16 @@ describe('renderer gate', () => {
     ])
   })
 
+  it('a message identical to the last one but hours later is logged in full again', () => {
+    const log = { error: vi.fn() }
+    let t = 0
+    const g = createRendererGate(log, { now: () => t })
+    g.push('boom')
+    t = 3 * 3600_000
+    g.push('boom')
+    expect(log.error.mock.calls.map((c) => c[1])).toEqual(['boom', 'boom'])
+  })
+
   it('flush writes a pending repeat count', () => {
     const log = { error: vi.fn() }
     const g = createRendererGate(log)

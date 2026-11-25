@@ -16,6 +16,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 
+// First paint: main already knows the theme (index.html can only hard-code the default), so set it
+// before React renders anything. ThemeRoot keeps it in step with the setting afterwards.
+if (window.tide?.initialTheme) document.documentElement.dataset.theme = window.tide.initialTheme
+
 // Test-only (TIDE_E2E=1 exposes window.tideTest): lets Playwright prove pdf.js works under the CSP.
 // Loaded on demand, so pdf.js stays out of the first chunk.
 if (window.tideTest) void import('./reader/probe').then((m) => m.installPdfProbe())

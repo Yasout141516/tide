@@ -1,9 +1,9 @@
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fingerprint } from '../../../src/main/library/fingerprint'
-import { Library } from '../../../src/main/library/library'
+import { folderLabel, Library } from '../../../src/main/library/library'
 
 const FIXTURE = join(__dirname, '../../fixtures/pdfs/single-column.pdf')
 let root: string
@@ -395,5 +395,15 @@ describe('Library', () => {
     expect(JSON.stringify(lib.snapshot())).not.toContain(root)
     lib.setExportFolder(null)
     expect(lib.snapshot().exportFolder).toEqual({ name: 'Tide', custom: false })
+  })
+})
+
+describe('folderLabel', () => {
+  it('uses the folder name, or the root itself for a drive or filesystem root (never empty)', () => {
+    expect(folderLabel('D:\\Audio\\Talks', win32)).toBe('Talks')
+    expect(folderLabel('D:\\', win32)).toBe('D:')
+    expect(folderLabel('D:/', win32)).toBe('D:')
+    expect(folderLabel('/home/a/Talks', posix)).toBe('Talks')
+    expect(folderLabel('/', posix)).toBe('/')
   })
 })

@@ -127,6 +127,7 @@ export function createRendererGate(
   const max = o.max ?? 20
   const windowMs = o.windowMs ?? 60_000
   let last: string | null = null
+  let lastAt = 0
   let repeats = 0
   // Times of the last `max` writes: a sliding window, so a burst straddling a boundary still caps.
   const times: number[] = []
@@ -145,13 +146,15 @@ export function createRendererGate(
     timer = null
     if (repeats > 0 && allow()) {
       log.error('renderer', `(previous message repeated ${repeats} times)`)
+      lastAt = now()
     }
     repeats = 0
   }
   return {
     flush,
     push(message) {
-      if (message === last) {
+      // Identical to the last one, but a whole window since anything was written: a new occurrence.
+      if (message === last && now() - lastAt < windowMs) {
         repeats++
         if (!timer) {
           timer = setTimeout(flush, 2000)
@@ -162,6 +165,7 @@ export function createRendererGate(
       flush()
       if (!allow()) return
       last = message
+      lastAt = now()
       log.error('renderer', message)
     }
   }

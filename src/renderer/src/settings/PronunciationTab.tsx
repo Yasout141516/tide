@@ -59,6 +59,7 @@ export function PronunciationTab(): React.JSX.Element {
   const saved = useRef(complete(rows))
   const save = (next: Row[]): void => {
     const list = complete(next)
+    if (samePronunciations(list, saved.current)) return
     saved.current = list
     attempt(tide().library.setPronunciations(list), "Couldn't save that word. Please try again.")
   }

@@ -502,7 +502,12 @@ export function PlayerProvider({
           previewing.current = null
           release?.()
         })
-        void Promise.resolve(a.play()).catch(() => {})
+        void Promise.resolve(a.play()).catch(() => {
+          // Playback refused: drop the preview and free its clip, unless something replaced it.
+          if (previewing.current?.a !== a) return
+          previewing.current = null
+          release?.()
+        })
       }
       return {
         play: () => {

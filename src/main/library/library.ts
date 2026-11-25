@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, parse } from 'node:path'
+import type { PlatformPath } from 'node:path'
 import type {
   AddReadingInput,
   CourseId,
@@ -41,6 +42,17 @@ interface LibraryOptions {
   now?: () => number
   newId?: () => string
   debounceMs?: number
+}
+
+/** What to call a chosen folder: its name, or for a drive/filesystem root (`D:\`, `/`) the root itself. */
+export function folderLabel(
+  path: string,
+  p: Pick<PlatformPath, 'basename' | 'parse'> = { basename, parse }
+): string {
+  const name = p.basename(path)
+  if (name) return name
+  const root = p.parse(path).root
+  return root.replace(/[\\/]+$/, '') || root || path
 }
 
 /** Main-process library service. Stores references to the student's PDFs, never copies. No Electron imports. */
@@ -84,7 +96,7 @@ export class Library {
         pronunciations: d.settings.pronunciations.slice()
       },
       exportFolder: {
-        name: d.settings.exportFolder ? basename(d.settings.exportFolder) || 'Tide' : 'Tide',
+        name: d.settings.exportFolder ? folderLabel(d.settings.exportFolder) : 'Tide',
         custom: d.settings.exportFolder !== null
       },
       ui: { collapsed: [...d.ui.collapsed], tipsSeen: [...d.ui.tipsSeen] }

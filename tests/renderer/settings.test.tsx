@@ -121,6 +121,18 @@ describe('Settings dialog', () => {
     await act(async () => {})
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Deep Sea' }))
   })
+
+  it('ArrowRight when the save fails keeps focus on the checked tile', async () => {
+    const t = await mount()
+    t.library.setSettings = vi.fn(() => Promise.reject(new Error('x')))
+    act(() => t.emit({ type: 'settings' }))
+    const first = await screen.findByRole('radio', { name: 'Sky & Sea' })
+    act(() => first.focus())
+    await userEvent.keyboard('{ArrowRight}')
+    await act(async () => {})
+    expect(await screen.findByText("Couldn't change that setting. Please try again.")).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Sky & Sea' }))
+  })
 })
 
 describe('Reading tab', () => {
@@ -280,7 +292,8 @@ describe('Copy diagnostic info', () => {
 describe('Pronunciation tab', () => {
   async function openTab(
     pronunciations: { word: string; sayAs: string }[] = [],
-    voice = 'bf_emma'
+    voice = 'bf_emma',
+    playRejects = false
   ): Promise<{
     t: ReturnType<typeof fakeTide>
     dlg: HTMLElement
@@ -320,7 +333,10 @@ describe('Pronunciation tab', () => {
       revokeUrl: (u: string) => void revoked.push(u),
       makePreview: (url: string) => {
         clips.push(url)
-        return { play: () => Promise.resolve(), pause: () => void pauses++ }
+        return {
+          play: () => (playRejects ? Promise.reject(new Error('blocked')) : Promise.resolve()),
+          pause: () => void pauses++
+        }
       }
     }
     renderApp(fakeDeps({ kind: 'ok', doc: fakeDoc(bodyPages(1)) }), player)
@@ -431,6 +447,12 @@ describe('Pronunciation tab', () => {
     await waitFor(() => expect(revoked).toEqual(['blob:clip-0', 'blob:clip-1']))
   })
 
+  it('a Listen whose playback is rejected still revokes its clip URL', async () => {
+    const { dlg, revoked } = await openTab([{ word: 'a', sayAs: 'b' }], 'bf_emma', true)
+    await userEvent.click(within(dlg).getByRole('button', { name: /^Listen/ }))
+    await waitFor(() => expect(revoked).toEqual(['blob:clip-0']))
+  })
+
   it('a failed Listen says so plainly', async () => {
     const { t, dlg } = await openTab([{ word: 'a', sayAs: 'b' }])
     t.tts.synthesize = vi.fn(() => Promise.reject(new Error('x')))
@@ -471,6 +493,14 @@ describe('Pronunciation tab', () => {
     await userEvent.click(within(dlg).getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
     expect(lastSave(t)).toEqual([{ word: 'schema', sayAs: 'SKEE-muh' }])
+  })
+
+  it('blurring or pressing Enter without an edit sends nothing', async () => {
+    const { t, dlg } = await openTab([{ word: 'a', sayAs: 'b' }])
+    await userEvent.click(within(dlg).getByRole('textbox', { name: 'Word' }))
+    await userEvent.keyboard('{Enter}')
+    await userEvent.tab()
+    expect(t.calls['library.setPronunciations']).toBeUndefined()
   })
 
   it('closing with the tab untouched saves nothing', async () => {
