@@ -15,8 +15,6 @@ function render(size: number): Buffer {
 
 const master = render(1024)
 writeFileSync(join(root, 'build', 'icon.png'), master)
-// The window icon keeps its existing 512 px size.
-writeFileSync(join(root, 'resources', 'icon.png'), render(512))
 
 const icns = png2icons.createICNS(master, png2icons.BICUBIC, 0)
 if (!icns) throw new Error('ICNS generation failed')

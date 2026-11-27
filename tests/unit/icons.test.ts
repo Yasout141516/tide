@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { Resvg } from '@resvg/resvg-js'
 import { describe, expect, it } from 'vitest'
 
 const root = join(__dirname, '..', '..')
@@ -33,15 +32,4 @@ describe('app icons', () => {
     const icns = readFileSync(join(root, 'build', 'icon.icns'))
     expect(icns.subarray(0, 4).toString('ascii')).toBe('icns')
   })
-
-  it('resources/icon.png is 512x512 and matches a fresh render of build/icon.svg', () => {
-    const png = readFileSync(join(root, 'resources', 'icon.png'))
-    expect(png.readUInt32BE(16)).toBe(512)
-    expect(png.readUInt32BE(20)).toBe(512)
-    const svg = readFileSync(join(root, 'build', 'icon.svg'))
-    const fresh = new Resvg(svg, { fitTo: { mode: 'width', value: 512 } }).render().asPng()
-    expect(createHash('sha256').update(png).digest('hex')).toBe(
-      createHash('sha256').update(fresh).digest('hex')
-    )
-  }, 30_000)
 })
