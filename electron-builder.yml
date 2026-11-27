@@ -43,6 +43,11 @@ extraResources:
     filter:
       - '**/*.json'
       - '**/onnx/model.onnx'
+  # Licences, readable from About > View licences.
+  - from: NOTICE.md
+    to: NOTICE.md
+  - from: LICENSE
+    to: LICENSE
 mac:
   target:
     - target: dmg

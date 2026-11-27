@@ -9,8 +9,8 @@ vi.mock('electron', () => ({
 
 const { buildMenu } = await import('../../src/main/menu')
 
-function items(): MenuItemConstructorOptions[] {
-  const template = buildMenu(() => {}) as unknown as MenuItemConstructorOptions[]
+function items(about: () => void = () => {}): MenuItemConstructorOptions[] {
+  const template = buildMenu(() => {}, about) as unknown as MenuItemConstructorOptions[]
   return template.flatMap((m) => (Array.isArray(m.submenu) ? m.submenu : []))
 }
 
@@ -47,5 +47,27 @@ describe('buildMenu', () => {
   it('the Help items are disabled reminders', () => {
     const help = items().filter((i) => /Add reading$|Text size|sentence/.test(i.label ?? ''))
     expect(help.filter((i) => i.enabled === false)).toHaveLength(3)
+  })
+
+  it('on win32 Help ends with a separator and About Tide, which calls the handler', () => {
+    const about = vi.fn()
+    const all = items(about)
+    const idx = all.findIndex((i) => i.label === 'About Tide')
+    expect(idx).toBeGreaterThan(0)
+    expect(all[idx - 1].type).toBe('separator')
+    ;(all[idx].click as () => void)()
+    expect(about).toHaveBeenCalledTimes(1)
+  })
+
+  it('on darwin there is no extra About Tide item (the app menu has role about)', () => {
+    const orig = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    try {
+      const all = items()
+      expect(all.find((i) => i.label === 'About Tide')).toBeUndefined()
+      expect(all.some((i) => i.role === 'about')).toBe(true)
+    } finally {
+      Object.defineProperty(process, 'platform', { value: orig })
+    }
   })
 })

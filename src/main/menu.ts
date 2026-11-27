@@ -2,7 +2,7 @@ import { Menu, type MenuItemConstructorOptions } from 'electron'
 import type { AppCommand } from '../shared/ipc-types'
 
 /** The application menu. Shortcuts work on Windows too, where the menu bar stays hidden until Alt. */
-export function buildMenu(send: (c: AppCommand) => void): Menu {
+export function buildMenu(send: (c: AppCommand) => void, about: () => void = () => {}): Menu {
   const mac = process.platform === 'darwin'
   const mod = mac ? '⌘' : 'Ctrl+'
   const minus = mac ? '−' : '-'
@@ -80,7 +80,13 @@ export function buildMenu(send: (c: AppCommand) => void): Menu {
         { label: `${mod}O  Add reading`, enabled: false },
         { label: `${mod}+ / ${mod}${minus}  Text size`, enabled: false },
         { label: `${mod},  Settings`, enabled: false },
-        { label: '← / →  Previous / next sentence', enabled: false }
+        { label: '← / →  Previous / next sentence', enabled: false },
+        ...(mac
+          ? []
+          : ([
+              { type: 'separator' },
+              { label: 'About Tide', click: () => about() }
+            ] as MenuItemConstructorOptions[]))
       ]
     }
   ]
