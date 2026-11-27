@@ -247,12 +247,20 @@ interface Cell {
   text: string
 }
 
-/** The cells of a line: items split by x-gaps over 2 x fontSize. */
+/**
+ * Items further apart than this (x fontSize) are different cells of a grid row. A label and its first
+ * number are often only about 1.25 x apart (11 pt at 8.8 pt text), so 2 x merged them.
+ */
+const CELL_GAP = 1
+/** Column left edges of a table line up within this many font sizes (real tables jitter by about 0.6). */
+const COLUMN_TOLERANCE = 1
+
+/** The cells of a line: items split by x-gaps over `CELL_GAP` x fontSize. */
 function cellsOf(l: Line): Cell[] {
   const cells: Cell[] = []
   let prevEnd = -Infinity
   for (const i of l.items) {
-    if (cells.length && i.x - prevEnd <= 2 * l.fontSize) cells[cells.length - 1].text += ` ${i.str}`
+    if (cells.length && i.x - prevEnd <= CELL_GAP * l.fontSize) cells[cells.length - 1].text += ` ${i.str}`
     else cells.push({ x: i.x, text: i.str })
     prevEnd = Math.max(prevEnd, i.x + i.width)
   }
@@ -286,7 +294,7 @@ function alignedTableRows(lines: Line[]): Set<number> {
       i++
       continue
     }
-    const tol = 0.5 * lines[i].fontSize
+    const tol = COLUMN_TOLERANCE * lines[i].fontSize
     let grid = 1
     let end = i + 1 // exclusive end of the run, trimmed to its last grid row
     let wrapped = 0
@@ -308,6 +316,69 @@ function alignedTableRows(lines: Line[]): Set<number> {
     if (grid >= 3) for (let k = i; k < end; k++) drop.add(k)
     i = Math.max(end, i + 1)
   }
+  return drop
+}
+
+const NUMBER_TOKEN = /^[+-]?\d[\d.,]*%?$/
+const DASH_TOKEN = /^[-–—]$/
+/** A line of numeric table text has at most this many label words. */
+const MAX_LABEL_WORDS = 4
+/** At least this share of a numeric line's tokens are numbers, intervals or percentages. */
+const NUMERIC_SHARE = 0.6
+
+/** Token counts of a line: numbers ("0.65", "12%", the pieces of "[0.5, 0.7]") and everything else. */
+function numericCounts(l: Line): { nums: number; words: number; tokens: number } {
+  let nums = 0
+  let words = 0
+  for (const raw of l.text.split(/\s+/)) {
+    const t = raw.replace(/[[\]();]/g, '').replace(/,$/, '')
+    if (!t) continue
+    if (NUMBER_TOKEN.test(t) || DASH_TOKEN.test(t)) nums++
+    else words++
+  }
+  return { nums, words, tokens: nums + words }
+}
+
+/**
+ * A line whose tokens are mostly numbers, bracketed intervals or percentages, with at most a short
+ * label: at least 2 numbers, `NUMERIC_SHARE` of the tokens numeric, at most `MAX_LABEL_WORDS` words.
+ */
+export function isNumericLine(l: Line): boolean {
+  const { nums, words, tokens } = numericCounts(l)
+  return nums >= 2 && nums >= NUMERIC_SHARE * tokens && words <= MAX_LABEL_WORDS
+}
+
+/**
+ * Drop indices of numeric table text: a run of >= 3 consecutive numeric lines (>= 2 when they are bare
+ * numbers or small print), or one numeric line set smaller than body text, plus a short small-font label-and-number line ("Total 466") next to
+ * dropped lines.
+ */
+function numericTableRows(lines: Line[], body: number): Set<number> {
+  const drop = new Set<number>()
+  const numeric = lines.map(isNumericLine)
+  for (let i = 0; i < lines.length;) {
+    if (!numeric[i]) {
+      i++
+      continue
+    }
+    let j = i
+    while (j < lines.length && numeric[j]) j++
+    // Two rows with a label word each could be anything; two rows of bare numbers, or of small
+    // print, are a table. One bare numeric line is dropped only when it is small print.
+    const bare = lines.slice(i, j).every((l) => numericCounts(l).words === 0)
+    const small = lines.slice(i, j).every((l) => l.fontSize < 0.95 * body)
+    if (j - i >= 3 || (j - i >= 2 && (bare || small)) || (j - i === 1 && small))
+      for (let k = i; k < j; k++) drop.add(k)
+    i = j
+  }
+  const near = (k: number, i: number): boolean =>
+    drop.has(k) && Math.abs(lines[k].y - lines[i].y) < 3 * body
+  for (let pass = 0; pass < 2; pass++)
+    for (let i = 0; i < lines.length; i++) {
+      if (drop.has(i) || lines[i].fontSize >= 0.95 * body) continue
+      const { nums, words } = numericCounts(lines[i])
+      if (nums >= 1 && words <= 2 && (near(i - 1, i) || near(i + 1, i))) drop.add(i)
+    }
   return drop
 }
 
@@ -341,6 +412,7 @@ export function dropCaptionsAndTables(pages: Line[][], body: number): Line[][] {
       i = Math.max(j, i + 1)
     }
     for (const k of alignedTableRows(lines)) drop.add(k)
+    for (const k of numericTableRows(lines, body)) drop.add(k)
     return lines.filter((_, i) => !drop.has(i))
   })
 }

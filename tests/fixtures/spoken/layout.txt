@@ -21,7 +21,7 @@ The effect fades after several hours.
 The survey asked students how many hours they slept before an exam.
 Most reported between six and eight hours.
 A small group slept far less than that.
-0 10 20 30 40 Scores rose with sleep up to eight hours and then levelled off.
+Scores rose with sleep up to eight hours and then levelled off.
 The gain was largest for students who had slept five hours or less.
 The authors caution that the groups differed in other ways too.
 Taken together, the results support a simple message about rest before an exam.

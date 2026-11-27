@@ -65,7 +65,8 @@ function continues(trimmed: string, next: string | undefined): boolean {
  * a lowercase letter (or "(" + lowercase) right after a "?" or "!" (the segmenter breaks after `?”` in
  * `“Is anyone listening?” the tutor asked.`) joins the sentence before it. A tiny LAST segment has no
  * next one, so it joins the previous sentence (a lone "6" after a contents line). Whitespace-only
- * segments are dropped.
+ * segments are dropped. A sentence over `MAX_SENTENCE_CHARS` is then cut into pieces at clause
+ * boundaries (see `capRange`), so no single utterance monopolises the voice.
  */
 export function segmentSentences(blockText: string): { start: number; end: number }[] {
   segmenter ??= new Intl.Segmenter('en', { granularity: 'sentence' })
@@ -96,5 +97,66 @@ export function segmentSentences(blockText: string): { start: number; end: numbe
     if (tiny && out.length > 0) out[out.length - 1].end = pending.end
     else out.push(pending)
   }
+  return capSentences(blockText, out)
+}
+
+/** No sentence handed to the voice is longer than about this many characters. */
+export const MAX_SENTENCE_CHARS = 300
+/** A clause break is only used when it leaves at least this many characters in the piece. */
+const MIN_PIECE_CHARS = 60
+
+/**
+ * Splits one [start, end) range of `text` (no whitespace at either end) into pieces of at most
+ * `max` characters, again as ranges with no whitespace at either end. Each cut goes after the last
+ * `;` or `:` in the window (then a comma, then a dash), else at the last space, else mid-word. The
+ * pieces cover every non-space character exactly once, so spans mapped from them stay exact.
+ */
+function capRange(
+  text: string,
+  start: number,
+  end: number,
+  max: number
+): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = []
+  let from = start
+  while (end - from > max) {
+    const window = text.slice(from, from + max + 1)
+    let cut = -1
+    // [pattern, where the piece ends relative to the match start]: after the punctuation, or before a dash.
+    for (const [re, offset] of [
+      [/[;:]\s/g, 1],
+      [/,\s/g, 1],
+      [/\s[–—-]\s|[–—]/g, 0]
+    ] as const) {
+      let m: RegExpExecArray | null
+      let best = -1
+      while ((m = re.exec(window))) {
+        const at = m.index + offset
+        if (at >= MIN_PIECE_CHARS && at <= max) best = at
+      }
+      if (best >= 0) {
+        cut = best
+        break
+      }
+    }
+    if (cut < 0) {
+      const space = window.lastIndexOf(' ', max)
+      cut = space >= MIN_PIECE_CHARS ? space : max
+    }
+    const pieceEnd = from + cut
+    const trimmedEnd = from + text.slice(from, pieceEnd).trimEnd().length
+    out.push({ start: from, end: trimmedEnd })
+    from = pieceEnd + (text.slice(pieceEnd).length - text.slice(pieceEnd).trimStart().length)
+  }
+  if (from < end) out.push({ start: from, end })
   return out
+}
+
+/** Applies `capRange` to every sentence range. */
+export function capSentences(
+  text: string,
+  ranges: { start: number; end: number }[],
+  max = MAX_SENTENCE_CHARS
+): { start: number; end: number }[] {
+  return ranges.flatMap((r) => (r.end - r.start > max ? capRange(text, r.start, r.end, max) : [r]))
 }

@@ -6,6 +6,7 @@ import {
   dropContents,
   dropFootnotes,
   dropHeadersFooters,
+  isNumericLine,
   lineHeight,
   referencesStart,
   resourceSections
@@ -61,7 +62,8 @@ export interface SkippedPage {
  * Hard breaks (no sentence ever spans one) go before and after a heading (a line over 1.15 x body
  * size; consecutive lines of the same heading size, no further apart than their size warrants, are one
  * heading) and between two lines of a page whose baselines are more than 1.4 x that page's line height
- * apart. Page boundaries are not breaks: a sentence may run on to the next page. (The brief's "break
+ * apart. Page boundaries are not breaks: a sentence may run on to the next page, but not into small or
+ * numeric material at the top of it (see `appendPage`). (The brief's "break
  * after a short unpunctuated line followed by such a gap" rule is already covered by the gap break.)
  */
 export function buildSentences(
@@ -129,7 +131,12 @@ export function buildSentences(
     hyphenatedWords: hyphenatedWordsIn(docLines),
     documentWords: documentWordsIn(docLines)
   })
-  for (const pageLines of lines) appendPage(spoken, pageLines, body)
+  let prevLast: Line | undefined
+  for (const pageLines of lines) {
+    const open = prevLast !== undefined && !SENTENCE_END.test(prevLast.text)
+    appendPage(spoken, pageLines, body, { open, skipLeading: filters.skipCaptionsTables })
+    if (pageLines.length) prevLast = pageLines[pageLines.length - 1]
+  }
   if (!filters.readCitations) removeCitations(spoken)
 
   const sentences: Sentence[] = []
@@ -143,8 +150,33 @@ export function buildSentences(
   return { sentences, textlessPages, skippedPages }
 }
 
-/** Appends one page's lines, with hard breaks at headings and at large vertical gaps. */
-function appendPage(spoken: SpokenText, lines: Line[], body: number): void {
+/** A line this much smaller than body text (or a line of numbers) at the top of a page is not body text. */
+const SMALL_RATIO = 0.9
+
+/**
+ * Appends one page's lines, with hard breaks at headings and at large vertical gaps.
+ *
+ * Page start: leading lines that are small (under 0.9 x body) or mostly numbers are table or figure
+ * material, not the continuation of the previous page's sentence. When that sentence is still `open`
+ * (its last line did not end it, e.g. "mar-") and the caption/table filter is on, they are not spoken, so
+ * the join attaches to the page's first body line. Otherwise a hard break goes before and after them.
+ */
+function appendPage(
+  spoken: SpokenText,
+  allLines: Line[],
+  body: number,
+  start: { open: boolean; skipLeading: boolean }
+): void {
+  let lines = allLines
+  let leading = 0
+  while (
+    leading < lines.length &&
+    (lines[leading].fontSize < SMALL_RATIO * body || isNumericLine(lines[leading]))
+  )
+    leading++
+  const bodyFollows = leading > 0 && leading < lines.length
+  if (bodyFollows && start.open && start.skipLeading) lines = lines.slice(leading)
+  else if (bodyFollows) spoken.hardBreak()
   const lh = lineHeight(lines, body)
   const heading = (l: Line): boolean => l.fontSize > HEADING_RATIO * body
   const breakBefore = (prev: Line | undefined, l: Line): boolean => {
@@ -160,7 +192,8 @@ function appendPage(spoken: SpokenText, lines: Line[], body: number): void {
     return gap > GAP_RATIO * lh
   }
   lines.forEach((l, i) => {
-    if (breakBefore(lines[i - 1], l)) spoken.hardBreak()
+    if (breakBefore(lines[i - 1], l) || (bodyFollows && lines === allLines && i === leading))
+      spoken.hardBreak()
     spoken.appendLine(l)
   })
   // A heading at the bottom of a page must not run into the next page's first line.
