@@ -30,4 +30,18 @@ writeFileSync(join(root, 'build', 'icon.ico'), ico)
 const previews = join(root, '.superpowers', 'icon-previews')
 mkdirSync(previews, { recursive: true })
 for (const s of [16, 32, 64, 128]) writeFileSync(join(previews, `icon-${s}.png`), render(s))
+
+// Contact sheets: the 32 px icon on white and on dark, to check the tile edge against Finder/taskbar backgrounds.
+for (const [name, background] of [
+  ['white', '#FFFFFF'],
+  ['dark', '#1E1E1E']
+] as const) {
+  const sheet = new Resvg(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="${background}"/><image x="8" y="8" width="32" height="32" href="data:image/png;base64,${render(32).toString('base64')}"/></svg>`
+  )
+    .render()
+    .asPng()
+  writeFileSync(join(previews, `icon-32-on-${name}.png`), sheet)
+}
+writeFileSync(join(previews, 'icon-512.png'), render(512))
 console.log('icons written')

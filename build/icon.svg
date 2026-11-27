@@ -1,21 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f2f9ff"/>
-      <stop offset="1" stop-color="#cfe8fa"/>
-    </linearGradient>
-    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4fb0e8"/>
-      <stop offset="1" stop-color="#1e88c7"/>
+      <stop offset="0" stop-color="#0F6FA8"/>
+      <stop offset="1" stop-color="#4FB0E8"/>
     </linearGradient>
     <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="181"/></clipPath>
   </defs>
   <!-- macOS tile: ~10% margin, ~22% corner radius -->
   <rect x="100" y="100" width="824" height="824" rx="181" fill="url(#sky)"/>
   <g clip-path="url(#tile)">
-    <circle cx="640" cy="372" r="128" fill="#9dd2f5"/>
-    <path d="M60 600c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0V960H60Z" fill="#4fb0e8" opacity=".35"/>
-    <path d="M60 600c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0" fill="none" stroke="#4fb0e8" stroke-width="64" stroke-linecap="round"/>
-    <path d="M60 770c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0" fill="none" stroke="#1e88c7" stroke-width="64" stroke-linecap="round"/>
+    <circle cx="640" cy="372" r="128" fill="#FFE7A3"/>
+    <path d="M60 600c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0V960H60Z" fill="#0B4F7A" opacity=".55"/>
+    <path d="M60 600c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0" fill="none" stroke="#9DD2F5" stroke-width="64" stroke-linecap="round"/>
+    <path d="M60 770c70-70 130-70 192 0s130 70 192 0 130-70 192 0 130 70 192 0 130-70 192 0" fill="none" stroke="#FFFFFF" stroke-width="64" stroke-linecap="round"/>
   </g>
 </svg>
