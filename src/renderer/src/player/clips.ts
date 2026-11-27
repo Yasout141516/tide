@@ -1,16 +1,20 @@
 const BOUNDARIES = new Set([',', ';', ':', '—'])
-const WINDOW = 160
+const CLOSERS = new Set([')', ']', '}', '"', "'", '”', '’', '»'])
+/** A piece is never cut so that fewer than this many words are left behind it. */
+const MIN_REST_WORDS = 3
+/** A sentence this many words over the first limit is still not split. */
+const SLACK_WORDS = 2
 
-function wordCount(s: string): number {
-  return s.split(/\s+/).filter(Boolean).length
-}
-
-export interface FirstClipsOptions {
+export interface ProgressiveOptions {
+  /** Most words in the first piece (default 8). */
+  firstWords?: number
   /**
-   * Prefer a boundary within the first N words (as few as 2 before it), so the first audio is
-   * shorter. Falls back to the usual rule when there is none.
+   * How much larger each piece is aimed to be than the one before (1..2, default 2; never over
+   * twice the previous piece). A piece
+   * is ready in time only while its synthesis (RTF x its audio) fits inside the previous piece's
+   * audio, so the caller passes about 1 / RTF.
    */
-  maxFirstWords?: number
+  growth?: number
 }
 
 function isBoundary(text: string, i: number): boolean {
@@ -19,42 +23,60 @@ function isBoundary(text: string, i: number): boolean {
   return text[i] === '—' || /\s/.test(text[i + 1] ?? '')
 }
 
-/** Split once at the first clause boundary so the first audio is short. Pieces rejoin exactly to `text`. */
-export function firstClips(text: string, opts: FirstClipsOptions = {}): string[] {
-  const limit = Math.min(text.length, WINDOW)
-  const { maxFirstWords } = opts
-  if (maxFirstWords !== undefined) {
-    for (let i = 0; i < limit; i++) {
-      if (!isBoundary(text, i)) continue
-      const before = wordCount(text.slice(0, i))
-      if (before > maxFirstWords) break
-      if (before >= 2 && wordCount(text.slice(i + 1)) >= 3) {
-        return [text.slice(0, i + 1), text.slice(i + 1)]
+/**
+ * Cut a sentence into pieces whose word counts grow step by step: the first is at most
+ * `firstWords`, each next at most `growth` times the previous, so the audio of one piece covers
+ * the synthesis of the next and playback never waits mid-sentence. A cut is at a clause
+ * boundary when one lies in the last quarter of the allowed span, otherwise at a word boundary
+ * (never inside a word, number or time). Pieces rejoin exactly to `text`; a short sentence
+ * stays whole.
+ */
+export function progressiveClips(text: string, opts: ProgressiveOptions = {}): string[] {
+  const firstWords = Math.max(2, Math.floor(opts.firstWords ?? 8))
+  const growth = Math.min(2, Math.max(1, opts.growth ?? 2))
+  const words = [...text.matchAll(/\S+/g)].map((m) => ({
+    start: m.index,
+    end: m.index + m[0].length
+  }))
+  const n = words.length
+  const pieces: string[] = []
+  let from = 0 // first word of the next piece
+  let at = 0 // character offset where it starts
+  let limit = firstWords // nominal size of the next piece: grows by `growth` per piece
+  let reach = firstWords // hard cap: twice the last piece, so a short clause cut never meets a huge next piece
+  // a sentence only slightly over the first limit is kept whole: an extra join costs more than it saves
+  while (n - from > Math.min(limit, reach) + (from === 0 ? SLACK_WORDS : 0)) {
+    const maxCut = Math.min(limit, reach, n - from - MIN_REST_WORDS) // words in this piece
+    if (maxCut < 2) break
+    let cutWords = 0
+    let cutAt = 0
+    const minCut = Math.min(maxCut, Math.ceil(limit * 0.75))
+    for (let w = from; w < from + maxCut; w++) {
+      // a clause boundary inside word w (its punctuation is attached to it)
+      for (let i = words[w].start; i < words[w].end; i++) {
+        if (!isBoundary(text, i)) continue
+        const count = w - from + 1
+        if (count >= minCut) {
+          cutWords = count
+          cutAt = i + 1
+        }
       }
     }
-  }
-  for (let i = 0; i < limit; i++) {
-    if (!isBoundary(text, i)) continue
-    if (wordCount(text.slice(0, i)) >= 4 && wordCount(text.slice(i + 1)) >= 3) {
-      return [text.slice(0, i + 1), text.slice(i + 1)]
+    if (cutWords === 0) {
+      for (let m = maxCut; m >= 2; m--) {
+        if (CLOSERS.has(text[words[from + m].start])) continue
+        cutWords = m
+        cutAt = words[from + m - 1].end
+        break
+      }
     }
+    if (cutWords === 0) break
+    pieces.push(text.slice(at, cutAt))
+    at = cutAt
+    from += cutWords
+    limit = Math.max(1, Math.floor(limit * growth)) // nominal: a short clause cut does not shrink later pieces
+    reach = 2 * cutWords
   }
-  if (maxFirstWords !== undefined) {
-    const at = wordSplit(text, maxFirstWords)
-    if (at !== null) return [text.slice(0, at), text.slice(at)]
-  }
-  return [text]
-}
-
-const CLOSERS = new Set([')', ']', '}', '"', "'", '”', '’', '»'])
-
-/** Index just after word `n` (so a clip never ends inside a word, number or time), or null. */
-function wordSplit(text: string, n: number): number | null {
-  const words = [...text.matchAll(/\S+/g)]
-  for (let w = n - 1; w < words.length - 3; w++) {
-    const next = words[w + 1][0]
-    if (w < 1 || CLOSERS.has(next[0])) continue
-    return words[w].index + words[w][0].length
-  }
-  return null
+  pieces.push(text.slice(at))
+  return pieces
 }

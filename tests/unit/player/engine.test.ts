@@ -6,6 +6,7 @@ import {
   type PlayerSnapshot,
   type TtsClient
 } from '../../../src/renderer/src/player/engine'
+import { progressiveClips } from '../../../src/renderer/src/player/clips'
 
 class FakeSink implements AudioSink {
   sources: string[] = []
@@ -139,6 +140,12 @@ function setup(texts: string[], index: number | null = 0): Rig {
 
 const S = ['One short.', 'Two short.', 'Three short.', 'Four short.', 'Five short.', 'Six short.']
 
+/** 21 words: cut into progressive pieces (a clause boundary after 8 words, then the rest). */
+const LONG =
+  'Well then my friends and neighbours, we shall go forth today and see what the old road holds for us.'
+// before any clip is measured the engine assumes RTF 1, so the pieces do not grow
+const LONG_PIECES = progressiveClips(LONG, { growth: 1 })
+
 describe('PlayerEngine', () => {
   it('play requests the current sentence and the next three, and plays the first clip when it arrives', async () => {
     const { engine, sink, tts } = setup(S)
@@ -155,26 +162,24 @@ describe('PlayerEngine', () => {
   })
 
   it('the first sentence after play is requested as its first clips; later sentences whole', async () => {
-    const long = 'Well then my friends, we shall go forth today.'
+    const long = LONG
     const { engine, sink, tts } = setup([long, 'Second one here.'])
     engine.play()
-    expect(tts.texts()).toEqual([
-      'Well then my friends,',
-      ' we shall go forth today.',
-      'Second one here.'
-    ])
-    tts.calls[0].resolve(audio(1))
-    tts.calls[1].resolve(audio(1))
+    expect(tts.texts()).toEqual([...LONG_PIECES, 'Second one here.'])
+    const np = LONG_PIECES.length
+    for (let k = 0; k < np; k++) tts.calls[k].resolve(audio(1))
     await flush()
     expect(sink.sources).toHaveLength(1)
-    sink.currentTime = 1
-    sink.triggerEnded()
-    expect(sink.sources).toHaveLength(2) // second clip back to back
-    expect(engine.snapshot().index).toBe(0)
-    tts.calls[2].resolve(audio(1))
+    for (let k = 1; k < np; k++) {
+      sink.currentTime = 1
+      sink.triggerEnded()
+      expect(sink.sources).toHaveLength(k + 1) // next clip back to back
+      expect(engine.snapshot().index).toBe(0)
+    }
+    tts.calls[np].resolve(audio(1))
     await flush()
     sink.triggerEnded()
-    expect(sink.sources).toHaveLength(3)
+    expect(sink.sources).toHaveLength(np + 1)
     expect(engine.snapshot().index).toBe(1)
   })
 
@@ -436,7 +441,7 @@ describe('PlayerEngine', () => {
   })
 
   it('a first-clip target is queued at the front with its clips still in order', () => {
-    const long = 'Well then my friends, we shall go forth today.'
+    const long = LONG
     const texts = [S[0], S[1], long, S[3], S[4], S[5], S[0], S[1]]
     const { engine, tts } = setup(texts, 6)
     engine.play()
@@ -444,11 +449,8 @@ describe('PlayerEngine', () => {
     engine.setIndex(2)
     const fresh = tts.calls.slice(n)
     // clips are sent in natural order (clip 0 first), the queue keeps them together at the front
-    expect(fresh.slice(0, 2).map((c) => c.text)).toEqual([
-      'Well then my friends,',
-      ' we shall go forth today.'
-    ])
-    expect(fresh.slice(0, 2).every((c) => c.front === true)).toBe(true)
+    expect(fresh.slice(0, LONG_PIECES.length).map((c) => c.text)).toEqual(LONG_PIECES)
+    expect(fresh.slice(0, LONG_PIECES.length).every((c) => c.front === true)).toBe(true)
   })
 
   it('the cache holds at most 8 sentences and revokes evicted URLs', async () => {
@@ -491,15 +493,11 @@ describe('PlayerEngine', () => {
   })
 
   it('the first sentence is cut into short clips after a seek, and a cached one needs no new request', async () => {
-    const long = 'Well then my friends, we shall go forth today.'
+    const long = LONG
     const { engine, tts } = setup([S[0], S[1], S[2], S[3], S[4], S[5], long, S[1]])
     engine.play()
     engine.setIndex(6)
-    expect(tts.texts().slice(-3)).toEqual([
-      'Well then my friends,',
-      ' we shall go forth today.',
-      S[1]
-    ])
+    expect(tts.texts().slice(-(LONG_PIECES.length + 1))).toEqual([...LONG_PIECES, S[1]])
     for (const c of tts.calls) c.resolve(audio(1))
     await flush()
     const n = tts.calls.length
@@ -605,5 +603,128 @@ describe('PlayerEngine', () => {
     await flush()
     expect(engine.snapshot().phase).toBe('playing')
     expect(sink.sources).toHaveLength(3)
+  })
+  describe('progressive first clips', () => {
+    const wordsOf = (t: string): number => t.split(/\s+/).filter(Boolean).length
+    const long40 =
+      'When the morning light finally reached the valley the farmers began to gather near the old well and talk about the harvest, the weather, the price of grain, and the long road to the market town beyond.'
+
+    /**
+     * Virtual-time run: one serial worker at the given RTF, clip audio = words x 0.35 s, real-time
+     * playback. Returns the first-audio time and every silent gap between consecutive clips.
+     */
+    async function simulate(
+      texts: string[],
+      rtf: number,
+      act: (e: PlayerEngine) => void
+    ): Promise<{ first: number; gaps: number[]; pieces: string[] }> {
+      const sink = new FakeSink()
+      const tts = new FakeTts()
+      const durs = new Map<string, number>()
+      let n = 0
+      const engine = new PlayerEngine(
+        {
+          sink,
+          tts,
+          makeUrl: (wav) => {
+            const u = `blob:${++n}`
+            durs.set(u, (wav.byteLength - 44) / 2 / 24000)
+            return u
+          },
+          revokeUrl: () => undefined
+        },
+        'v1',
+        1
+      )
+      engine.setSentences(texts, 0)
+      let now = 0
+      let workerFree = 0
+      let served = 0
+      let playEnd: number | null = null // when the playing clip ends
+      let lastEnd = 0 // when the previous clip ended
+      let first = -1
+      const gaps: number[] = []
+      const setSource = sink.setSource.bind(sink)
+      sink.setSource = (u: string): void => {
+        setSource(u)
+        if (first < 0) first = now
+        else gaps.push(now - lastEnd)
+        playEnd = now + (durs.get(u) ?? 0)
+      }
+      const pieceCount = progressiveClips(texts[texts.indexOf(long40)], { growth: 1 }).length
+      act(engine)
+      const pieces = tts.texts().slice(0, pieceCount)
+      for (let guard = 0; guard < 200 && sink.sources.length < pieceCount; guard++) {
+        const call = tts.calls[served]
+        const synthDone = call
+          ? Math.max(workerFree, now) + wordsOf(call.text) * 0.35 * rtf
+          : Infinity
+        const endAt = playEnd ?? Infinity
+        if (synthDone <= endAt) {
+          now = synthDone
+          workerFree = synthDone
+          const sec = wordsOf(call.text) * 0.35
+          call.resolve({
+            pcm: new Float32Array(Math.round(sec * 24000)),
+            sampleRate: 24000,
+            synthMs: sec * rtf * 1000,
+            chunks: 1
+          })
+          served += 1
+        } else {
+          now = endAt
+          lastEnd = endAt
+          playEnd = null
+          sink.triggerEnded()
+        }
+        await flush()
+      }
+      return { first, gaps, pieces }
+    }
+
+    it('no silent gap over 1 s after Play on a 40-word sentence at RTF 1.0', async () => {
+      const { first, gaps, pieces } = await simulate([long40, ...S], 1.0, (e) => e.play())
+      expect(pieces.length).toBeGreaterThan(2)
+      expect(pieces.join('')).toBe(long40)
+      expect(wordsOf(pieces[0])).toBeLessThanOrEqual(8)
+      expect(first).toBeLessThan(4) // first clip is short
+      expect(gaps.length).toBe(pieces.length - 1)
+      for (const g of gaps) expect(g).toBeLessThanOrEqual(1)
+    })
+
+    it('the same after a seek onto the sentence', async () => {
+      const { gaps, pieces } = await simulate([S[0], long40, ...S], 1.0, (e) => {
+        e.play()
+        e.setIndex(1)
+      })
+      void pieces
+      for (const g of gaps) expect(g).toBeLessThanOrEqual(1)
+    })
+
+    it('clip bookkeeping spans n clips: offset sums finished clips, skip lands in the sentence', async () => {
+      const { engine, sink, tts } = setup([long40, 'Second one here.'])
+      engine.play()
+      const np = progressiveClips(long40, { growth: 1 }).length
+      expect(np).toBeGreaterThan(2)
+      for (let k = 0; k < np; k++) tts.calls[k].resolve(audio(2))
+      await flush()
+      sink.currentTime = 0
+      sink.triggerEnded()
+      sink.currentTime = 0.5
+      expect(engine.offsetSec()).toBeCloseTo(2.5, 5)
+      sink.triggerEnded()
+      sink.currentTime = 0
+      expect(engine.offsetSec()).toBeCloseTo(4, 5)
+      expect(engine.snapshot().index).toBe(0)
+    })
+
+    it('a failed later clip of the playing sentence is raised, a prefetched one only on reaching it (R37)', async () => {
+      const { engine, tts } = setup([S[0], long40])
+      engine.play()
+      const nFirst = 1
+      tts.calls[nFirst].reject(new Error('boom')) // a clip of sentence 1 (prefetched)
+      await flush()
+      expect(engine.snapshot().phase).not.toBe('error')
+    })
   })
 })

@@ -1,7 +1,7 @@
 import type { TtsAudio, TtsStatus } from '../../../shared/ipc-types'
 import { isAbortError } from '../../../shared/abort'
 import { SAMPLE_RATE } from '../../../shared/pcm'
-import { firstClips } from './clips'
+import { progressiveClips } from './clips'
 import { Timeline } from './timeline'
 import { pcmToWav } from './wav'
 
@@ -56,7 +56,12 @@ export interface EngineDeps {
 const AHEAD = 3
 /** Sentences of made audio kept (the current one, those ahead, and those just played). */
 const CACHE_MAX = 8
-/** The first clip after play, a seek or a voice change is cut at a clause boundary this early. */
+/**
+ * The sentence playback (re)starts at is cut into progressively larger clips: the first has at most
+ * this many words, so the first audio comes early, and each next one is only as much larger as the
+ * measured synthesis speed allows (see `clipGrowth`), so no clip is still being made when the
+ * one before it ends.
+ */
 const FIRST_CLIP_WORDS = 8
 
 /** Never reused for the life of the app: the TTS worker never forgets a cancelled gen. */
@@ -106,6 +111,8 @@ export class PlayerEngine {
   private cur = { i: 0, p: 0 }
   private clipLoaded = false
   private status: TtsStatus = 'ready'
+  /** Synthesis time per second of audio, smoothed over the clips made so far; 1 until measured. */
+  private rtf = 1
   private restartPending = false
   private listeners = new Set<(s: PlayerSnapshot) => void>()
   private unsubStatus: () => void
@@ -358,7 +365,7 @@ export class PlayerEngine {
   private request(i: number, front = false): void {
     const pieces =
       i === this.firstIdx
-        ? firstClips(this.texts[i], { maxFirstWords: FIRST_CLIP_WORDS })
+        ? progressiveClips(this.texts[i], { firstWords: FIRST_CLIP_WORDS, growth: 1 / this.rtf })
         : [this.texts[i]]
     genCounter += 1
     const entry: Entry = {
@@ -393,6 +400,9 @@ export class PlayerEngine {
     if (this.disposed || this.entries.get(i) !== entry) return
     entry.pending -= 1
     entry.secs[p] = audio.pcm.length / SAMPLE_RATE
+    if (entry.secs[p] > 0 && audio.synthMs > 0) {
+      this.rtf = 0.5 * this.rtf + 0.5 * (audio.synthMs / 1000 / entry.secs[p])
+    }
     entry.urls[p] = this.deps.makeUrl(pcmToWav(audio.pcm, SAMPLE_RATE))
     if (entry.secs.every((s) => s !== undefined)) {
       this.tl.record(
