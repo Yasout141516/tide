@@ -410,7 +410,9 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 :root[data-theme='pixel-quest'] {
   --focus-ring: var(--primary-deep);
 }
-:focus-visible:not([role='dialog']):not([role='menu']):not([role='listbox']) {
+:focus-visible:not([role='dialog']):not([role='menu']):not([role='listbox']):not(
+    [role='menuitem']
+  ):not([role='menuitemradio']):not([role='menuitemcheckbox']) {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -420,7 +422,16 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   --focus-ring: var(--bg);
 }
 
-/* Pixel Quest's gold ring is 1.37:1 on the cream page; the floating Back to reading button sits on it. */
+/* Menu items show --soft fill (data-highlighted) as their keyboard indicator, so they skip the ring. */
+
+/*
+ * Pixel Quest's gold ring is 1.37:1 on the cream page, and the dark --border ring is 1.35:1 on the dark
+ * stage; the floating Back to reading button sits on both. Two tones: a cream outline (13.3:1 on the stage)
+ * over a dark halo (18:1 on the page), so one tone always separates from whichever background is behind.
+ */
 :root[data-theme='pixel-quest'] .on-page-float {
-  --focus-ring: var(--border);
+  --focus-ring: var(--page);
+}
+:root[data-theme='pixel-quest'] .on-page-float:focus-visible {
+  box-shadow: 0 0 0 4px var(--border);
 }

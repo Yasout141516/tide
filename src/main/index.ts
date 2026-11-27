@@ -246,8 +246,11 @@ app.whenReady().then(async () => {
     configureAboutPanel()
     Menu.setApplicationMenu(
       buildMenu(send, {
-        about: () => void showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow),
-        licences: () => void openNotice()
+        about: () =>
+          showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow).catch((err) =>
+            logError('about dialog failed', err)
+          ),
+        licences: () => openNotice().catch((err) => logError('licences failed to open', err))
       })
     )
     // The window's own background follows the stored theme (and the OS, for 'system') while running.

@@ -43,11 +43,11 @@ extraResources:
     filter:
       - '**/*.json'
       - '**/onnx/model.onnx'
-  # Licences, readable from About > View licences.
+  # Licences, readable from About > View licences. Shipped as .txt so every Windows install can open them.
   - from: NOTICE.md
-    to: NOTICE.md
+    to: NOTICE.txt
   - from: LICENSE
-    to: LICENSE
+    to: LICENSE.txt
 mac:
   target:
     - target: dmg

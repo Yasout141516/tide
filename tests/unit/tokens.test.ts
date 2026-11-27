@@ -278,10 +278,25 @@ describe('keyboard focus ring', () => {
   it('bubble surfaces (the toast) scope --focus-ring to --bg', () => {
     expect(mainCss).toMatch(/\.on-bubble\s*\{[^}]*--focus-ring:\s*var\(--bg\)/)
   })
-  it('Pixel Quest scopes the floating Back to reading ring to --border', () => {
+  it('Pixel Quest gives the floating Back to reading a two-tone ring: --page outline over a --border halo', () => {
     expect(mainCss).toMatch(
-      /\[data-theme=['"]pixel-quest['"]\]\s*\.on-page-float\s*\{[^}]*--focus-ring:\s*var\(--border\)/
+      /\[data-theme=['"]pixel-quest['"]\]\s*\.on-page-float\s*\{[^}]*--focus-ring:\s*var\(--page\)/
     )
+    expect(mainCss).toMatch(
+      /\.on-page-float:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 4px var\(--border\)/
+    )
+    const b = block('pixel-quest')
+    // One tone separates from each background behind the button, and the tones differ from each other.
+    for (const k of ['page', 'stage-a', 'stage-b', 'stage-c'])
+      expect(
+        Math.max(contrast(b['page'], b[k]), contrast(b['border'], b[k])),
+        `pixel-quest ${k}`
+      ).toBeGreaterThanOrEqual(3)
+    expect(contrast(b['page'], b['border'])).toBeGreaterThanOrEqual(3)
+  })
+  it('menu items are excluded from the global ring (their --soft fill is the indicator)', () => {
+    for (const role of ['menuitem', 'menuitemradio', 'menuitemcheckbox'])
+      expect(mainCss.replace(/\s+/g, '')).toContain(`:not([role='${role}'])`)
   })
   it.each(['sky-sea', 'deep-sea', 'pixel-quest', 'kitty'])(
     '%s focus colour is at least 3:1 against its backgrounds',
@@ -293,9 +308,11 @@ describe('keyboard focus ring', () => {
       expect(contrast(b['bg'], b['bubble']), `${theme} bubble`).toBeGreaterThanOrEqual(3)
       for (const k of ['bg', 'surface', 'shelf-a'])
         expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
-      // The floating Back to reading button sits on the page; Pixel Quest scopes its ring to --border.
-      const pageRing = pq ? b['border'] : ring
-      expect(contrast(pageRing, b['page']), `${theme} page`).toBeGreaterThanOrEqual(3)
+      // The floating Back to reading button sits on the page and (Pixel Quest) the stage; its ring is two-tone
+      // there (tested above), so only the other themes' single ring is checked against both.
+      if (!pq)
+        for (const k of ['page', 'stage-a', 'stage-b', 'stage-c'])
+          expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
     }
   )
 })

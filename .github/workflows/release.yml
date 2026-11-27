@@ -74,9 +74,39 @@ jobs:
           path: ffmpeg-source/
           if-no-files-found: error
 
+  # Both matrix legs publish with electron-builder, which looks up a draft by tag and creates one if none
+  # exists; two legs starting together can each create one. Creating the draft once here, first, makes
+  # electron-builder (GitHubPublisher.getOrCreateRelease) reuse it: it takes the first release whose
+  # tag_name is the tag and which is a draft. Tag runs only; a dispatch run publishes nothing.
+  create-draft:
+    name: create draft release
+    if: github.ref_type == 'tag'
+    needs: ffmpeg-source-fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # creates the draft release
+    steps:
+      - name: Create the draft release if none exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="$GITHUB_REPOSITORY"
+          existing=$(gh api "repos/$repo/releases" --paginate \
+            | jq -r --arg t "$GITHUB_REF_NAME" '.[] | select(.tag_name==$t) | .id')
+          if [ -n "$existing" ]; then
+            echo "A release for $GITHUB_REF_NAME already exists (id $existing); not creating another"
+            exit 0
+          fi
+          gh api -X POST "repos/$repo/releases" \
+            -f tag_name="$GITHUB_REF_NAME" -f name="$GITHUB_REF_NAME" -F draft=true
+
   release:
     name: release (${{ matrix.os }})
-    needs: ffmpeg-source-fetch
+    needs: [ffmpeg-source-fetch, create-draft]
+    # create-draft is skipped on a manual (dispatch) run; always() lets this job run then, and the
+    # explicit results keep it from running when either upstream job failed.
+    if: always() && needs.ffmpeg-source-fetch.result == 'success' && (needs.create-draft.result == 'success' || needs.create-draft.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -160,14 +190,19 @@ jobs:
         # The draft is looked up by id (with retries): gh cannot reliably address an unpublished draft by tag.
         run: |
           repo="$GITHUB_REPOSITORY"
-          id=""
+          ids=""
           for attempt in 1 2 3 4 5 6; do
-            id=$(gh api "repos/$repo/releases" --paginate \
-              --jq '.[] | select(.tag_name=="'"$GITHUB_REF_NAME"'") | .id' | head -n1)
-            [ -n "$id" ] && break
+            ids=$(gh api "repos/$repo/releases" --paginate \
+              | jq -r --arg t "$GITHUB_REF_NAME" '.[] | select(.tag_name==$t) | .id')
+            [ -n "$ids" ] && break
             echo "Draft release for $GITHUB_REF_NAME not found (attempt $attempt); retrying"
             sleep 10
           done
+          id="$ids"
+          if [ "$(printf '%s\n' "$ids" | grep -c .)" -gt 1 ]; then
+            echo "::error::More than one release matches tag $GITHUB_REF_NAME ($(echo $ids)); delete the extras and re-run"
+            exit 1
+          fi
           if [ -z "$id" ]; then
             echo "::error::No release (draft) found for tag $GITHUB_REF_NAME; cannot attach the FFmpeg source"
             exit 1
@@ -176,7 +211,7 @@ jobs:
             f=$(basename "$path")
             # --clobber equivalent: delete an existing asset of the same name first
             old=$(gh api "repos/$repo/releases/$id/assets" --paginate \
-              --jq '.[] | select(.name=="'"$f"'") | .id')
+              | jq -r --arg f "$f" '.[] | select(.name==$f) | .id')
             for a in $old; do gh api -X DELETE "repos/$repo/releases/assets/$a"; done
             gh api -X POST "https://uploads.github.com/repos/$repo/releases/$id/assets?name=$f" \
               -H "Content-Type: application/octet-stream" --input "$path"

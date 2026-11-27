@@ -1,5 +1,6 @@
 import { join } from 'path'
 import { app, dialog, shell, type BrowserWindow } from 'electron'
+import { logError } from './log'
 import { resourcePath } from './paths'
 
 const BLURB = 'A calm, offline PDF read-aloud app.'
@@ -12,9 +13,9 @@ export function aboutText(version: string): { title: string; detail: string } {
   }
 }
 
-/** Packaged: NOTICE.md sits in the resources folder (extraResources). Dev: it is the repo-root file. */
+/** Packaged: NOTICE.txt (plain text, so it always opens) sits in the resources folder (extraResources). Dev: the repo-root NOTICE.md. */
 function noticePath(): string {
-  return app.isPackaged ? resourcePath('NOTICE.md') : join(__dirname, '..', '..', 'NOTICE.md')
+  return app.isPackaged ? resourcePath('NOTICE.txt') : join(__dirname, '..', '..', 'NOTICE.md')
 }
 
 /** Windows and Linux: a message box with a button that opens the bundled NOTICE file (local, no network). */
@@ -38,7 +39,13 @@ export async function showAbout(win: BrowserWindow | null): Promise<void> {
 
 /** Opens the bundled NOTICE file (local, no network); used by About and Help > View licences. */
 export async function openNotice(): Promise<void> {
-  await shell.openPath(noticePath())
+  const path = noticePath()
+  // openPath resolves with an error string (it does not reject), e.g. when no app handles the file type.
+  const error = await shell.openPath(path)
+  if (error) {
+    logError('could not open the licences file', error)
+    shell.showItemInFolder(path)
+  }
 }
 
 /** macOS: the standard About panel, filled once at startup. */
@@ -47,7 +54,7 @@ export function configureAboutPanel(): void {
     applicationName: 'Tide',
     applicationVersion: app.getVersion(),
     version: '',
-    credits: `${BLURB} The voice (Kokoro-82M) runs on this computer. ${GPL}; includes FFmpeg (GPL). See NOTICE.md in the app resources for licences.`,
+    credits: `${BLURB} The voice (Kokoro-82M) runs on this computer. ${GPL}; includes FFmpeg (GPL). See NOTICE.txt in the app resources for licences.`,
     copyright: GPL
   })
 }
