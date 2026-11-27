@@ -28,6 +28,20 @@ files:
   - '!node_modules/kokoro-js/voices/!(af_kore|af_nicole|af_sarah|am_fenrir|am_michael|am_puck|bf_emma|bf_isabella|bm_fable|bm_george).bin'
   # sharp and its native @img/sharp-* binary stay: transformers.js imports sharp statically at load
   # time, and sharp throws when its native binary is missing (checked: kokoro-js then fails to load).
+  # Browser-only artefacts. Node resolves transformers.js via its package `exports` "node" condition
+  # to dist/transformers.node.mjs (kokoro-js imports it) or .cjs; the node build never loads the
+  # onnxruntime-web wasm, the web/plain builds, the minified duplicates, src/ or the type stubs.
+  - '!node_modules/@huggingface/transformers/dist/*.wasm'
+  - '!node_modules/@huggingface/transformers/dist/*.jsep.mjs'
+  - '!node_modules/@huggingface/transformers/dist/transformers.{js,web.js,web.min.js,min.js}'
+  - '!node_modules/@huggingface/transformers/dist/transformers.node.min.*'
+  - '!node_modules/@huggingface/transformers/{src,types}/**'
+  # Source maps and type stubs are never read at runtime.
+  - '!node_modules/**/*.map'
+  - '!node_modules/**/*.d.ts'
+  # DirectML.dll is only loaded when the DirectML execution provider is requested; Tide is CPU-only
+  # (src/tts/worker.ts device 'cpu') and onnxruntime.dll does not import it.
+  - '!node_modules/onnxruntime-node/bin/napi-v*/win32/*/DirectML.dll'
 # Runtime modules that read their own files from disk (kokoro-js voices) or ship native
 # binaries (onnxruntime-node, ffmpeg-static) must exist outside the asar archive.
 asarUnpack:
@@ -83,3 +97,8 @@ publish:
   releaseType: draft
 # All native deps are N-API prebuilds; nothing to rebuild against Electron's headers.
 npmRebuild: false
+# NSIS LZMA at maximum; dmg becomes UDBZ (bzip2) instead of UDZO.
+compression: maximum
+# The app is English-only: drop the other Chromium locale paks (win) and .lproj folders (mac).
+electronLanguages:
+  - en-US
