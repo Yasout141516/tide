@@ -29,7 +29,7 @@ export function EmptyState({ onAdd, platform }: Props): React.JSX.Element {
         ＋ Add your first reading
       </button>
       {platform === 'darwin' ? (
-        <div className="mt-[18px] max-w-[380px] rounded-xl border border-dashed border-border bg-surface px-3.5 py-2.5 text-[13px] leading-normal text-muted">
+        <div className="mt-[18px] max-w-[380px] rounded-xl border border-dashed border-border bg-surface px-3.5 py-2.5 text-[12.5px] leading-normal text-muted">
           <b>Tip:</b> you can also right-click any PDF in Finder and choose <b>Open With → Tide</b>.
         </div>
       ) : null}

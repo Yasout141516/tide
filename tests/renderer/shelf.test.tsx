@@ -139,4 +139,10 @@ describe('EmptyState', () => {
     render(<EmptyState onAdd={() => {}} platform="darwin" />)
     expect(screen.getByText(/right-click any PDF in Finder/)).toBeTruthy()
   })
+
+  it('the Finder tip is set at the mockup size (12.5px)', () => {
+    render(<EmptyState onAdd={() => {}} platform="darwin" />)
+    const tip = screen.getByText(/right-click any PDF in Finder/)
+    expect(tip.className).toContain('text-[12.5px]')
+  })
 })
