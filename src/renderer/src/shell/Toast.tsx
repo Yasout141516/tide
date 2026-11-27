@@ -29,7 +29,7 @@ const NONE: ToastApi = { show: () => 0, dismiss: () => {} }
 const ToastCtx = createContext<ToastApi>(NONE)
 
 const actionButton =
-  'min-h-9 cursor-pointer rounded-[10px] border-0 bg-transparent px-3 font-sans text-[13px] font-extrabold text-on-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-primary'
+  'min-h-9 cursor-pointer rounded-[10px] border-0 bg-transparent px-3 font-sans text-[13px] font-extrabold text-on-primary'
 
 /** Shows one toast at a time, bottom-centre above the player. */
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
@@ -81,7 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
         {toast ? (
           <div
             key={toast.key}
-            className="toast-in pointer-events-auto flex items-center gap-3.5 rounded-[14px] bg-bubble py-2.5 pr-3 pl-4 text-[13.5px] font-bold text-bg shadow-[0_12px_30px_var(--shadow)]"
+            className="on-bubble toast-in pointer-events-auto flex items-center gap-3.5 rounded-[14px] bg-bubble py-2.5 pr-3 pl-4 text-[13.5px] font-bold text-bg shadow-[0_12px_30px_var(--shadow)]"
           >
             {kitty && toast.text.startsWith('✓') ? (
               <PawPrint size={16} attr="data-toast-paw" />

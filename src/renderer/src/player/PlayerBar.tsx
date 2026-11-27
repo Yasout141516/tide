@@ -10,12 +10,10 @@ import { MochiPeek, PawToes, YarnBall } from '../theme/mascots/Mochi'
 import { SleepPopover } from './SleepPopover'
 import { VoicePopover } from './VoicePopover'
 
-const focus =
-  'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-const skipButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 bg-soft px-3.5 font-sans text-[12.5px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60 ${focus}`
-const playButton = `inline-flex min-h-[46px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-primary px-5 font-sans text-[14px] font-extrabold text-on-primary shadow-[0_4px_12px_var(--shadow)] disabled:cursor-default disabled:opacity-60 ${focus}`
+const skipButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 bg-soft px-3.5 font-sans text-[12.5px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60`
+const playButton = `inline-flex min-h-[46px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-primary px-5 font-sans text-[14px] font-extrabold text-on-primary shadow-[0_4px_12px_var(--shadow)] disabled:cursor-default disabled:opacity-60`
 
-const offerButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 px-3.5 font-sans text-[12.5px] font-extrabold ${focus}`
+const offerButton = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 px-3.5 font-sans text-[12.5px] font-extrabold`
 
 const WAVE =
   'M0 10 Q 12.5 1 25 10 T 50 10 T 75 10 T 100 10 T 125 10 T 150 10 T 175 10 T 200 10 T 225 10 T 250 10 T 275 10 T 300 10 T 325 10 T 350 10 T 375 10 T 400 10'

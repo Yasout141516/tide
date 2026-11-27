@@ -4,10 +4,8 @@ import { usePlayerActions, usePlayerState } from './PlayerContext'
 import { useTheme } from '../theme/theme'
 import { MochiHead, voiceCoat } from '../theme/mascots/Mochi'
 
-const focus =
-  'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-const trigger = `inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-[11px] border-0 bg-soft px-[13px] py-[9px] font-sans text-[13px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60 ${focus}`
-const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-soft px-3.5 font-sans text-[12.5px] font-extrabold text-soft-ink transition-colors duration-150 motion-reduce:transition-none hover:bg-primary hover:text-on-primary ${focus}`
+const trigger = `inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-[11px] border-0 bg-soft px-[13px] py-[9px] font-sans text-[13px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60`
+const listen = `inline-flex min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-soft px-3.5 font-sans text-[12.5px] font-extrabold text-soft-ink transition-colors duration-150 motion-reduce:transition-none hover:bg-primary hover:text-on-primary`
 
 /** The voice & speed button and its popover: ten voices with a Listen each, then five speeds. */
 export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Element {
@@ -41,7 +39,7 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
                     type="button"
                     aria-pressed={on}
                     onClick={() => setVoice(v.id)}
-                    className={`flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft text-soft-ink' : 'bg-transparent text-soft-ink hover:bg-soft'} ${focus}`}
+                    className={`flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft text-soft-ink' : 'bg-transparent text-soft-ink hover:bg-soft'}`}
                   >
                     {kitty ? <MochiHead size={30} coat={voiceCoat(v.id)} avatar /> : null}
                     <span className="flex min-w-0 flex-col items-start">
@@ -81,7 +79,7 @@ export function VoicePopover({ disabled }: { disabled: boolean }): React.JSX.Ele
                   role="radio"
                   aria-checked={on}
                   onClick={() => setSpeed(s)}
-                  className={`min-h-9 flex-1 cursor-pointer rounded-[10px] border-0 px-1 font-sans text-[12.5px] font-extrabold transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-primary text-on-primary' : 'bg-transparent text-soft-ink hover:bg-surface'} ${focus}`}
+                  className={`min-h-9 flex-1 cursor-pointer rounded-[10px] border-0 px-1 font-sans text-[12.5px] font-extrabold transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-primary text-on-primary' : 'bg-transparent text-soft-ink hover:bg-surface'}`}
                 >
                   {speedLabel(s)}
                 </button>

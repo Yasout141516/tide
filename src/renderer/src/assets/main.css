@@ -414,3 +414,8 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Inverted surfaces (the toast is --bubble with --bg text) ring in --bg, which has >= 3:1 on --bubble. */
+.on-bubble {
+  --focus-ring: var(--bg);
+}

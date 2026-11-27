@@ -1,5 +1,5 @@
 const gotIt =
-  'inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full border-0 bg-primary px-4 font-sans text-[13px] font-extrabold text-on-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+  'inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full border-0 bg-primary px-4 font-sans text-[13px] font-extrabold text-on-primary'
 
 /** The one-time hint, stuck near the top of the stage (so near the top of the first visible page). */
 export function SelectTip({ onGotIt }: { onGotIt(): void }): React.JSX.Element {

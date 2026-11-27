@@ -283,6 +283,9 @@ describe('keyboard focus ring', () => {
       expect(mainCss).toContain(
         theme === 'pixel-quest' ? 'var(--primary-deep)' : '--focus-ring: var(--primary)'
       )
+      // Bubble surfaces (the toast) scope --focus-ring to --bg.
+      expect(mainCss).toMatch(/\.on-bubble\s*\{[^}]*--focus-ring:\s*var\(--bg\)/)
+      expect(contrast(b['bg'], b['bubble']), `${theme} bubble`).toBeGreaterThanOrEqual(3)
       for (const k of ['bg', 'surface', 'shelf-a'])
         expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
     }

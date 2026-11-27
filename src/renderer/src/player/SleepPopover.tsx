@@ -6,9 +6,7 @@ import { themeCopy } from '../theme/copy'
 import { SleepyKitten } from '../theme/mascots/Mochi'
 import { SLEEP_CHOICES, sleepLabel } from './sleep'
 
-const focus =
-  'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-const trigger = `inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-[11px] border-0 bg-soft px-[13px] py-[9px] font-sans text-[13px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60 ${focus}`
+const trigger = `inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-[11px] border-0 bg-soft px-[13px] py-[9px] font-sans text-[13px] font-extrabold text-soft-ink disabled:cursor-default disabled:opacity-60`
 
 /** The Sleep button, showing the live countdown, and its popover of stop-after choices. */
 export function SleepPopover({ disabled }: { disabled: boolean }): React.JSX.Element {
@@ -56,7 +54,7 @@ export function SleepPopover({ disabled }: { disabled: boolean }): React.JSX.Ele
                     setSleep(c.option)
                     setOpen(false)
                   }}
-                  className={`flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans text-[13.5px] font-extrabold text-soft-ink transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft' : 'bg-transparent hover:bg-soft'} ${focus}`}
+                  className={`flex min-h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-[12px] border-0 px-3 py-1.5 text-left font-sans text-[13.5px] font-extrabold text-soft-ink transition-colors duration-150 motion-reduce:transition-none ${on ? 'bg-soft' : 'bg-transparent hover:bg-soft'}`}
                 >
                   <span>{c.label}</span>
                   {on ? (

@@ -9,7 +9,7 @@ const BUBBLE_HEIGHT = 48
 const GAP = 8
 const HALF_WIDTH = 140
 const button =
-  'inline-flex min-h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 px-4 font-sans text-[13px] font-extrabold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+  'inline-flex min-h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border-0 px-4 font-sans text-[13px] font-extrabold'
 
 /**
  * Two actions for the selected text, below its last line (above it when there is no room). A press on the
