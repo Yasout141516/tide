@@ -69,13 +69,6 @@ for (const [label, theme] of [
   ['Deep Sea', 'deep-sea']
 ] as const) {
   test(`every control is reachable by Tab with a visible focus indicator in ${label}`, async () => {
-    // KNOWN GAP (docs/acceptance-v1.md, spec 8 keyboard row): the player's controls use Tailwind 4
-    // `outline-none focus-visible:outline-2`, and outline-none leaves --tw-outline-style: none, so
-    // focus-visible:outline-2 draws nothing. Remove this line once the player focus ring is fixed.
-    test.fail(
-      true,
-      'player controls show no focus indicator (outline-none + focus-visible:outline-2)'
-    )
     const app = await launchTide()
     try {
       const win = await app.firstWindow()

@@ -269,3 +269,22 @@ describe('design tokens', () => {
   it('Sky & Sea tokens match spec 5.2', () => expect(block('sky-sea')).toEqual(lower(SKY)))
   it('Deep Sea tokens match spec 5.2', () => expect(block('deep-sea')).toEqual(lower(DEEP)))
 })
+
+describe('keyboard focus ring', () => {
+  const mainCss = readFileSync(resolve(__dirname, '../../src/renderer/src/assets/main.css'), 'utf8')
+  it('main.css has one :focus-visible rule drawing a solid token-coloured outline', () => {
+    expect(mainCss).toMatch(/:focus-visible[^{]*\{[^}]*outline:\s*2px solid var\(--focus-ring\)/)
+  })
+  it.each(['sky-sea', 'deep-sea', 'pixel-quest', 'kitty'])(
+    '%s focus colour is at least 3:1 against its backgrounds',
+    (theme) => {
+      const b = block(theme)
+      const ring = theme === 'pixel-quest' ? b['primary-deep'] : b['primary']
+      expect(mainCss).toContain(
+        theme === 'pixel-quest' ? 'var(--primary-deep)' : '--focus-ring: var(--primary)'
+      )
+      for (const k of ['bg', 'surface', 'shelf-a'])
+        expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
+    }
+  )
+})

@@ -397,3 +397,20 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 .kt-line {
   font-weight: 600;
 }
+
+/*
+ * Keyboard focus ring for every control (spec 8). One rule, unlayered, so it wins over Tailwind's
+ * `outline-none` (which leaves --tw-outline-style: none and makes `focus-visible:outline-2` draw nothing).
+ * :focus-visible only, so a mouse click shows no ring. The colour is a token with >= 3:1 against the
+ * theme's backgrounds; Pixel Quest's primary is too dim on its dark blues, so it uses its gold.
+ */
+:root {
+  --focus-ring: var(--primary);
+}
+:root[data-theme='pixel-quest'] {
+  --focus-ring: var(--primary-deep);
+}
+:focus-visible:not([role='dialog']):not([role='menu']):not([role='listbox']) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
