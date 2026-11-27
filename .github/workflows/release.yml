@@ -5,13 +5,8 @@ name: Release
 on:
   push:
     tags: ['v*']
-  # Dry run: builds both installers without publishing anything (artifacts only).
+  # Dry run: a manual run never publishes; it builds both installers and uploads workflow artifacts only.
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Informational - a manual run never publishes; it builds and uploads workflow artifacts only
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -26,27 +21,35 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check the tag matches package.json
+        if: github.ref_type == 'tag'
+        run: |
+          expected="v$(jq -r .version package.json)"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version (expected $expected)"
+            exit 1
+          fi
+
+      - name: Check the pinned FFmpeg source matches ffmpeg-static
+        run: |
+          locked=$(jq -r '.packages["node_modules/ffmpeg-static"].version' package-lock.json)
+          pinned=$(jq -r .ffmpegStatic.version scripts/ffmpeg-source.json)
+          if [ "$locked" != "$pinned" ]; then
+            echo "::error::package-lock.json has ffmpeg-static $locked but scripts/ffmpeg-source.json pins $pinned; update the pinned FFmpeg source"
+            exit 1
+          fi
+
       - name: Download and verify the pinned FFmpeg source
         run: |
-          url=$(jq -r .url scripts/ffmpeg-source.json)
-          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
-          file=$(jq -r .tarball scripts/ffmpeg-source.json)
-          curl -fsSL --retry 3 -o "$file" "$url"
-          echo "$sha  $file" | sha256sum -c -
+          eval "$(jq -r '@sh "url=\(.url) sha=\(.sha256) file=\(.tarball)"' scripts/ffmpeg-source.json)"
+          mkdir ffmpeg-source
+          curl -fsSL --retry 3 -o "ffmpeg-source/$file" "$url"
+          (cd ffmpeg-source && echo "$sha  $file" | sha256sum -c -)
 
       - name: Write FFMPEG-SOURCE.md
         run: |
-          ver=$(jq -r .ffmpegVersion scripts/ffmpeg-source.json)
-          file=$(jq -r .tarball scripts/ffmpeg-source.json)
-          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
-          url=$(jq -r .url scripts/ffmpeg-source.json)
-          sver=$(jq -r .ffmpegStatic.version scripts/ffmpeg-source.json)
-          stag=$(jq -r .ffmpegStatic.releaseTag scripts/ffmpeg-source.json)
-          surl=$(jq -r .ffmpegStatic.releaseUrl scripts/ffmpeg-source.json)
-          spkg=$(jq -r .ffmpegStatic.package scripts/ffmpeg-source.json)
-          win=$(jq -r .builders.windowsX64 scripts/ffmpeg-source.json)
-          mac=$(jq -r .builders.macosArm64 scripts/ffmpeg-source.json)
-          cat > FFMPEG-SOURCE.md <<EOF
+          eval "$(jq -r '@sh "ver=\(.ffmpegVersion) file=\(.tarball) sha=\(.sha256) url=\(.url) sver=\(.ffmpegStatic.version) stag=\(.ffmpegStatic.releaseTag) surl=\(.ffmpegStatic.releaseUrl) spkg=\(.ffmpegStatic.package) win=\(.builders.windowsX64) mac=\(.builders.macosArm64)"' scripts/ffmpeg-source.json)"
+          cat > ffmpeg-source/FFMPEG-SOURCE.md <<EOF
           # FFmpeg source for Tide
 
           The \`ffmpeg\` program bundled with Tide is FFmpeg $ver, taken from the npm package
@@ -61,16 +64,14 @@ jobs:
           - Windows x64: $win
           - macOS Apple Silicon (arm64): $mac
           EOF
-          cat FFMPEG-SOURCE.md
+          cat ffmpeg-source/FFMPEG-SOURCE.md
 
       # Handed to the attach job (tag runs) and kept as the dry-run artifact (dispatch runs).
       - name: Upload source files
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-source
-          path: |
-            ffmpeg-6.1.1.tar.xz
-            FFMPEG-SOURCE.md
+          path: ffmpeg-source/
           if-no-files-found: error
 
   release:
@@ -100,6 +101,15 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Before npm ci: the Electron binary is downloaded by its postinstall.
+      - name: Restore Electron and electron-builder download caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.os == 'macOS' && '~/Library/Caches/electron' || '~\AppData\Local\electron\Cache' }}
+            ${{ runner.os == 'macOS' && '~/Library/Caches/electron-builder' || '~\AppData\Local\electron-builder\Cache' }}
+          key: electron-dl-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - run: npm ci
 
       - name: Restore Kokoro model cache
@@ -113,15 +123,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-      - name: Build and publish to a draft release
-        if: github.event_name != 'workflow_dispatch'
+      # A tag run publishes to a draft release (needs GH_TOKEN); a manual run builds only.
+      - name: Build (and publish to a draft release on a tag)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-vite build && npx electron-builder --publish always
-
-      - name: Build (dry run, nothing published)
-        if: github.event_name == 'workflow_dispatch'
-        run: npx electron-vite build && npx electron-builder --publish never
+          GH_TOKEN: ${{ github.event_name != 'workflow_dispatch' && secrets.GITHUB_TOKEN || '' }}
+        run: npx electron-vite build && npx electron-builder --publish ${{ github.event_name == 'workflow_dispatch' && 'never' || 'always' }}
 
       - name: Upload installers (dry run)
         if: github.event_name == 'workflow_dispatch'
@@ -145,15 +151,19 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ffmpeg-source
+          path: ffmpeg-source
 
       - name: Attach to the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # The first real v* tag is the first live test of this step (a dry run skips it).
+        # The draft is looked up by id (with retries): gh cannot reliably address an unpublished draft by tag.
         run: |
+          repo="$GITHUB_REPOSITORY"
           id=""
           for attempt in 1 2 3 4 5 6; do
-            id=$(gh api "repos/${{ github.repository }}/releases" --paginate               --jq '.[] | select(.tag_name=="'"$GITHUB_REF_NAME"'") | .id' | head -n1)
+            id=$(gh api "repos/$repo/releases" --paginate \
+              --jq '.[] | select(.tag_name=="'"$GITHUB_REF_NAME"'") | .id' | head -n1)
             [ -n "$id" ] && break
             echo "Draft release for $GITHUB_REF_NAME not found (attempt $attempt); retrying"
             sleep 10
@@ -162,9 +172,12 @@ jobs:
             echo "::error::No release (draft) found for tag $GITHUB_REF_NAME; cannot attach the FFmpeg source"
             exit 1
           fi
-          for f in ffmpeg-6.1.1.tar.xz FFMPEG-SOURCE.md; do
+          for path in ffmpeg-source/*; do
+            f=$(basename "$path")
             # --clobber equivalent: delete an existing asset of the same name first
-            old=$(gh api "repos/${{ github.repository }}/releases/$id/assets" --paginate               --jq '.[] | select(.name=="'"$f"'") | .id')
-            for a in $old; do gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$a"; done
-            gh api -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=$f"               -H "Content-Type: application/octet-stream" --input "$f"
+            old=$(gh api "repos/$repo/releases/$id/assets" --paginate \
+              --jq '.[] | select(.name=="'"$f"'") | .id')
+            for a in $old; do gh api -X DELETE "repos/$repo/releases/assets/$a"; done
+            gh api -X POST "https://uploads.github.com/repos/$repo/releases/$id/assets?name=$f" \
+              -H "Content-Type: application/octet-stream" --input "$path"
           done
