@@ -50,13 +50,19 @@ describe('buildMenu', () => {
   })
 
   it('on win32 Help ends with a separator and About Tide, which calls the handler', () => {
-    const about = vi.fn()
-    const all = items(about)
-    const idx = all.findIndex((i) => i.label === 'About Tide')
-    expect(idx).toBeGreaterThan(0)
-    expect(all[idx - 1].type).toBe('separator')
-    ;(all[idx].click as () => void)()
-    expect(about).toHaveBeenCalledTimes(1)
+    const orig = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    try {
+      const about = vi.fn()
+      const all = items(about)
+      const idx = all.findIndex((i) => i.label === 'About Tide')
+      expect(idx).toBeGreaterThan(0)
+      expect(all[idx - 1].type).toBe('separator')
+      ;(all[idx].click as () => void)()
+      expect(about).toHaveBeenCalledTimes(1)
+    } finally {
+      Object.defineProperty(process, 'platform', { value: orig })
+    }
   })
 
   it('on darwin there is no extra About Tide item (the app menu has role about)', () => {

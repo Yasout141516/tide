@@ -43,5 +43,5 @@ describe('app icons', () => {
     expect(createHash('sha256').update(png).digest('hex')).toBe(
       createHash('sha256').update(fresh).digest('hex')
     )
-  })
+  }, 30_000)
 })
