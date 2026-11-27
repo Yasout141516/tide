@@ -11,7 +11,8 @@ import { buildExportSpec, exportSentences, TOO_LONG_MESSAGE, tooLongForOneFile }
 
 type Kind = 'selection' | 'pages' | 'whole'
 
-const field = `rounded-[10px] border border-border bg-bg px-2.5 py-1.5 font-sans text-[13px] text-ink`
+const field =
+  'rounded-[10px] border border-border bg-bg px-2.5 py-1.5 font-sans text-[13px] text-ink'
 const row =
   'flex min-h-9 items-center gap-2 rounded-[11px] px-1 py-1 text-[13.5px] font-semibold text-ink'
 const small = 'ml-auto text-[12px] font-semibold text-muted'
@@ -248,7 +249,7 @@ export function SavePanel({
               <button
                 type="button"
                 onClick={() => setMp3Whole((v) => !v)}
-                className={`cursor-pointer border-0 bg-transparent p-0 font-sans text-[12.5px] font-extrabold text-primary underline`}
+                className="cursor-pointer border-0 bg-transparent p-0 font-sans text-[12.5px] font-extrabold text-primary underline"
               >
                 {mp3Whole ? 'Save as audiobook instead' : 'Save as MP3 instead'}
               </button>
@@ -280,7 +281,7 @@ export function SavePanel({
             <button
               type="button"
               onClick={onCancel}
-              className={`min-h-9 cursor-pointer rounded-[11px] border-0 bg-soft px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-soft-ink`}
+              className="min-h-9 cursor-pointer rounded-[11px] border-0 bg-soft px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-soft-ink"
             >
               Cancel
             </button>
@@ -288,7 +289,7 @@ export function SavePanel({
               type="button"
               disabled={spoken.length === 0 || tooLong}
               onClick={save}
-              className={`btn-primary min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60`}
+              className="btn-primary min-h-9 cursor-pointer rounded-[11px] border-0 bg-primary px-[18px] py-[11px] font-sans text-[13.5px] font-extrabold text-on-primary disabled:cursor-default disabled:opacity-60"
             >
               ↓ Save audio
             </button>

@@ -275,25 +275,26 @@ describe('keyboard focus ring', () => {
   it('main.css has one :focus-visible rule drawing a solid token-coloured outline', () => {
     expect(mainCss).toMatch(/:focus-visible[^{]*\{[^}]*outline:\s*2px solid var\(--focus-ring\)/)
   })
+  it('bubble surfaces (the toast) scope --focus-ring to --bg', () => {
+    expect(mainCss).toMatch(/\.on-bubble\s*\{[^}]*--focus-ring:\s*var\(--bg\)/)
+  })
+  it('Pixel Quest scopes the floating Back to reading ring to --border', () => {
+    expect(mainCss).toMatch(
+      /\[data-theme=['"]pixel-quest['"]\]\s*\.on-page-float\s*\{[^}]*--focus-ring:\s*var\(--border\)/
+    )
+  })
   it.each(['sky-sea', 'deep-sea', 'pixel-quest', 'kitty'])(
     '%s focus colour is at least 3:1 against its backgrounds',
     (theme) => {
+      const pq = theme === 'pixel-quest'
       const b = block(theme)
-      const ring = theme === 'pixel-quest' ? b['primary-deep'] : b['primary']
-      expect(mainCss).toContain(
-        theme === 'pixel-quest' ? 'var(--primary-deep)' : '--focus-ring: var(--primary)'
-      )
-      // Bubble surfaces (the toast) scope --focus-ring to --bg.
-      expect(mainCss).toMatch(/\.on-bubble\s*\{[^}]*--focus-ring:\s*var\(--bg\)/)
+      const ring = pq ? b['primary-deep'] : b['primary']
+      expect(mainCss).toContain(pq ? 'var(--primary-deep)' : '--focus-ring: var(--primary)')
       expect(contrast(b['bg'], b['bubble']), `${theme} bubble`).toBeGreaterThanOrEqual(3)
       for (const k of ['bg', 'surface', 'shelf-a'])
         expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
       // The floating Back to reading button sits on the page; Pixel Quest scopes its ring to --border.
-      const pageRing = theme === 'pixel-quest' ? b['border'] : ring
-      if (theme === 'pixel-quest')
-        expect(mainCss).toMatch(
-          /\[data-theme=['"]pixel-quest['"]\]\s*\[data-back-to-reading\]\s*\{[^}]*--focus-ring:\s*var\(--border\)/
-        )
+      const pageRing = pq ? b['border'] : ring
       expect(contrast(pageRing, b['page']), `${theme} page`).toBeGreaterThanOrEqual(3)
     }
   )

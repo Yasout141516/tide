@@ -12,7 +12,7 @@ type Props = {
 }
 
 export const menuItemClass =
-  'flex min-h-9 cursor-pointer items-center rounded-[10px] px-3 py-2 font-sans text-[13px] font-semibold text-ink outline-none data-[highlighted]:bg-soft data-[highlighted]:text-soft-ink'
+  'flex min-h-9 cursor-pointer items-center rounded-[10px] px-3 py-2 font-sans text-[13px] font-semibold text-ink data-[highlighted]:bg-soft data-[highlighted]:text-soft-ink'
 
 export function ReadingMenu({ reading, onRename, onRemove, extraItems }: Props): React.JSX.Element {
   return (
