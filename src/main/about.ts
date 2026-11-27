@@ -2,14 +2,13 @@ import { join } from 'path'
 import { app, dialog, shell, type BrowserWindow } from 'electron'
 import { resourcePath } from './paths'
 
-export function aboutText(o: { version: string; electron: string; platform: NodeJS.Platform }): {
-  title: string
-  detail: string
-} {
+const BLURB = 'A calm, offline PDF read-aloud app.'
+const GPL = 'Free software under the GNU GPL v3'
+
+export function aboutText(version: string): { title: string; detail: string } {
   return {
-    title: `Tide ${o.version}`,
-    detail:
-      'A calm, offline PDF read-aloud app.\nThe voice (Kokoro-82M) runs on this computer; nothing is sent online.\n\nFree software under the GNU GPL v3. Includes FFmpeg (GPL) and other open-source parts — see the licences.'
+    title: `Tide ${version}`,
+    detail: `${BLURB}\nThe voice (Kokoro-82M) runs on this computer; nothing is sent online.\n\n${GPL}. Includes FFmpeg (GPL) and other open-source parts — see the licences.`
   }
 }
 
@@ -20,11 +19,7 @@ function noticePath(): string {
 
 /** Windows and Linux: a message box with a button that opens the bundled NOTICE file (local, no network). */
 export async function showAbout(win: BrowserWindow | null): Promise<void> {
-  const { title, detail } = aboutText({
-    version: app.getVersion(),
-    electron: process.versions.electron,
-    platform: process.platform
-  })
+  const { title, detail } = aboutText(app.getVersion())
   const options = {
     type: 'info' as const,
     title: 'About Tide',
@@ -52,8 +47,7 @@ export function configureAboutPanel(): void {
     applicationName: 'Tide',
     applicationVersion: app.getVersion(),
     version: '',
-    credits:
-      'A calm, offline PDF read-aloud app. The voice (Kokoro-82M) runs on this computer. Free software under the GNU GPL v3; includes FFmpeg (GPL). See NOTICE.md in the app resources for licences.',
-    copyright: 'Free software under the GNU GPL v3'
+    credits: `${BLURB} The voice (Kokoro-82M) runs on this computer. ${GPL}; includes FFmpeg (GPL). See NOTICE.md in the app resources for licences.`,
+    copyright: GPL
   })
 }

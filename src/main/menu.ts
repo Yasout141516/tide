@@ -4,8 +4,7 @@ import type { AppCommand } from '../shared/ipc-types'
 /** The application menu. Shortcuts work on Windows too, where the menu bar stays hidden until Alt. */
 export function buildMenu(
   send: (c: AppCommand) => void,
-  about: () => void = () => {},
-  licences: () => void = () => {}
+  actions: { about: () => void; licences: () => void }
 ): Menu {
   const mac = process.platform === 'darwin'
   const mod = mac ? '⌘' : 'Ctrl+'
@@ -44,8 +43,6 @@ export function buildMenu(
           accelerator: 'CmdOrCtrl+O',
           click: () => send({ type: 'add-reading' })
         },
-        { type: 'separator' },
-        { label: 'View licences', click: () => licences() },
         ...(mac
           ? []
           : ([
@@ -88,13 +85,8 @@ export function buildMenu(
         { label: `${mod},  Settings`, enabled: false },
         { label: '← / →  Previous / next sentence', enabled: false },
         { type: 'separator' },
-        { label: 'View licences', click: () => licences() },
-        ...(mac
-          ? []
-          : ([
-              { type: 'separator' },
-              { label: 'About Tide', click: () => about() }
-            ] as MenuItemConstructorOptions[]))
+        ...(mac ? [] : [{ label: 'About Tide', click: () => actions.about() }]),
+        { label: 'View licences', click: () => actions.licences() }
       ]
     }
   ]

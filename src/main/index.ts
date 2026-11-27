@@ -245,11 +245,10 @@ app.whenReady().then(async () => {
     const { send } = libraryIpc
     configureAboutPanel()
     Menu.setApplicationMenu(
-      buildMenu(
-        send,
-        () => void showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow),
-        () => void openNotice()
-      )
+      buildMenu(send, {
+        about: () => void showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow),
+        licences: () => void openNotice()
+      })
     )
     // The window's own background follows the stored theme (and the OS, for 'system') while running.
     const syncBackground = (): void => {
