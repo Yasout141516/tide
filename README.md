@@ -6,7 +6,7 @@ references), remembers your place, and saves passages as audio for your phone.
 
 - Free, and fully offline: the voice ([Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)) runs on your laptop
 - macOS (Apple chip) and Windows
-- Themes: Sky & Sea (the default), Deep Sea, Pixel Quest, Kitty, and Match my Mac (follows your
+- Themes: Sky & Sea (the default), Deep Sea, Pixel Quest, Kitty, and Match my Mac (Match my PC on Windows; follows your
   computer's light or dark setting)
 
 > **Status:** v1.0.0 (pre-release). See the [PRD](docs/superpowers/specs/2026-11-16-tide-design.md) and the
@@ -36,7 +36,7 @@ Node 22 and git.
 git clone https://github.com/Yasout141516/tide.git
 cd tide
 npm ci
-npm run fetch-model   # downloads the voice model into resources/models/ (about 330 MB, checksum-verified)
+npm run fetch-model   # downloads the voice model into resources/models/ (about 330 MB, verified)
 npm run dev           # starts Tide with hot reload
 ```
 
@@ -54,10 +54,13 @@ certificate file before `npm ci` and `npm run fetch-model`). Never commit a cert
 | `npm run package`                | Builds, then produces the installers for the current OS in `release/` (never publishes; needs a git `origin` remote) |
 | `npm test`                       | Unit tests (vitest)                                                                                                  |
 | `npm run e2e`                    | Same as `npx playwright test` (run `npm run build` first)                                                            |
+| `postinstall`                    | Runs by itself after `npm ci`: installs the Electron binary and rebuilds native dependencies for it                  |
 | `npm run lint`                   | ESLint                                                                                                               |
 | `npm run format`                 | Prettier, rewrites files                                                                                             |
-| `npm run typecheck`              | Typechecks the main/preload code and the renderer (`typecheck:node`, `typecheck:web`)                                |
-| `npm run fetch-model`            | Downloads and verifies the Kokoro voice model (`-- --dtype all` also fetches fp32)                                   |
+| `npm run typecheck:node`         | Typechecks the main, preload, shared and tts code (`tsc --noEmit`)                                                   |
+| `npm run typecheck:web`          | Typechecks the renderer code (`tsc --noEmit`)                                                                        |
+| `npm run typecheck`              | Runs `typecheck:node`, then `typecheck:web`                                                                          |
+| `npm run fetch-model`            | Downloads and verifies the Kokoro voice model (fp32 by default; `-- --dtype all` also fetches the q8 model)          |
 | `npm run spoken-text -- f.pdf`   | Prints what Tide would speak for a PDF, one sentence per line (`--everything` turns the filters off)                 |
 | `npm run voice-samples -- f.pdf` | Renders a short sample in every candidate voice into `local-fixtures/` (needs `--dtype all` model)                   |
 | `npm run icons`                  | Regenerates every app icon from `build/icon.svg`                                                                     |
@@ -92,7 +95,7 @@ must never be committed.
 
 ## Release process
 
-1. Bump the version in `package.json` and merge that to `main`.
+1. Bump the version in `package.json`.
 2. Tag `vX.Y.Z` and push the tag. CI builds both installers into a draft GitHub release and attaches
    the FFmpeg source (`ffmpeg-6.1.1.tar.xz` and `FFMPEG-SOURCE.md`, checksum-verified).
 3. Download both installers from the draft and smoke-test them.
@@ -101,7 +104,7 @@ must never be committed.
 To rehearse without publishing anything, run the dry run from any branch:
 
 ```sh
-gh workflow run release.yml --ref <branch> -f dry_run=true
+gh workflow run release.yml --ref <branch>
 ```
 
 A manual run never publishes: it builds both installers and uploads them, plus the FFmpeg source, as
