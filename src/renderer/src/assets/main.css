@@ -416,6 +416,11 @@ html[data-dark-pages='true'] canvas[data-pdf-canvas] {
 }
 
 /* Inverted surfaces (the toast is --bubble with --bg text) ring in --bg, which has >= 3:1 on --bubble. */
+/* Pixel Quest's gold ring is 1.37:1 on the cream page; the floating Back to reading button sits on it. */
+:root[data-theme='pixel-quest'] [data-back-to-reading] {
+  --focus-ring: var(--border);
+}
+
 .on-bubble {
   --focus-ring: var(--bg);
 }

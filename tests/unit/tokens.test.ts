@@ -288,6 +288,13 @@ describe('keyboard focus ring', () => {
       expect(contrast(b['bg'], b['bubble']), `${theme} bubble`).toBeGreaterThanOrEqual(3)
       for (const k of ['bg', 'surface', 'shelf-a'])
         expect(contrast(ring, b[k]), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
+      // The floating Back to reading button sits on the page; Pixel Quest scopes its ring to --border.
+      const pageRing = theme === 'pixel-quest' ? b['border'] : ring
+      if (theme === 'pixel-quest')
+        expect(mainCss).toMatch(
+          /\[data-theme=['"]pixel-quest['"]\]\s*\[data-back-to-reading\]\s*\{[^}]*--focus-ring:\s*var\(--border\)/
+        )
+      expect(contrast(pageRing, b['page']), `${theme} page`).toBeGreaterThanOrEqual(3)
     }
   )
 })

@@ -38,7 +38,12 @@ export async function showAbout(win: BrowserWindow | null): Promise<void> {
   const { response } = win
     ? await dialog.showMessageBox(win, options)
     : await dialog.showMessageBox(options)
-  if (response === 1) await shell.openPath(noticePath())
+  if (response === 1) await openNotice()
+}
+
+/** Opens the bundled NOTICE file (local, no network); used by About and Help > View licences. */
+export async function openNotice(): Promise<void> {
+  await shell.openPath(noticePath())
 }
 
 /** macOS: the standard About panel, filled once at startup. */

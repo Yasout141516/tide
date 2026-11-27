@@ -9,8 +9,11 @@ vi.mock('electron', () => ({
 
 const { buildMenu } = await import('../../src/main/menu')
 
-function items(about: () => void = () => {}): MenuItemConstructorOptions[] {
-  const template = buildMenu(() => {}, about) as unknown as MenuItemConstructorOptions[]
+function items(
+  about: () => void = () => {},
+  licences: () => void = () => {}
+): MenuItemConstructorOptions[] {
+  const template = buildMenu(() => {}, about, licences) as unknown as MenuItemConstructorOptions[]
   return template.flatMap((m) => (Array.isArray(m.submenu) ? m.submenu : []))
 }
 
@@ -64,6 +67,23 @@ describe('buildMenu', () => {
       Object.defineProperty(process, 'platform', { value: orig })
     }
   })
+
+  it.each(['win32', 'darwin'] as const)(
+    'on %s Help has View licences, which calls the handler',
+    (p) => {
+      const orig = process.platform
+      Object.defineProperty(process, 'platform', { value: p })
+      try {
+        const licences = vi.fn()
+        const item = items(() => {}, licences).find((i) => i.label === 'View licences')
+        expect(item).toBeDefined()
+        ;(item!.click as () => void)()
+        expect(licences).toHaveBeenCalledTimes(1)
+      } finally {
+        Object.defineProperty(process, 'platform', { value: orig })
+      }
+    }
+  )
 
   it('on darwin there is no extra About Tide item (the app menu has role about)', () => {
     const orig = process.platform

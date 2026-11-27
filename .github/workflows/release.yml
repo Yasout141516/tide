@@ -17,8 +17,65 @@ permissions:
   contents: read
 
 jobs:
+  ffmpeg-source-fetch:
+    name: ffmpeg source (fetch and verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download and verify the pinned FFmpeg source
+        run: |
+          url=$(jq -r .url scripts/ffmpeg-source.json)
+          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
+          file=$(jq -r .tarball scripts/ffmpeg-source.json)
+          curl -fsSL --retry 3 -o "$file" "$url"
+          echo "$sha  $file" | sha256sum -c -
+
+      - name: Write FFMPEG-SOURCE.md
+        run: |
+          ver=$(jq -r .ffmpegVersion scripts/ffmpeg-source.json)
+          file=$(jq -r .tarball scripts/ffmpeg-source.json)
+          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
+          url=$(jq -r .url scripts/ffmpeg-source.json)
+          sver=$(jq -r .ffmpegStatic.version scripts/ffmpeg-source.json)
+          stag=$(jq -r .ffmpegStatic.releaseTag scripts/ffmpeg-source.json)
+          surl=$(jq -r .ffmpegStatic.releaseUrl scripts/ffmpeg-source.json)
+          spkg=$(jq -r .ffmpegStatic.package scripts/ffmpeg-source.json)
+          win=$(jq -r .builders.windowsX64 scripts/ffmpeg-source.json)
+          mac=$(jq -r .builders.macosArm64 scripts/ffmpeg-source.json)
+          cat > FFMPEG-SOURCE.md <<EOF
+          # FFmpeg source for Tide
+
+          The \`ffmpeg\` program bundled with Tide is FFmpeg $ver, taken from the npm package
+          [ffmpeg-static]($spkg) $sver (release tag [$stag]($surl)). These are GPL builds
+          (GNU GPL version 3), so the corresponding source is provided.
+
+          - Source tarball: \`$file\` (attached to this release), also at $url
+          - SHA-256: \`$sha\`
+
+          Builders of the bundled binaries, as listed by ffmpeg-static (build scripts and configuration):
+
+          - Windows x64: $win
+          - macOS Apple Silicon (arm64): $mac
+          EOF
+          cat FFMPEG-SOURCE.md
+
+      # Handed to the attach job (tag runs) and kept as the dry-run artifact (dispatch runs).
+      - name: Upload source files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-source
+          path: |
+            ffmpeg-6.1.1.tar.xz
+            FFMPEG-SOURCE.md
+          if-no-files-found: error
+
   release:
     name: release (${{ matrix.os }})
+    needs: ffmpeg-source-fetch
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +92,8 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
@@ -74,55 +133,20 @@ jobs:
             release/*.exe
           if-no-files-found: error
 
-  ffmpeg-source:
-    name: ffmpeg source
-    needs: release
+  ffmpeg-source-attach:
+    name: ffmpeg source (attach to draft)
+    if: github.event_name != 'workflow_dispatch'
+    needs: [ffmpeg-source-fetch, release]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write # attaches files to the draft release on a tag
+      contents: write # attaches files to the draft release
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Download and verify the pinned FFmpeg source
-        run: |
-          url=$(jq -r .url scripts/ffmpeg-source.json)
-          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
-          file=$(jq -r .tarball scripts/ffmpeg-source.json)
-          curl -fsSL --retry 3 -o "$file" "$url"
-          echo "$sha  $file" | sha256sum -c -
-
-      - name: Write FFMPEG-SOURCE.md
-        run: |
-          ver=$(jq -r .ffmpegVersion scripts/ffmpeg-source.json)
-          file=$(jq -r .tarball scripts/ffmpeg-source.json)
-          sha=$(jq -r .sha256 scripts/ffmpeg-source.json)
-          url=$(jq -r .url scripts/ffmpeg-source.json)
-          sver=$(jq -r .ffmpegStatic.version scripts/ffmpeg-source.json)
-          stag=$(jq -r .ffmpegStatic.releaseTag scripts/ffmpeg-source.json)
-          surl=$(jq -r .ffmpegStatic.releaseUrl scripts/ffmpeg-source.json)
-          spkg=$(jq -r .ffmpegStatic.package scripts/ffmpeg-source.json)
-          win=$(jq -r .builders.windowsX64 scripts/ffmpeg-source.json)
-          mac=$(jq -r .builders.macosArm64 scripts/ffmpeg-source.json)
-          cat > FFMPEG-SOURCE.md <<EOF
-          # FFmpeg source for Tide
-
-          The \`ffmpeg\` program bundled with Tide is FFmpeg $ver, taken from the npm package
-          [ffmpeg-static]($spkg) $sver (release tag [$stag]($surl)). These are GPL builds
-          (GNU GPL version 3), so the corresponding source is provided.
-
-          - Source tarball: \`$file\` (attached to this release), also at $url
-          - SHA-256: \`$sha\`
-
-          Builders of the bundled binaries, as listed by ffmpeg-static (build scripts and configuration):
-
-          - Windows x64: $win
-          - macOS Apple Silicon (arm64): $mac
-          EOF
-          cat FFMPEG-SOURCE.md
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-source
 
       - name: Attach to the draft release
-        if: github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # The first real v* tag is the first live test of this step (a dry run skips it).
@@ -144,12 +168,3 @@ jobs:
             for a in $old; do gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$a"; done
             gh api -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=$f"               -H "Content-Type: application/octet-stream" --input "$f"
           done
-
-      - name: Upload source files (dry run)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-source
-          path: |
-            ffmpeg-6.1.1.tar.xz
-            FFMPEG-SOURCE.md

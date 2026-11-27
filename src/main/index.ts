@@ -25,7 +25,7 @@ import { Library } from './library/library'
 import { courseNameOf } from '../shared/library/shelf'
 import { registerLibraryIpc } from './library/ipc'
 import { buildMenu } from './menu'
-import { configureAboutPanel, showAbout } from './about'
+import { configureAboutPanel, openNotice, showAbout } from './about'
 import { filesFromArgv, openWithHandler, OpenWithQueue } from './open-with'
 import {
   createFatalHandler,
@@ -245,7 +245,11 @@ app.whenReady().then(async () => {
     const { send } = libraryIpc
     configureAboutPanel()
     Menu.setApplicationMenu(
-      buildMenu(send, () => void showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow))
+      buildMenu(
+        send,
+        () => void showAbout(BrowserWindow.getFocusedWindow() ?? mainWindow),
+        () => void openNotice()
+      )
     )
     // The window's own background follows the stored theme (and the OS, for 'system') while running.
     const syncBackground = (): void => {

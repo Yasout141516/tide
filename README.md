@@ -96,10 +96,12 @@ must never be committed.
 ## Release process
 
 1. Bump the version in `package.json`.
-2. Tag `vX.Y.Z` and push the tag. CI builds both installers into a draft GitHub release and attaches
+2. Tag `vX.Y.Z` (the tag must equal `v` + the `package.json` version: electron-builder names the
+   release after the version, and the attach step looks the draft up by tag) and push the tag. CI builds both installers into a draft GitHub release and attaches
    the FFmpeg source (`ffmpeg-6.1.1.tar.xz` and `FFMPEG-SOURCE.md`, checksum-verified).
 3. Download both installers from the draft and smoke-test them.
-4. Publish the draft by hand.
+4. Publish the draft by hand, only if every job in the Release run is green and the draft lists
+   `ffmpeg-6.1.1.tar.xz` and `FFMPEG-SOURCE.md` beside the `.dmg` and `.exe`.
 
 To rehearse without publishing anything, run the dry run from any branch:
 
