@@ -1,0 +1,16 @@
+{
+  "ffmpegVersion": "6.1.1",
+  "tarball": "ffmpeg-6.1.1.tar.xz",
+  "url": "https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz",
+  "sha256": "8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968",
+  "ffmpegStatic": {
+    "version": "5.3.0",
+    "package": "https://github.com/eugeneware/ffmpeg-static",
+    "releaseTag": "b6.1.1",
+    "releaseUrl": "https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1"
+  },
+  "builders": {
+    "windowsX64": "https://www.gyan.dev/ffmpeg/builds/",
+    "macosArm64": "https://osxexperts.net/"
+  }
+}

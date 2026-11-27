@@ -15,6 +15,8 @@ which ships FFmpeg 6.1.1 (release tag
 FFmpeg (configured with `--enable-gpl --enable-version3` and GPL parts such as libx264), so the
 bundled binary is covered by the GNU GPL version 3 ([FFmpeg legal notes](https://www.ffmpeg.org/legal.html)).
 
+The exact FFmpeg source for the bundled binary is attached to every Tide release on GitHub (`ffmpeg-6.1.1.tar.xz`).
+
 Source code:
 
 - FFmpeg 6.1.1 source: <https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz> (all releases:
