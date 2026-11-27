@@ -294,9 +294,8 @@ describe('keyboard focus ring', () => {
       ).toBeGreaterThanOrEqual(3)
     expect(contrast(b['page'], b['border'])).toBeGreaterThanOrEqual(3)
   })
-  it('menu items are excluded from the global ring (their --soft fill is the indicator)', () => {
-    for (const role of ['menuitem', 'menuitemradio', 'menuitemcheckbox'])
-      expect(mainCss.replace(/\s+/g, '')).toContain(`:not([role='${role}'])`)
+  it('menu items keep the global ring (the --soft fill is only 1.1 to 1.5:1)', () => {
+    expect(mainCss).not.toMatch(/:focus-visible[^{]*menuitem/)
   })
   it.each(['sky-sea', 'deep-sea', 'pixel-quest', 'kitty'])(
     '%s focus colour is at least 3:1 against its backgrounds',
