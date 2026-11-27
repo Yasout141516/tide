@@ -8,6 +8,7 @@ import {
   boxesInsideCanvas,
   highlightIds,
   openShelf,
+  setTheme,
   shelfReady
 } from './helpers'
 import { launchTide } from './launch'
@@ -30,12 +31,7 @@ test('dark pages invert only the canvas in a dark theme and can be turned off', 
       timeout: 30_000
     })
 
-    await openSettings(win)
-    const dialog = win.getByRole('dialog', { name: 'Settings' })
-    await dialog.waitFor()
-    await dialog.getByRole('radio', { name: 'Deep Sea' }).click()
-    await win.keyboard.press('Escape')
-    await expect(dialog).toHaveCount(0)
+    await setTheme(win, 'Deep Sea', 'deep-sea')
     // The native window background follows the theme too (no white flash on resize).
     await expect
       .poll(() =>
@@ -53,6 +49,7 @@ test('dark pages invert only the canvas in a dark theme and can be turned off', 
     expect(await boxesInsideCanvas(win)).toBe(true)
 
     await openSettings(win)
+    const dialog = win.getByRole('dialog', { name: 'Settings' })
     await dialog.waitFor()
     await dialog.getByRole('switch', { name: 'Dark pages in dark themes' }).click()
     await win.keyboard.press('Escape')
@@ -67,10 +64,7 @@ test('the theme persists across a relaunch', async () => {
   let app = await launchTide({ TIDE_USER_DATA: userData })
   try {
     let win = await app.firstWindow()
-    await openSettings(win)
-    const dialog = win.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('radio', { name: 'Kitty' }).click()
-    await expect(win.locator('html')).toHaveAttribute('data-theme', 'kitty')
+    await setTheme(win, 'Kitty', 'kitty')
     await app.close() // before-quit flushes the library
     app = await launchTide({ TIDE_USER_DATA: userData })
     win = await app.firstWindow()

@@ -55,6 +55,17 @@ export async function openShelf(win: Page): Promise<Locator> {
   return shelf
 }
 
+/** Opens Settings from the shelf, picks the theme radio labelled `label`, closes Settings and checks html[data-theme]. */
+export async function setTheme(win: Page, label: string, id: string): Promise<void> {
+  await openShelf(win)
+  await win.getByRole('button', { name: /Settings/ }).click()
+  const dialog = win.getByRole('dialog', { name: 'Settings' })
+  await dialog.getByRole('radio', { name: label }).click()
+  await win.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(win.locator('html')).toHaveAttribute('data-theme', id)
+}
+
 /** Opens the shelf if needed and clicks "Add reading" (a sibling of the readings list, not inside it). */
 export async function clickAddReading(win: Page): Promise<void> {
   await openShelf(win)

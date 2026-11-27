@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { addFixtureReading, openShelf, shelfReady } from './helpers'
+import { addFixtureReading, setTheme, shelfReady } from './helpers'
 import { launchTide } from './launch'
 
 test.setTimeout(120_000)
@@ -79,13 +79,7 @@ for (const [label, theme] of [
       })
 
       // Pick the theme through Settings, then close it.
-      await openShelf(win)
-      await win.getByRole('button', { name: /Settings/ }).click()
-      const dialog = win.getByRole('dialog', { name: 'Settings' })
-      await dialog.getByRole('radio', { name: label }).click()
-      await win.keyboard.press('Escape')
-      await expect(dialog).toHaveCount(0)
-      await expect(win.locator('html')).toHaveAttribute('data-theme', theme)
+      await setTheme(win, label, theme)
 
       // The player's controls, from the top of the page.
       await win.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
