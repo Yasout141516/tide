@@ -653,8 +653,13 @@ describe('PlayerEngine', () => {
       }
       const pieceCount = progressiveClips(texts[texts.indexOf(long40)], { growth: 1 }).length
       act(engine)
-      const pieces = tts.texts().slice(0, pieceCount)
+      // the live pieces of the long sentence, in request order
+      const pieces = tts.calls
+        .filter((c) => !tts.cancels.includes(c.gen) && long40.includes(c.text.trim()))
+        .map((c) => c.text)
+        .slice(0, pieceCount)
       for (let guard = 0; guard < 200 && sink.sources.length < pieceCount; guard++) {
+        while (served < tts.calls.length && tts.cancels.includes(tts.calls[served].gen)) served += 1
         const call = tts.calls[served]
         const synthDone = call
           ? Math.max(workerFree, now) + wordsOf(call.text) * 0.35 * rtf
@@ -692,12 +697,16 @@ describe('PlayerEngine', () => {
       for (const g of gaps) expect(g).toBeLessThanOrEqual(1)
     })
 
-    it('the same after a seek onto the sentence', async () => {
-      const { gaps, pieces } = await simulate([S[0], long40, ...S], 1.0, (e) => {
+    it('the same after a seek outside the prefetch window (a real progressive split)', async () => {
+      const texts = [...S, ...S, 'One more short one.']
+      texts[7] = long40
+      const { gaps, pieces } = await simulate(texts, 1.0, (e) => {
         e.play()
-        e.setIndex(1)
+        e.setIndex(7) // beyond index 0 + 3 ahead: the gens of 0..3 are cancelled, 7 is requested afresh
       })
-      void pieces
+      expect(pieces.length).toBeGreaterThan(2)
+      expect(pieces.join('')).toBe(long40)
+      expect(gaps.length).toBe(pieces.length - 1)
       for (const g of gaps) expect(g).toBeLessThanOrEqual(1)
     })
 
@@ -718,13 +727,52 @@ describe('PlayerEngine', () => {
       expect(engine.snapshot().index).toBe(0)
     })
 
-    it('a failed later clip of the playing sentence is raised, a prefetched one only on reaching it (R37)', async () => {
-      const { engine, tts } = setup([S[0], long40])
+    it('a failed clip of a prefetched progressive sentence is raised only on reaching it; a failed later clip of the playing one at once (R37)', async () => {
+      const np = progressiveClips(long40, { growth: 1 }).length
+      expect(np).toBeGreaterThan(2)
+      // half 1: sentence 1 (prefetched) has a failing later piece
+      {
+        const { engine, sink, tts } = setup(['Short first one here.', long40])
+        engine.play()
+        const second = tts.calls.filter((c) => long40.includes(c.text.trim()))
+        expect(second.length).toBeGreaterThan(0)
+        tts.calls[1].reject(new Error('boom'))
+        await flush()
+        expect(engine.snapshot().phase).not.toBe('error') // the current sentence keeps going
+        tts.calls[0].resolve(audio(1))
+        await flush()
+        expect(engine.snapshot().phase).toBe('playing')
+        sink.triggerEnded() // reaching the failed sentence
+        expect(engine.snapshot().phase).toBe('error')
+      }
+      // half 2: a later piece of the PLAYING progressive sentence fails
+      {
+        const { engine, sink, tts } = setup([long40, 'Second one here.'])
+        engine.play()
+        expect(tts.calls.length).toBeGreaterThan(np)
+        tts.calls[0].resolve(audio(1))
+        await flush()
+        expect(sink.sources).toHaveLength(1)
+        tts.calls[1].reject(new Error('boom')) // piece 1 of the playing sentence
+        await flush()
+        expect(engine.snapshot().phase).toBe('error')
+      }
+    })
+
+    it('a restart after measured fast synthesis uses larger growth (fewer pieces)', async () => {
+      const { engine, tts } = setup([long40])
       engine.play()
-      const nFirst = 1
-      tts.calls[nFirst].reject(new Error('boom')) // a clip of sentence 1 (prefetched)
-      await flush()
-      expect(engine.snapshot().phase).not.toBe('error')
+      const flat = tts.calls.length // cold start: rtf = 1, pieces do not grow
+      expect(flat).toBe(progressiveClips(long40, { growth: 1 }).length)
+      for (let k = 0; k < flat; k++) {
+        tts.calls[k].resolve({ ...audio(2), synthMs: 1000 }) // RTF 0.5
+        await flush()
+      }
+      const n = tts.calls.length
+      engine.setSpeed(1.25) // restart: the measured RTF now allows growth
+      const fresh = tts.calls.slice(n)
+      expect(fresh.length).toBeLessThan(flat)
+      expect(fresh.map((c) => c.text).join('')).toBe(long40)
     })
   })
 })

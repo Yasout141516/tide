@@ -362,6 +362,7 @@ export class PlayerEngine {
     this.trim()
   }
 
+  /** A restart right after a cold start (nothing measured yet) uses rtf = 1: flat 8-word pieces. */
   private request(i: number, front = false): void {
     const pieces =
       i === this.firstIdx
