@@ -9,12 +9,12 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Build only; upload workflow artifacts, publish nothing
+        description: Informational - a manual run never publishes; it builds and uploads workflow artifacts only
         type: boolean
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
@@ -25,6 +25,8 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    permissions:
+      contents: write # electron-builder creates the draft release on a tag
     defaults:
       run:
         shell: bash
@@ -77,6 +79,8 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write # attaches files to the draft release on a tag
     steps:
       - uses: actions/checkout@v5
 
@@ -115,14 +119,31 @@ jobs:
           - Windows x64: $win
           - macOS Apple Silicon (arm64): $mac
           EOF
-          sed -i 's/^          //' FFMPEG-SOURCE.md
           cat FFMPEG-SOURCE.md
 
       - name: Attach to the draft release
         if: github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" ffmpeg-6.1.1.tar.xz FFMPEG-SOURCE.md --clobber
+        # The first real v* tag is the first live test of this step (a dry run skips it).
+        run: |
+          id=""
+          for attempt in 1 2 3 4 5 6; do
+            id=$(gh api "repos/${{ github.repository }}/releases" --paginate               --jq '.[] | select(.tag_name=="'"$GITHUB_REF_NAME"'") | .id' | head -n1)
+            [ -n "$id" ] && break
+            echo "Draft release for $GITHUB_REF_NAME not found (attempt $attempt); retrying"
+            sleep 10
+          done
+          if [ -z "$id" ]; then
+            echo "::error::No release (draft) found for tag $GITHUB_REF_NAME; cannot attach the FFmpeg source"
+            exit 1
+          fi
+          for f in ffmpeg-6.1.1.tar.xz FFMPEG-SOURCE.md; do
+            # --clobber equivalent: delete an existing asset of the same name first
+            old=$(gh api "repos/${{ github.repository }}/releases/$id/assets" --paginate               --jq '.[] | select(.name=="'"$f"'") | .id')
+            for a in $old; do gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$a"; done
+            gh api -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=$f"               -H "Content-Type: application/octet-stream" --input "$f"
+          done
 
       - name: Upload source files (dry run)
         if: github.event_name == 'workflow_dispatch'
