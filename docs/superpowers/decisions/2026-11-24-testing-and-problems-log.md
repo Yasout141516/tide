@@ -1,5 +1,7 @@
 # Tide: testing failures and problems log, M0 to 2026-11-24
 
+**Update 2026-11-28.** This log now also covers M6 (Settings and themes, merged to `main` at 1272cef on 2026-11-25) and M7 (Ship, branch `feat/m7-ship`, to 2026-11-28). The M0 to M5 sections below are unchanged except for added rows in the Counts table (section 1), the watch list (section 8) and the lessons (section 9). The new material is in section 10 (M6) and section 11 (M7). New sources: the M6 rulings document (branch `docs/m6-rulings`), the controller's M6 notes, the M7 ledger and per-task reports in `.superpowers/sdd/2026-11-27-tide-m7-ship/`, `git log` for `f37c533..1272cef` and `1272cef..feat/m7-ship`, and `gh run view` for the CI runs named. Where those did not say something, the text says "unconfirmed" or "not stated". Local readings are still referred to by index or in aggregate only.
+
 A record of every way testing failed and every problem the project has hit from M0 (2026-11-16) to today (2026-11-24). It is meant for Yasin and for later Claude sessions that pick the project up. It is written to be learned from, not to look good.
 
 Sources: the SDD ledger for M4+M5 (`.superpowers/sdd/2026-11-19-tide-m4-m5-voice-save-audio/progress.md`, rulings R1-R37), the per-task reports, `final-review.md`, `final-fix-report.md`, `code-review-fix-report.md`, `simplify-report.md`, the handoffs in `.superpowers/`, the three rulings documents in `docs/superpowers/decisions/`, `docs/spikes/m0-results.md`, `git log --all`, and GitHub Actions logs read with `gh` (16 runs inspected). Where a source did not say, this document says "unconfirmed" or "not stated". Local readings are referred to by index only; nothing from `local-fixtures/` is quoted or named.
@@ -45,6 +47,18 @@ These are my tallies from the sources named above. "Important" counts include fi
 | Global Constraints superseded by a ruling | 3 | R16, R17, R21 |
 | Copyright near-misses | 2 | T9 (M0/M1) fragments in a commit, 10b brief naming a real identifier; both caught before shared history or code |
 | Still open | 12 items (2 more resolved 2026-11-24 under R38) | Section 8 |
+| M6: review findings fixed in task reviews (added 2026-11-28) | 19 | T3 2, T4 1, T5 2, T7 3, T9 3, T10 4, T11 2, T12 2; T1, T2, T6, T8 were clean. The M6 sources do not label severity per finding (only T11 says "Important"), so these are findings fixed, not Important findings |
+| M6: defects found by re-review of Task 9's fix rounds | 7 | Round 2: 3, round 3: 3, round 4: 1. All in the path scrub and log rate limit. See section 10.2 |
+| M6: final review, /simplify, /code-review | 9 + 11 + 6 | Final review 2 Important + 7 minors fixed in one wave; /simplify applied 11 cleanup groups (A-K, 10 redesigns skipped); /code-review 2 Important + 4 nits |
+| M6: failed CI runs, and failed tests inside them | 3 runs, 4 test failures | 45462204975 (jump and export-while-playing), 45552715631 (jump), 45558129784 attempt 1 ("Finish in" note). All macOS; Windows green every time. A further 4 runs were cancelled by the concurrency group |
+| M6: tooling or process problems | 1 | Playwright cannot fire native menu accelerators |
+| M7: review findings fixed in task reviews | 20 | T1 2, T3 4, T4 9 (6 review items, 2 found by following the README in a fresh clone, 1 environment note), T5 1, T6 4 (3 findings and one Page-crashed flake); T2 was clean |
+| M7: CI test failures on the first dry run | 2 tests, 1 run | 46032497501: a menu test that did not pin the platform (macOS) and an icon-render test that timed out at 5 s (Windows) |
+| M7: final review, /simplify, /code-review, /security-review | 5 + 13 + 6 + 0 | Final review 5 items fixed; /simplify applied 13 items (A-M, 6 skipped by the controller); /code-review 2 Important + 4 nits; /security-review found no high-confidence vulnerability |
+| M7: tooling or process problems | 3 | GitHub unreachable at the start of the session; the /security-review skill cannot run from another repo's cwd; a one-off failure in a full vitest run (Task 1 and Task 5; rerun green) |
+| M7: installer size work | 5 candidates tried, 4 applied | Windows installer 478.9 to 454.2 MB (-24.7 MB, -5.2%); macOS 478.5 to 462.3 MB. Custom FFmpeg not done. See section 11.8 |
+| Problems logged for M6 and M7 together | 46 and 36 | M6: 41 findings (19 + 7 + 9 + 6) + 4 CI test failures + 1 tooling = 46. M7: 20 + 2 + 5 + 6 + 3 = 36. My tallies; /simplify cleanups, the size candidates and deferred minors are not counted as problems |
+| Still open, M6 and M7 (added 2026-11-28) | 8 items | O15 to O22 in section 8 |
 
 ---
 
@@ -420,6 +434,14 @@ Steps with `if: runner.os == 'macOS'` skip when an earlier step fails (section 3
 | O12 | GPL source offer for the bundled ffmpeg | `NOTICE.md` names the licences; the obligation must be handled before any public release; unclaimed route | Not solved yet. M7 |
 | O13 | Apple Books on a real iPhone, and the real Open Anyway flow on a Mac | Untested; AVFoundation chapter check on CI is only a proxy | Not solved yet. M7 hand-off |
 | O14 | Housekeeping | No fresh installer built after the M5 fixes; `D:\pdf-narrator\release\win-unpacked` half-deleted; delete `D:\pdf-narrator-release-10d` and `D:\tide-installer-10d`; the ledger is the only copy of R33-R37 outside git (the handoff says to delete the SDD workspace only after Yasin has seen R1-R37); nothing from M4/M5 is merged to `main` (origin/main = 0154dc0) | Not solved yet. Yasin, controller |
+| O15 | **macOS timing-test design (R32 relative limit, export budget) left unchanged in M6** | macOS packaged jobs failed 4 times in M6, all timing tests (section 10.5). The final reviewer traced the same failures on `main` before M6 and called them runner noise; recommended an absolute limit. The controller ruled that changing R32 was outside M6's plan | Not solved yet. Decision for Yasin: absolute limit, capped relative limit, or report-instead-of-assert on CI (same options as O3). Cost of waiting: occasional red macOS CI |
+| O16 | **The release tag path is untested until a real `v*` tag** | Every dry run (`workflow_dispatch`, never publishes) is green: 46033063021, 46033838862, 46046066717, 46048011130, 46049949335, 46052301977. A dispatch run does not exercise `create-draft`, the attach job, the tag-equals-version check or the single-draft check, or the Electron cache hits | Not solved yet. The first real tag is the first live test. Plan: Yasin tags a release candidate and reads the draft before publishing; README says never to publish a draft that lacks the FFmpeg source |
+| O17 | **Custom minimal LGPL FFmpeg: not built** | The size research estimates 3-6 MB per platform against 79 MB for the bundled Windows `ffmpeg.exe` (a GPL build), saving about 73 MB unpacked and 25-30 MB of installer per OS, for 1-2 days of CI work. These are estimates; nothing was built | Not solved yet. Decision for Yasin. Recommended in the size report as the next and largest remaining win |
+| O18 | **v1 acceptance checklist: 5 manual rows pending** | `docs/acceptance-v1.md`: 6 automated, 5 manual rows pending (rows 1, 3, 6, 8, 9), 0 gaps. Row 3's at least 95% header/footer-free check is not measured by the local-readings spec (it ran 5 of 5 for render, step and resume only) | Not solved yet. Yasin at hand-off (with O10, O13) |
+| O19 | **GPL source offer (O12) is now built, not yet exercised** | The release workflow fetches the pinned FFmpeg 6.1.1 source, verifies its sha256, and the draft holds it; `NOTICE.md` says the exact source is attached to every release. Help > View licences opens NOTICE.txt on every platform | Built, untested live (O16). The tarball's hash was cross-checked against the signature from ffmpeg.org because no published `.sha256` exists (the key itself is not trust-anchored) |
+| O20 | **M6 and M7 deferred minors** | M6: listed in the M6 rulings document (branch `docs/m6-rulings`), e.g. curly vs straight apostrophe in pronunciation rules, rotation rename failure on a locked log file silently stops logging, 200-line tail counts stack lines, Done button before main content in tab order, on-close save failure not retried. M7: `showAbout` not unit-tested, aboutText parameters unused, no test asserts Toast carries `.on-bubble`, menu items show a ring and the highlight fill together on mouse-after-keyboard | Not solved yet. Triage with O6 and O7 |
+| O21 | `npm audit` (E14) still unreviewed per the sources | The M7 plan did not list it and no M7 report mentions it; /security-review (a code review, not an audit) found nothing high-confidence | Unconfirmed whether it was looked at. Plan: run `npm audit` before the first public release |
+| O22 | Housekeeping | The M6 ledger was deleted after merge (rulings kept on branch `docs/m6-rulings`); the M7 ledger and reports are deleted after this log is written. Untracked `tsconfig.node.tsbuildinfo` sits in the repo root | Controller. Nothing is merged from `feat/m7-ship` to `main` yet |
 
 ---
 
@@ -436,3 +458,206 @@ Steps with `if: runner.os == 'macOS'` skip when an earlier step fails (section 3
 9. **Do not trust a ledger line over the run itself.** The ledger's "7460637 superseded" is wrong: the run was green. A short `gh run view` settles it; section 3 now carries the real numbers.
 10. **Write what the reviewer could not run into a handoff.** Real mouse selection, sound, Apple Books, the Windows hide-on-close and macOS only behaviours cannot be tested here; each should be written as an owner check at the time it is deferred (section 8, O10), or it is forgotten.
 11. **Keep copyright discipline in briefs, not only in tests.** Two near-misses (M1 T9 fragments in a commit, the 10b brief naming a real identifier) were caught before shared history or code. Briefs should say "invent all values" up front.
+12. **A rule the controller writes can be the bug.** Task 9's path scrub needed four rounds. The leak in round 4 came from the controller's own quote rule ("a path runs to the closing quote"), not from the implementer. Specify a privacy rule with its hostile inputs (apostrophes in names, spaces, other drives, `file://host`) before dispatching, and send a tricky fix to a fresh implementer with the failing example, not a paraphrase.
+13. **Anything that can leak needs an adversarial test list written first.** Five of the seven re-review defects were path shapes nobody had listed. A scrubber is tested by what it must not leak, so enumerate shapes first and test each.
+14. **A constant copied between files needs a guard that reads both.** Window background hexes duplicated `tokens.css` with nothing to compare them (M6 T3); the fix was one shared module and a test that parses `tokens.css`. The same pattern fixed the theme list that was repeated in five places.
+15. **The first paint is part of the design.** The theme flash was closed three times (T3 additionalArguments and preload, then a runtime window colour, then setting `dataset.theme` before React renders in 1272cef). Look for a flash at every stage a page can be seen, not only after React mounts.
+16. **A test that passes without the fix proves nothing.** M6 repeated an M4/M5 lesson: the R8 "keeps her place" test began and ended on sentence 0, and the Skip-footnotes test asserted `id >= before`, both of which pass on a restart. Start the test somewhere the bug would change.
+17. **Build the dry run before the release, and make the invariant structural.** The final review found a draft could hold installers with no FFmpeg source because the source job ran after the builds. The fix was ordering (`needs`), not a check someone must remember. Say plainly what a dry run does not cover (O16).
+18. **Run the README in a fresh clone.** Following the README in a fresh clone found that dev e2e needs `npm run build` first and that `package` needs a git origin. An 18-minute failed run is a cheap way to learn a README was wrong.
+19. **Tests must not assume the host.** The first dry run failed because a menu test used whatever platform the runner had and an icon render test had a 5 s limit on a slower runner. Pin the platform in the test; give heavy work an honest timeout.
+20. **A visible-focus rule is a contrast problem on every surface, not one CSS line.** Tailwind 4's `outline-none focus-visible:outline-2` left the outline style at none, so no control showed a focus ring. The global rule then failed on toasts (2.1-2.5:1), Pixel Quest's page button (1.37:1) and its floating button (about 1.4:1 on the stage). Each surface needed its own tested ring.
+21. **Measure where the bytes are before cutting.** The size pass removed 24.7 MB (5.2%) from the Windows installer; the big items (Electron 239 MB, the model 311 MB, FFmpeg 79 MB) were left alone or became separate decisions. Units matter: the reports mix MB (installer) and MiB (unpacked).
+22. **Know your tools' limits and write them down.** Playwright's keyboard cannot fire native menu accelerators; the /security-review skill diffs the cwd's repo; GitHub was unreachable for a while. Each forced a changed method; none produced a product defect. Record the workaround where the next session will read it.
+
+---
+
+## 10. M6 (Settings and themes), 2026-11-24 to 2026-11-25
+
+Branch `feat/m6-settings-themes`, commits `f37c533..1272cef` (31 commits), merged to `main` at 1272cef. Scope confirmed with Yasin on 2026-11-24: all five themes, "Copy diagnostic info" and the rotating log, and the player-context split. Twelve tasks, each with an implementer, a task review and fix rounds; then a final Opus review, /simplify and /code-review. The M6 ledger was deleted after merge, so the sources are the rulings document, the controller's notes and git. Commit hashes for fix rounds below are matched from commit messages.
+
+How we solved it (summary): every finding below got a fix commit and a re-review. Not solved yet: the macOS timing tests (10.5) and the deferred minors (O20).
+
+### 10.1 Per-task review findings (fixed)
+
+Tasks 1, 2, 6 and 8 were clean (minors only). Rulings made along the way: R-M6-1 (T7 may add `previewClip` to the player actions, because a second audio element was forbidden), R-M6-2 (`StoredSettings` carries the export folder path inside the main process; the snapshot type stays path-free), R-M6-3 (T12 may touch `speak.ts`, `index.ts` and preload behind `--tide-e2e` for `lastSynthText`), and in T2 a deleted custom export folder fails with `folder-missing`, never a silent recreate.
+
+| Task | Finding | Why tests missed it | How we solved it (fix, commit, verification) |
+|---|---|---|---|
+| T3 theme engine | Window background hexes duplicated `tokens.css` with no guard | No test compared them | 4442335: shared `src/main/window-bg.ts` plus a test that reads `tokens.css` |
+| T3 | First-paint flash for dark users | Not stated | 4442335: main passes `--tide-theme` via `additionalArguments`, preload exposes `initialTheme`, a layout effect applies it. A one-frame flash remained (see 10.4) |
+| T4 Settings dialog | The Dark pages switch was 24 px tall (target 36 px) and its knob used `bg-white` and a hard-coded shadow | Not stated | 8c446c0: 36 px hit area, token colours, plus a radiogroup arrow-key test |
+| T5 Reading tab | The R8 "keeps her place" test started and ended on sentence 0, so it would pass on a restart | The test itself was weak | 95eebad: advance to sentence 3 first |
+| T5 | Folder and settings calls had unhandled rejections | Not stated | 95eebad: attempt plus toast |
+| T7 Pronunciation tab | An in-flight Listen played after she left Settings | Not stated | 8489f68: a request-counter ref |
+| T7 | Rapid Listens played a stale clip | Not stated | 8489f68: the same counter drops stale clips |
+| T7 | Listen used the idle player snapshot's default voice, not her saved voice | Not stated | 8489f68: use the library's saved `settings.voice` |
+| T9 diagnostics | Startup failure hidden: the new `uncaughtException` handlers silenced it, leaving a windowless zombie process holding the single-instance lock. A regression against Electron's default error dialog | Review flagged it; no test | 9b2472a: a "Tide could not start" dialog and exit before any window |
+| T9 | The path scrub replaced only the home folder, so other-drive paths leaked into pasted diagnostics | Review flagged it | 9b2472a: scrub all absolute paths (then see 10.2) |
+| T9 | The renderer log had no rate limit | Review flagged it | 9b2472a: collapse repeats, 20 per minute (then see 10.2) |
+| T10 Pixel Quest | Hard-coded colours in the dialogue box, waves and badge text | Not stated | 55960ef: tokens |
+| T10 | Unbounded dialogue height jittered the player bar | Not stated | 55960ef: fixed dialogue height |
+| T10 | The page was pure white against a cream theme (the pdf.js canvas is opaque) | Not stated | 55960ef: `mix-blend-mode: multiply` so the cream shows |
+| T10 | The wave strip overlapped page text. The controller saw it in a screenshot; no reviewer or test did | Visual only | d0150c9: waves moved into the player bar |
+| T11 Kitty | Yarn progress duplicated the wave progress renderer (the review's Important) | Not stated | c01f8a6: shared `ProgressTrack` |
+| T11 | Cat-ear tips keyed on a Tailwind `rounded-[11px]` substring selector: fragile and untested | Not stated | 5894fad: explicit `btn-primary` class, tested |
+| T12 Settings e2e | `lastSynthText` kept only the latest text, so a prefetch race made the test flaky | A race, not a logic error | 0c9a0cc: a bounded list of recent synth texts |
+| T12 | The Skip-footnotes test could pass before the rebuild, slept 2 s, and asserted `id >= before` (true after a reset) | The test was weak | 0c9a0cc and 9885f49: assert the same sentence text through an e2e-only attribute |
+
+Rulings in T11: cat-ear tips go on all primary buttons (spec section 6.8; a re-reviewer called the ears on "Read everything" a defect, the controller ruled it was the spec); Kitty's warning colour is #A34620 because the spec's #B4532A fails 4.5:1 on the shelf (the test says so in a comment). Mascot art may keep fixed art colours in one named constant.
+
+### 10.2 The Task 9 path-scrub saga, four rounds
+
+Task 9 added the rotating error log and "Copy diagnostic info". The point of the scrub: a pasted diagnostic must not carry file or folder names from her readings. It took four fix rounds after the first review, and the last leak came from a rule the controller wrote. Round numbering follows the controller's notes; the commit mapping is from commit messages.
+
+| Round | What the re-review found | Cause | Fix |
+|---|---|---|---|
+| 1 (9b2472a) | The three flagged gaps: startup zombie, non-home path leak, no log rate limit | First implementation | Fatal-start dialog, scrub absolute paths, rate limit (see 10.1) |
+| 2 (2e3b5c3) | Paths cut at the first space or parenthesis leaked file names; names relative to home were kept; the cap could be bypassed by repeat summaries | The round-1 scrub ended a path at the first space; the cap did not count its own summary lines | Controller rule: a path runs to the closing quote, a stack-frame parenthesis or end of line; home becomes `<path>` (this supersedes the brief's `home` to `~`, because `~` leaks the shape). Summaries count toward the cap |
+| 3 (e6192a8) | A fixed one-minute window let 40 lines through at a window boundary; an apostrophe in a name (`John's`) split the path; `file://host` was not scrubbed | The fixed-window cap; the quote rule treated every apostrophe as a closing quote | A sliding-window budget, a quote-aware scrub, `file://host` handled |
+| 4 (1f8a26b, fresh Sonnet implementer) | A single-quoted ENOENT path whose name contains an apostrophe still leaked | **The controller's own quote rule**: it ended the path at the first quote | Close the run only on a quote not followed by a word character |
+
+Ruling (cost if wrong: one more round): round 4 went to a fresh Sonnet implementer, not Opus, because the problem was not a lack of skill; the controller's spec contained the bug, and the fix was one precisely specified regex change. Known remaining behaviour: a closing quote followed by a word character over-scrubs to end of line (the safe side). Deferred minors: a rotation rename failure on a locked file silently stops logging; the 200-line tail counts stack lines; no tests for the `app:log` validation wiring.
+
+### 10.3 Final review, /simplify, /code-review
+
+| Pass | Result | How we solved it |
+|---|---|---|
+| Final review (Opus, `f37c533..9885f49`) | Ready after fixes. Important: (1) the Save panel hard-coded "Saves to Music > Tide" and ignored a custom folder; (2) pronunciation edits were lost when Settings closed by Esc or the backdrop, because they saved on blur only and there was no visible Close. Minors in the same wave: LookTab used `void setSettings`, `color-scheme` missing for the dark themes, runtime window background, per-row Listen and Remove accessible names, Nunito 400 not imported, NOTICE missing fonts, a duplicated log `describe()` message | edd31c4 (9 items). Pronunciation now saves on unmount and there is a Done button. vitest 852/852; e2e settings, save-audio, smoke 13/13 offline. Re-review: approved, 9 of 9 |
+| /simplify (4 Sonnet reviewers) | The theme list repeated in 5 places, per-component theme branches, `useTheme` re-rendering on every snapshot, `JSON.stringify` of pronunciations every render, synchronous log I/O per error, and others: applied as groups A-K | 2503cf8 and e5b250f: shared theme module, `ThemeMark`, `escapeRe`, shared settings controls, a `ThemeContext` with a stable `matchMedia`, `samePronunciations`, async log I/O. 10 redesigns skipped (skin capability map, semantic-token CSS refactor, `useLibraryActions`, `onSettingsChange`, pronunciation in TtsHost, a settings schema table, a zoom context, lazy fonts, collapsing copy and badges, `Library.setSettings` guards) |
+| /code-review (at e5b250f) | Important: a first-paint flash (`index.html` hard-coded sky-sea until `ThemeRoot`'s layout effect); a drive-root export folder labelled "Tide". Nits: a no-op pronunciation save on unchanged blur, a preview blob leaked on a rejected `play`, radio focus lost on a failed save, the log gate never reset | 1272cef, all 6 sent to one Sonnet fix agent. Controller check: vitest 859 with 1 failure on the first run that did not reproduce in 3 reruns (all 859/859; the known jsdom flake class); typecheck clean |
+
+### 10.4 First-paint theme flash
+
+Told once because it came back twice. T3 fixed the first flash for dark users with `additionalArguments` and a layout effect (4442335). The final review added a runtime window background (edd31c4). /code-review found that `index.html` still painted sky-sea until the layout effect ran; 1272cef sets `dataset.theme` synchronously in `main.tsx` before React renders. Each fix was correct for the stage it looked at; the flash lived in a stage the previous fix did not cover.
+
+### 10.5 CI failures
+
+All macOS. Windows was green in every run. A cancelled run is "no information" (the workflow cancels an older run when a new push arrives): 45551863400, 45552283564, 45554901905 and 45556538474 were cancelled that way.
+
+| Run id | Commit | What failed | Cause | Resolution |
+|---|---|---|---|---|
+| 45462204975 | d0150c9 | Packaged smoke: the jump test (10 621 ms against a limit of 9 798 ms; first audio in the test 4 899 ms) and "exporting while playing keeps playback going" (3.2 min, the Saved toast not visible after 30 s) | Runner speed (the same family as section 3). The export-while-playing failure is the same test R38b fixed in M5; why it failed again here is not stated | None specific; the next runs passed it. Not solved yet at the cause |
+| 45552715631 | 9885f49 | Jump test: 11 552 ms against a limit of 11 340 ms (twice the test's own first audio) | The relative limit has no margin on a slow runner (O3) | Judged runner noise by the final reviewer. Export-while-playing passed this time |
+| 45558129784 | 1272cef | Attempt 1: a "Finish in" note step (keyboard submenu navigation) failed; the controller's note says it passes locally | Not stated | Rerun of the failed job: green on both OSes |
+
+Ruling: the macOS timing-test design (R32 relative limit, export budget) is left unchanged in M6 and surfaced to Yasin. The reviewer recommended an absolute limit; changing R32 is outside M6's plan. Cost if wrong: occasional red macOS CI. Not solved yet (O15).
+
+### 10.6 Tooling
+
+| Problem | Cause | How we solved it |
+|---|---|---|
+| Playwright cannot press the native menu accelerator for Settings (Ctrl+,) | Native accelerators are handled by the OS menu, not the page, so `page.keyboard` never reaches them | T12 tests the command by clicking the real menu item from the main process, and a renderer test covers the Ctrl+, route to the same command. The accelerator itself is not tested end to end |
+
+---
+
+## 11. M7 (Ship), 2026-11-27 to 2026-11-28
+
+Branch `feat/m7-ship`, cut from `main` at 1272cef; 24 commits `1272cef..39974bf` before this log. Scope (Yasin, 2026-11-27): core ship items, FFmpeg source attached to releases, first-launch polish only, icon from the wordmark. Out of scope: her guides, Windows Open With, parked fixes, tagging and publishing, hand-off. Six tasks, then a final Opus review, /simplify, /code-review, /security-review (run as a subagent) and an installer size pass. Rulings: R-M7-1 (Task 4's "fresh clone" is made from the local repo, because GitHub was unreachable and the check was about the README's commands); keep the Electron version line in the About box; keep the dimmed idle player bar on the empty shelf although the mockup omits it; fix the focus ring inside M7 although the plan said Task 6 would not touch product code (spec section 8 is the binding acceptance bar); keep "ffmpeg.org down blocks the release" (no verified source means no release); revert the menu-item ring exclusion (see 11.5).
+
+How we solved it (summary): every finding got a commit; dry runs were green after each workflow change. Not solved yet: the tag path (O16), custom FFmpeg (O17), manual acceptance rows (O18).
+
+### 11.1 Per-task review findings (fixed)
+
+Task 2 (About box) was clean; its deferred minors are in O20.
+
+| Task | Finding | How we solved it (fix, commit, verification) |
+|---|---|---|
+| T1 icon | Contrast too low: the pale tile vanished on white and the sun was close to the sky. The controller found it by looking at the render at 16, 32 and 512 px | 5ced52a: deep sky gradient, warm sun, white front wave. Controller approved at all sizes and on dark |
+| T1 | `resources/icon.png` was stale in HEAD (the regenerated file was missed in 5ced52a) | d2179da: committed, and `icons.test.ts` now checks the icns magic bytes and that the png is byte-identical to a fresh render. The file turned out to be unused at runtime and was deleted in /simplify (56e8e65) |
+| T3 CI | Draft-by-tag upload was unproven: `gh release upload` by tag name is unreliable for drafts | 4287f0c: look up the draft explicitly with retries (6 attempts, 10 s apart), fail with `::error::` if absent. Still untested live (O16) |
+| T3 | The `dry_run` input was inert but described as if it did something | 4287f0c: honest description (removed outright in /simplify) |
+| T3 | Workflow-level `contents: write` | 4287f0c: workflow-level read; write only on the jobs that need it |
+| T3 | A no-op `sed` in the workflow | 4287f0c: removed |
+| T4 README | The `fetch-model` row gave the wrong dtype (fp32 is the default; `--dtype all` adds q8) | fdc0c29 |
+| T4 | The scripts table was missing 3 scripts (the reviewer's Important) | fdc0c29: 18 of 18 listed |
+| T4 | "Match my Mac" is "Match my PC" on Windows | fdc0c29 |
+| T4 | A claim that dry runs merge to `main` | fdc0c29: removed |
+| T4 | The dry-run command carried `-f dry_run=true` although a manual run never publishes | fdc0c29: `gh workflow run release.yml --ref <branch>` |
+| T4 | The model-size claim and verification wording were not exact | fdc0c29: "verified" (size always; sha256 when listed) |
+| T4 (found by following the README in a fresh clone) | Dev e2e fails (2 passed, the rest failed, 18 min) unless `npm run build` runs first | README fixed; after a build, `smoke` passed 3/3 |
+| T4 (same) | The clone URL used the wrong repo name | README uses the real remote |
+| T4 (same) | `npm run package` fails at the publish-info step ("Cannot detect repository by .git/config") in a clone whose origin is a local path | Not a product problem; the README notes `package` needs a git origin |
+| T5 first launch | The Finder tip was 13 px against the mockup's 12.5 px (the only gap among everything compared in two themes and two widths) | f2dd5da with a test (RED shown). The macOS-only tip is not visible in Windows screenshots |
+| T6 acceptance | **Gap, spec section 8 row 10b:** no visible keyboard focus on the player controls. Cause: Tailwind 4 `outline-none focus-visible:outline-2` leaves `--tw-outline-style` at none | e6c0a93: one global `:focus-visible` rule with a `--focus-ring` token. The e2e had been written with `test.fail()`; removed once fixed |
+| T6 | The global ring on bubble surfaces (Toast) was about 2.1-2.5:1 | 64dfa24: the `.on-bubble` ring uses `--bg`; a unit test of contrast against `--bubble` in all 4 themes |
+| T6 | The acceptance doc's row 10b wording claimed more than the e2e asserts | 3e38e08 |
+| T6 | One "Page crashed" in the save-audio "exporting while playing" test; it passed alone and on a full rerun | Flagged to the final review, which judged it pre-existing |
+
+### 11.2 Tools and process
+
+| Problem | Detail | How we solved it |
+|---|---|---|
+| GitHub unreachable from this machine at the start of the session (2026-11-27) | Task 1's push was deferred (connection reset); the first push had to be `git push -u origin feat/m7-ship` | Pushed once GitHub was back (origin at d2179da). R-M7-1 made Task 4's clone local so it did not depend on it. How long it was down: not stated |
+| The /security-review skill cannot run when the session's cwd is another repo | It diffs `origin/HEAD` of the working directory, which here was a different repository | Run as a subagent over the branch instead |
+| First dry run failed on the CI hosts (46032497501) | "on win32 Help ends with About Tide" failed on macOS because the test did not pin `process.platform`; the PNG render test in `icons.test.ts` hit its 5 s limit on Windows. The tests assumed the dev machine | 3153f0f: pin the platform in the test; 30 s timeout. Dry run 46033063021 green on macOS, Windows and the FFmpeg-source job. (Later the platform pin became a `withPlatform` helper, and the icon render test left with its file in /simplify) |
+| A one-off failure in a full vitest run (Task 1 and Task 5 reports; also once in M6 at 1272cef) | Not diagnosed; passed on rerun | Known jsdom flake class (F12). Not solved yet |
+
+### 11.3 Release workflow, five passes of finding holes
+
+The FFmpeg source obligation (O12) turned into a release pipeline. Each pass of review found a different hole.
+
+| Pass | Hole | Fix |
+|---|---|---|
+| Task 3 review | The attach job's lookup by tag was unproven for drafts | Explicit lookup with retries (4287f0c) |
+| Final review (Opus) | **Important:** the source job ran after the matrix, so a draft could hold installers with no FFmpeg source, and the README said to publish by hand. Also: tag need not equal the `package.json` version; `persist-credentials` left on | 457cabc: a new first job `ffmpeg-source-fetch` (download, sha256 check, write `FFMPEG-SOURCE.md`, upload as an artifact); the matrix `needs` it; `ffmpeg-source-attach` runs on tags only. `persist-credentials: false`. README publish gate. Dry run 46046066717 green |
+| /simplify (c05cbda) | Not holes, but two new guards: tag equals package version, and the locked `ffmpeg-static` version equals the pinned source (5.3.0 for both). Also one build step, one `jq` pass, no hard-coded tarball, an Electron cache | Dry run 46048011130 green |
+| /code-review | Pre-existing: a concurrent matrix publish could create two drafts, so the source attached to the wrong one. The `jq` filter concatenated the tag into the string | 0f68ed5: a `create-draft` job (tag only) creates the single draft; the attach step fails if more than one release matches; `jq --arg`. Checked in `electron-publish` (`getOrCreateRelease`) that the matrix reuses the existing draft. `release-workflow.test.ts` parses the YAML and evaluates the job conditions over 6 result combinations. Dry run 46049949335 green |
+| /security-review | No high-confidence vulnerability. Areas checked: script injection, token permissions, dispatch, checksum, artifacts, pinned refs (a nit), cache, `shell.openPath` fixed paths, `extraResources`, renderer, dev dependencies | Nothing to fix |
+
+FFmpeg source integrity: ffmpeg.org publishes no `.sha256` (404), so the pinned tarball's hash (8684f4b0...) was cross-checked against the signature from ffmpeg.org (a good signature from the FFmpeg release signing key; the key itself is not trust-anchored). CI re-downloads and verifies the same hash on every run.
+
+### 11.4 Final review, /simplify, /code-review
+
+| Pass | Items | Result |
+|---|---|---|
+| Final review (Opus, `1272cef..3e38e08`) | 5: the draft without source (above); the acceptance Counts line; Pixel Quest "Back to reading" ring 1.37:1 on the page; `persist-credentials: false`; macOS had no in-app licences (add Help > View licences on all platforms) | 457cabc; re-review approved 5 of 5 (minor: View licences appeared in File and Help, and the test hit File first). Flake judged pre-existing |
+| /simplify (A-M) | Workflow, about blurb constants, licences only in Help, `.on-page-float` class, test helpers, delete the unused icon | c05cbda, e7cd336, cb8aa11, 56e8e65, 0d412f5. Skipped: a two-tone universal ring, dropping release typecheck and test, running the fetch in parallel, a shared `renderIcon`, `noticePath` through `resourcePath`, `gh release upload` by tag |
+| /code-review (2 Important + 4 nits) | View licences does nothing when no `.md` handler exists (the `openPath` error was ignored); the duplicate-draft race (11.3); the Pixel Quest floating-button ring about 1.4:1 on the stage; menu items show a ring plus the highlight fill on mouse-after-keyboard; release blocked if ffmpeg.org is down; `void showAbout()` could raise an unhandled rejection into `onFatal` | 0f68ed5: licences ship as `.txt` and fall back to `showItemInFolder`; the two-tone float ring (13.33:1 and 17.95:1, tones differ 17.95:1); `.catch(logError)`. ffmpeg.org down: kept on purpose. Menu items: see 11.5 |
+
+### 11.5 Focus ring, continued
+
+A focus ring is a contrast problem on every surface (lesson 20). After e6c0a93 and 64dfa24: Pixel Quest's back-to-reading ring (1.37:1) became `--border` (about 19:1 on the page) in 457cabc; its floating button needed a two-tone ring in 0f68ed5. The fix agent excluded menu items from the global ring; the controller reverted that in 8300fc5 because Radix's highlight fill is only 1.14 to 1.49:1 against the menu background in the four themes, and a keyboard user needs a visible indicator more than a mouse-after-keyboard user needs a tidy one. Cost accepted: a slightly busier menu.
+
+### 11.6 Acceptance checklist
+
+Task 6 wrote `docs/acceptance-v1.md`: 5 rows automated, 5 manual pending, 1 gap (10b) at first; after the focus fix, 6 automated, 5 manual, 0 gaps. Packaged offline suite: 44 passed, 1 skipped (a macOS-only hidden-window test), 0 failed; local-readings 5 of 5 (render, step, resume only; the at least 95% junk check stays manual at hand-off). vitest 884 at the end; typecheck clean; lint 0 errors.
+
+### 11.7 CI and dry runs
+
+| Run id | What | Result |
+|---|---|---|
+| 46032497501 | First dry run | Failed: 2 CI-host tests (11.2) |
+| 46033063021 | After 3153f0f | Green: macOS, Windows, ffmpeg source. Installers 478 958 030 B (Windows) and 478 523 563 B (macOS); source artifact 10 462 522 B |
+| 46033838862 | After 4287f0c | Green |
+| 46046066717 | After 457cabc | Green (fetch first, then matrix; attach skipped as intended) |
+| 46048011130 | After /simplify | Green |
+| 46049949335 | After 0f68ed5 | Green (create-draft skipped on dispatch) |
+| 46052301977 | After 39974bf (size) | Green |
+
+### 11.8 Installer size
+
+Baseline Windows installer 478.9 MB (unpacked 870 MiB). Installer sizes are decimal MB; unpacked is MiB. Candidates were sized from file sizes in `win-unpacked`, not built one by one (each package build is about 2 minutes). Commit 39974bf.
+
+| # | Candidate | Verdict | Why and how much |
+|---|---|---|---|
+| 1 | Keep only the en-US Electron locale | Applied | 55 `.pak` files (49 MB) down to 1; about -48 MB unpacked, about -10 MB installer |
+| 2 | Prune browser-only transformers.js files and all `*.map` and `*.d.ts` | Applied | Node resolves the `node` export; the web, wasm and jsep builds are unused; about -45 MB unpacked (that dist went from 45 to about 7 MB) |
+| 3 | Drop `sharp` | Skipped | `transformers.node.mjs` has a static `import ... from "sharp"` evaluated at load; the 19 MB stays |
+| 4 | Drop `DirectML.dll` (18.5 MB) | Applied | Neither `onnxruntime.dll` nor the binding imports it, and the worker pins `device: 'cpu'`; packaged e2e synthesises offline without it |
+| 5 | Maximum compression | Applied | NSIS LZMA; the dmg switches to UDBZ. Windows package build 2 m 11 s. The separate gain was not isolated |
+| 6 | Custom minimal LGPL FFmpeg (PCM in, `libmp3lame` and native AAC out, `ipod` and `mp3` muxers, no x264 or x265) | Not done | Estimated 3-6 MB per platform against 79 MB; about -73 MB unpacked and 25-30 MB of installer per OS; 1-2 days of CI work. It would also simplify the source offer. Decision for Yasin (O17) |
+| 7 | Compress `model.onnx` losslessly | Skipped | gzip -9 gives 301.4 MB from 325.5 MB (-7.4%), and the installer already compresses it, so the installer gain is about 0; a smaller installed copy would need decompression at first run. onnxruntime cannot read compressed external data |
+| 8 | Remove Chromium's `dxcompiler.dll` (25 MB) and `vk_swiftshader` (5 MB) | Not attempted | Risk to GPU and WebGPU fallbacks |
+
+| | Before | After | Delta |
+|---|---|---|---|
+| Windows installer | 478.9 MB | 454.2 MB | -24.7 MB (-5.2%) |
+| Windows unpacked | 870 MiB | 757 MiB | -113 MiB |
+| macOS installer (CI artifact) | 478.5 MB | 462.3 MB | -16.2 MB |
+
+Verification: packaged e2e 44 passed, 1 skipped, 0 failed offline (reading plays; first audio 3 043 ms and jump 3 553 ms against the 4 500 ms local limit; MP3 and m4b exports; `ffmpegHasMp3: true`); vitest 884; dry run 46052301977. What remains: Electron 239 MB, the fp32 model 311 MB (fixed since M0e, because the quantised model was too slow), FFmpeg 79 MB, `dxcompiler.dll` 25 MB, `sharp` 19 MB.
+
+### 11.9 Not solved yet from M7
+
+Section 8 rows O15 to O22: the tag path (O16), custom FFmpeg (O17), the manual acceptance rows (O18), the deferred minors (O20), `npm audit` (O21).
