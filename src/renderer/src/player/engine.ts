@@ -79,12 +79,13 @@ const KEEP_BEHIND = 3
 const MAX_SKIPS_IN_A_ROW = 3
 /**
  * Sentences of made audio kept: the current one, a full prefetch window ahead, and those just
- * played. It was 8 when the window was 3 ahead; the window can now be MAX_AHEAD long, and a cache
+ * played. The cache size is 1 + maxAhead + keepBehind + CACHE_SLACK (17 by default; it was 8 when the window was 3 ahead): a cache
  * smaller than it would evict prefetched audio before it plays. Memory stays bounded: each clip is
  * one sentence of 24 kHz mono 16-bit WAV (about 50 KB per second, so roughly 0.5 MB for a typical
  * sentence, 8 MB for a full cache), and the object URLs are revoked on eviction.
  */
-const CACHE_MAX_DEFAULT = 1 + MAX_AHEAD + KEEP_BEHIND
+/** Room for the one sentence that is briefly both just played and the oldest kept. */
+const CACHE_SLACK = 1
 /**
  * The sentence playback (re)starts at is cut into progressively larger clips: the first has at most
  * this many words, so the first audio comes early, and each next one is only as much larger as the
@@ -132,7 +133,13 @@ function clamp(i: number, n: number): number {
 
 export class PlayerEngine {
   private readonly deps: EngineDeps
-  private readonly win: { seconds: number; maxInFlight: number; maxAhead: number; cacheMax: number }
+  private readonly win: {
+    seconds: number
+    maxInFlight: number
+    maxAhead: number
+    keepBehind: number
+    cacheMax: number
+  }
   private texts: string[] = []
   private tl = new Timeline([])
   private voice: string
@@ -165,14 +172,13 @@ export class PlayerEngine {
     this.deps = deps
     const w = deps.prefetch ?? {}
     const maxAhead = w.maxAhead ?? MAX_AHEAD
+    const keepBehind = w.keepBehind ?? KEEP_BEHIND
     this.win = {
       seconds: w.seconds ?? PREFETCH_SEC,
       maxInFlight: w.maxInFlight ?? MAX_IN_FLIGHT,
       maxAhead,
-      cacheMax:
-        w.maxAhead === undefined && w.keepBehind === undefined
-          ? CACHE_MAX_DEFAULT
-          : 1 + maxAhead + (w.keepBehind ?? KEEP_BEHIND)
+      keepBehind,
+      cacheMax: 1 + maxAhead + keepBehind + CACHE_SLACK
     }
     this.voice = voice
     this.speed = speed
@@ -412,21 +418,29 @@ export class PlayerEngine {
     }
   }
 
-  /** Keep at most the cache size (CACHE_MAX_DEFAULT) sentences, dropping those farthest from the current one (behind first). */
+  /**
+   * Keep at most `cacheMax` sentences (= current + maxAhead + keepBehind, set once in the
+   * constructor). Sentences behind the playhead go first, oldest first, beyond keepBehind; nothing
+   * inside the active window [index, index + maxAhead] is ever evicted, so the window cannot thrash
+   * (be requested, trimmed, requested again). Only entries outside it can go after that: the
+   * farthest first.
+   */
   private trim(): void {
     const at = this.index ?? 0
+    const hi = at + this.win.maxAhead
     while (this.entries.size > this.win.cacheMax) {
-      let victim: number | null = null
-      for (const k of this.entries.keys()) {
-        if (k === at || k === this.cur.i) continue
-        if (victim === null) victim = k
-        else {
-          const dv = Math.abs(victim - at)
-          const dk = Math.abs(k - at)
-          if (dk > dv || (dk === dv && k < victim)) victim = k
+      const behind = [...this.entries.keys()]
+        .filter((k) => k < at && k !== this.cur.i)
+        .sort((x, y) => x - y)
+      let victim: number | undefined
+      if (behind.length > this.win.keepBehind) victim = behind[0]
+      else {
+        for (const k of this.entries.keys()) {
+          if (k === this.cur.i || (k >= at && k <= hi)) continue
+          if (victim === undefined || Math.abs(k - at) > Math.abs(victim - at)) victim = k
         }
       }
-      if (victim === null) return
+      if (victim === undefined) return
       this.evict(victim)
     }
   }
@@ -449,6 +463,7 @@ export class PlayerEngine {
         this.request(i)
         inFlight += 1
       }
+      // (the current sentence's remaining time is not counted in `covered`: conservative)
       if (i > this.index) covered += this.tl.durationOf(i, 1) / this.speed
     }
     this.trim()

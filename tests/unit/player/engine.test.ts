@@ -116,7 +116,7 @@ interface Rig {
 let holdAfter: (i: number) => boolean = () => false
 
 /** The old fixed window (3 ahead, 8 cached): the mechanics tests below were written against it. */
-const NARROW = { maxAhead: 3, keepBehind: 4 }
+const NARROW = { maxAhead: 3, keepBehind: 3 }
 
 function setup(
   texts: string[],
@@ -1086,6 +1086,40 @@ describe('PlayerEngine time-based prefetch', () => {
     await flush()
     sink.triggerEnded() // moves to sentence 1; 40 s of made audio is already ahead
     expect(tts.calls.length).toBe(n0 + 0)
+    // 40 s per sentence: one sentence ahead covers it, so far fewer than the 8 the cap allows
+    // would be asked for from a cold start with such lengths
+    const e2 = setup(texts, 0, {})
+    e2.engine.play()
+    e2.tts.calls[0].resolve(audio(40))
+    await flush()
+    e2.sink.triggerEnded()
+    expect(inFlight(e2.engine)).toBeLessThan(8)
+  })
+
+  it('short sentences at the 12-ahead cap: advancing never cancels and re-requests the same index', async () => {
+    const texts = Array.from({ length: 60 }, (_, k) => `S${k}.`)
+    const { engine, sink, tts } = setup(texts, 0, { seconds: 1000, maxInFlight: 100 })
+    engine.play()
+    const asked = new Map<number, number>()
+    const note = (): void => {
+      for (const c of tts.calls) {
+        const i = Number(c.text.slice(1, -1))
+        asked.set(i, new Set(tts.calls.filter((x) => x.text === c.text).map((x) => x.gen)).size)
+      }
+    }
+    for (let step = 0; step < 20; step++) {
+      for (const c of tts.calls) if (!tts.cancels.includes(c.gen)) c.resolve(audio(1))
+      await flush()
+      sink.triggerEnded()
+      await flush()
+      const e = engine as unknown as { entries: Map<number, unknown> }
+      const idx = engine.snapshot().index ?? 0
+      for (let k = idx; k <= idx + 12; k++) expect(e.entries.has(k)).toBe(true) // window intact
+      expect(e.entries.size).toBeLessThanOrEqual(17)
+    }
+    note()
+    expect(tts.cancels).toEqual([]) // nothing was cancelled, so nothing was asked twice
+    expect([...asked.values()].every((n) => n === 1)).toBe(true)
   })
 
   it('after a voice change the next sentences are requested in playback order, next first piece in front', async () => {
