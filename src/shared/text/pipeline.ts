@@ -150,16 +150,35 @@ export function buildSentences(
   return { sentences, textlessPages, skippedPages }
 }
 
-/** A line this much smaller than body text (or a line of numbers) at the top of a page is not body text. */
+/** A line this much smaller than body text may be figure or table material (never prose, see below). */
 const SMALL_RATIO = 0.9
+/** At most this many lines at the top of a page are skipped or broken off as table material. */
+const MAX_LEADING_LINES = 12
+/** A small non-numeric line of at most this many words (a column header, a figure label) is table-like. */
+const MAX_LABEL_WORDS = 4
+
+/**
+ * Table or figure material at the top of a page: a line of numbers, or a short small-font label that
+ * does not start in lower case (so it cannot continue a sentence). Small PROSE (a block quote set in
+ * a smaller size, which may continue the previous page's sentence) is never table-like.
+ */
+function tableLike(l: Line, body: number): boolean {
+  if (isNumericLine(l)) return true
+  return (
+    l.fontSize < SMALL_RATIO * body &&
+    l.text.split(/\s+/).length <= MAX_LABEL_WORDS &&
+    !/^["'“‘(]?[a-z]/.test(l.text)
+  )
+}
 
 /**
  * Appends one page's lines, with hard breaks at headings and at large vertical gaps.
  *
- * Page start: leading lines that are small (under 0.9 x body) or mostly numbers are table or figure
- * material, not the continuation of the previous page's sentence. When that sentence is still `open`
- * (its last line did not end it, e.g. "mar-") and the caption/table filter is on, they are not spoken, so
- * the join attaches to the page's first body line. Otherwise a hard break goes before and after them.
+ * Page start: leading table-like lines (see `tableLike`, at most 12) are not the continuation of the
+ * previous page's sentence. When that sentence is still `open` (its last line did not end it, e.g.
+ * "mar-") and the caption/table filter is on, they are not spoken, so the join attaches to the page's
+ * first body line. Otherwise a hard break goes before and after them. Small prose is never dropped and
+ * never broken from the sentence it continues.
  */
 function appendPage(
   spoken: SpokenText,
@@ -170,8 +189,8 @@ function appendPage(
   let lines = allLines
   let leading = 0
   while (
-    leading < lines.length &&
-    (lines[leading].fontSize < SMALL_RATIO * body || isNumericLine(lines[leading]))
+    leading < Math.min(lines.length, MAX_LEADING_LINES) &&
+    tableLike(lines[leading], body)
   )
     leading++
   const bodyFollows = leading > 0 && leading < lines.length

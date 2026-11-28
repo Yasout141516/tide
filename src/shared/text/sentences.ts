@@ -120,7 +120,9 @@ function capRange(
   const out: { start: number; end: number }[] = []
   let from = start
   while (end - from > max) {
-    const window = text.slice(from, from + max + 1)
+    // Keep at least MIN_PIECE_CHARS for the rest, so no tiny tail piece is left.
+    const limit = Math.min(max, end - from - MIN_PIECE_CHARS)
+    const window = text.slice(from, from + limit + 1)
     let cut = -1
     // [pattern, where the piece ends relative to the match start]: after the punctuation, or before a dash.
     for (const [re, offset] of [
@@ -132,7 +134,7 @@ function capRange(
       let best = -1
       while ((m = re.exec(window))) {
         const at = m.index + offset
-        if (at >= MIN_PIECE_CHARS && at <= max) best = at
+        if (at >= MIN_PIECE_CHARS && at <= limit) best = at
       }
       if (best >= 0) {
         cut = best
@@ -140,8 +142,8 @@ function capRange(
       }
     }
     if (cut < 0) {
-      const space = window.lastIndexOf(' ', max)
-      cut = space >= MIN_PIECE_CHARS ? space : max
+      const space = window.lastIndexOf(' ', limit)
+      cut = space >= MIN_PIECE_CHARS ? space : limit
     }
     const pieceEnd = from + cut
     const trimmedEnd = from + text.slice(from, pieceEnd).trimEnd().length

@@ -81,6 +81,30 @@ describe('table text and the page-start join', () => {
     expect(text).not.toContain('Source')
   })
 
+  it('reads and joins a smaller-font block quote that continues across the page break', () => {
+    const quote = (y: number, str: string): ItemSpec => ({
+      str,
+      x: 90,
+      y,
+      fontSize: 9.5,
+      width: 420
+    })
+    const p2 = page(
+      [
+        quote(80, 'riages, and the elders who spoke at the gathering agreed that the custom'),
+        quote(92, 'was older than any record the village kept, and it was not questioned.'),
+        prose(120, 'The notes that follow describe how the later households were counted.')
+      ],
+      2
+    )
+    for (const f of [undefined, READ_EVERYTHING]) {
+      const r = f ? buildSentences([page1(), p2], f) : buildSentences([page1(), p2])
+      const text = join(r)
+      expect(text).toContain('marriages, and the elders who spoke')
+      expect(text).toContain('was older than any record the village kept')
+    }
+  })
+
   it('reads the table again under Read everything', () => {
     const text = join(buildSentences([page1(), page2()], READ_EVERYTHING))
     expect(text).toMatch(/466/)
@@ -152,6 +176,12 @@ describe('sentence cap', () => {
     expect(ranges.map((r) => long.slice(r.start, r.end)).join(' ')).toBe(long)
     // Clause boundaries, not mid-word: every piece but the last ends in a comma.
     for (const r of ranges.slice(0, -1)) expect(long[r.end - 1]).toBe(',')
+  })
+
+  it('leaves no tiny tail piece', () => {
+    const text = `${'alpha beta gamma delta '.repeat(13).trim()} omega.`
+    const ranges = segmentSentences(text)
+    for (const r of ranges) expect(r.end - r.start).toBeGreaterThanOrEqual(60)
   })
 
   it('falls back to word boundaries without punctuation', () => {
