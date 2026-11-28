@@ -44,6 +44,7 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
       // R36: resuming after nested jobs, so the host restarts this job's timeout.
       if (stepped) d.reply({ id: msg.id, type: 'started' })
       parts.push(await d.generate(chunk, msg.voice, msg.speed))
+      d.reply({ id: msg.id, type: 'progress' })
     }
     if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
     return {

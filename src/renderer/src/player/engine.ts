@@ -51,9 +51,16 @@ export interface EngineDeps {
    * reading there: paused at `index`, the next sentence not started.
    */
   holdAfter?(index: number): boolean
+  /**
+   * Sentence `index` could not be read aloud (it failed twice) and playback moved past it. Called
+   * once per skipped sentence; the caller shows the toast and writes the log.
+   */
+  onSkip?(index: number, reason: string): void
 }
 
 const AHEAD = 3
+/** This many skipped sentences with no good one between them: not one bad sentence, a dead voice. */
+const MAX_SKIPS_IN_A_ROW = 3
 /** Sentences of made audio kept (the current one, those ahead, and those just played). */
 const CACHE_MAX = 8
 /**
@@ -81,12 +88,14 @@ interface Entry {
   pending: number
   /** Object URL per clip; undefined when not arrived yet. Kept after playing, revoked on eviction. */
   urls: (string | undefined)[]
+  /** The text of each clip, kept so a failed one can be asked for again. */
+  pieces: string[]
   /**
-   * A clip failed for good (R37). Its `pending` is settled like an arrival, so it is never taken for
-   * in-flight work. For a prefetched sentence the error is raised only when playback reaches it;
-   * a seek or Play (restart) drops the entry, so the sentence is requested afresh.
+   * A clip failed for good (R37, RS-3). Its `pending` is settled like an arrival, so it is never
+   * taken for in-flight work. 'skip': it failed twice, so playback moves past the sentence when it
+   * reaches it. 'down': the voice engine itself is gone, so playback stops with an error there.
    */
-  failed?: boolean
+  failed?: 'skip' | 'down'
   /** Real duration per clip once arrived. */
   secs: (number | undefined)[]
 }
@@ -114,6 +123,13 @@ export class PlayerEngine {
   /** Synthesis time per second of audio, smoothed over the clips made so far; 1 until measured. */
   private rtf = 1
   private restartPending = false
+  /** Failures per sentence index; two make it a skipped one (RS-3). Kept across a worker restart. */
+  private failCounts = new Map<number, number>()
+  /** Sentences given up on: requested as already failed, so playback passes them without synthesis. */
+  private skipped = new Set<number>()
+  private lastError = ''
+  /** Sentences skipped in a row; reaching MAX_SKIPS_IN_A_ROW means the voice itself is broken. */
+  private skipRun = 0
   private listeners = new Set<(s: PlayerSnapshot) => void>()
   private unsubStatus: () => void
   private disposed = false
@@ -143,6 +159,9 @@ export class PlayerEngine {
     this.tl = new Timeline(texts)
     this.index = index === null || texts.length === 0 ? null : clamp(index, texts.length)
     this.restartPending = false
+    this.failCounts.clear()
+    this.skipped.clear()
+    this.skipRun = 0
     this.dropAll()
     this.resetCursor()
     this.phase = 'idle'
@@ -152,6 +171,9 @@ export class PlayerEngine {
   setIndex(i: number): void {
     if (this.disposed || this.texts.length === 0) return
     this.index = clamp(i, this.texts.length)
+    // An explicit jump onto a skipped sentence is a fresh try at it.
+    this.failCounts.delete(this.index)
+    this.skipped.delete(this.index)
     if (this.phase === 'finished' || this.phase === 'error') this.phase = 'paused'
     this.seek()
   }
@@ -375,31 +397,40 @@ export class PlayerEngine {
       front,
       voice: this.voice,
       speed: this.speed,
+      pieces,
       pending: pieces.length,
       urls: new Array<string | undefined>(pieces.length).fill(undefined),
       secs: new Array<number | undefined>(pieces.length).fill(undefined)
     }
     this.entries.set(i, entry)
-    for (let p = 0; p < pieces.length; p++) {
-      void this.deps.tts
-        .synthesize(pieces[p], {
-          voice: entry.voice,
-          speed: entry.speed,
-          priority: 'live',
-          gen: entry.gen,
-          ...(front && { front })
-        })
-        .then(
-          (audio) => this.onAudio(i, entry, p, audio),
-          (err: unknown) => this.onFail(i, entry, err)
-        )
+    if (this.skipped.has(i)) {
+      entry.pending = 0
+      entry.failed = 'skip'
+      return
     }
+    for (let p = 0; p < pieces.length; p++) this.synthPiece(i, entry, p)
+  }
+
+  private synthPiece(i: number, entry: Entry, p: number): void {
+    void this.deps.tts
+      .synthesize(entry.pieces[p], {
+        voice: entry.voice,
+        speed: entry.speed,
+        priority: 'live',
+        gen: entry.gen,
+        ...(entry.front && { front: true })
+      })
+      .then(
+        (audio) => this.onAudio(i, entry, p, audio),
+        (err: unknown) => this.onFail(i, entry, p, err)
+      )
   }
 
   private onAudio(i: number, entry: Entry, p: number, audio: TtsAudio): void {
     // Dropped when the entry was evicted meanwhile (seek, voice or speed change): never played.
     if (this.disposed || this.entries.get(i) !== entry) return
     entry.pending -= 1
+    this.skipRun = 0
     entry.secs[p] = audio.pcm.length / SAMPLE_RATE
     if (entry.secs[p] > 0 && audio.synthMs > 0) {
       this.rtf = 0.5 * this.rtf + 0.5 * (audio.synthMs / 1000 / entry.secs[p])
@@ -416,26 +447,60 @@ export class PlayerEngine {
     this.emit()
   }
 
-  private onFail(i: number, entry: Entry, err: unknown): void {
+  private onFail(i: number, entry: Entry, p: number, err: unknown): void {
     if (isAbortError(err) || this.disposed || this.entries.get(i) !== entry) return
-    entry.pending -= 1 // settled, as an arrival does
+    this.lastError = err instanceof Error ? err.message : String(err)
+    const count = (this.failCounts.get(i) ?? 0) + 1
+    this.failCounts.set(i, count)
     void this.deps.tts
       .status()
       .catch((): TtsStatus => 'failed')
       .then((s) => {
         if (this.disposed || this.entries.get(i) !== entry) return
         if (s === 'restarting' || this.restartPending) {
+          entry.pending -= 1 // settled; the restart asks for it again, unless it has failed twice
+          if (count >= 2) this.skipped.add(i)
           this.restartPending = true
           this.status = 'restarting'
           if (this.wantPlay && !this.clipLoaded) this.phase = 'loading-voice'
-        } else if (i !== this.cur.i) {
-          entry.failed = true // a prefetched sentence: the current one keeps playing (R37)
+        } else if (s === 'failed') {
+          entry.pending -= 1
+          entry.failed = 'down' // the voice engine is gone, not one bad sentence
+          if (i === this.cur.i) this.failNow()
+        } else if (count < 2) {
+          this.synthPiece(i, entry, p) // one more try (RS-3); pending stays, it is still in flight
           return
         } else {
-          this.raiseError()
+          entry.pending -= 1
+          entry.failed = 'skip'
+          this.skipped.add(i)
+          if (i === this.cur.i) this.failNow()
         }
         this.emit()
       })
+  }
+
+  /** The sentence being waited on or just playing failed: if nothing is playing, act on it now. */
+  private failNow(): void {
+    if (this.wantPlay && !this.clipLoaded) this.tryStart()
+  }
+
+  /** Give up on sentence i (RS-3): tell the caller, then carry on with the next one. */
+  private skipPast(i: number): void {
+    this.deps.onSkip?.(i, this.lastError)
+    if (++this.skipRun >= MAX_SKIPS_IN_A_ROW) {
+      this.raiseError() // "the voice isn't working": failures across different sentences
+      this.emit()
+    } else if (i + 1 < this.texts.length) {
+      this.index = i + 1
+      this.cur = { i: i + 1, p: 0 }
+      this.fill() // the window moves on, so what follows a run of skipped sentences is requested
+      this.tryStart()
+    } else {
+      this.wantPlay = false
+      this.phase = 'finished'
+      this.emit()
+    }
   }
 
   private raiseError(): void {
@@ -469,9 +534,13 @@ export class PlayerEngine {
     if (!this.wantPlay || this.clipLoaded) return
     const { i, p } = this.cur
     const entry = this.entryFor(i)
-    if (entry?.failed) {
+    if (entry?.failed === 'down') {
       this.raiseError()
       this.emit()
+      return
+    }
+    if (entry?.failed === 'skip') {
+      this.skipPast(i)
       return
     }
     const url = entry?.urls[p]

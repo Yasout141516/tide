@@ -108,6 +108,7 @@ interface Rig {
   made: string[]
   revoked: string[]
   snaps: PlayerSnapshot[]
+  skipped: number[]
 }
 
 function setup(texts: string[], index: number | null = 0): Rig {
@@ -116,6 +117,7 @@ function setup(texts: string[], index: number | null = 0): Rig {
   let n = 0
   const made: string[] = []
   const revoked: string[] = []
+  const skipped: number[] = []
   const engine = new PlayerEngine(
     {
       sink,
@@ -127,6 +129,9 @@ function setup(texts: string[], index: number | null = 0): Rig {
       },
       revokeUrl: (u) => {
         revoked.push(u)
+      },
+      onSkip: (i) => {
+        skipped.push(i)
       }
     },
     'v1',
@@ -135,7 +140,7 @@ function setup(texts: string[], index: number | null = 0): Rig {
   engine.setSentences(texts, index)
   const snaps: PlayerSnapshot[] = []
   engine.subscribe((s) => snaps.push(s))
-  return { engine, sink, tts, made, revoked, snaps }
+  return { engine, sink, tts, made, revoked, snaps, skipped }
 }
 
 const S = ['One short.', 'Two short.', 'Three short.', 'Four short.', 'Five short.', 'Six short.']
@@ -507,30 +512,150 @@ describe('PlayerEngine', () => {
     expect(engine.snapshot()).toMatchObject({ index: 6, phase: 'playing' })
   })
 
-  it('a synthesis failure with a ready engine is an error', async () => {
-    const { engine, tts } = setup(S)
-    engine.play()
-    tts.calls[0].reject(new Error('boom'))
-    await flush()
-    expect(engine.snapshot().phase).toBe('error')
+  describe('a sentence that fails is skipped, not fatal (RS-3)', () => {
+    it('a first failure is retried once; a second skips the sentence and playback continues', async () => {
+      const { engine, tts, skipped } = setup(S)
+      engine.play()
+      const n = tts.calls.length
+      tts.calls[0].reject(new Error('boom'))
+      await flush()
+      expect(tts.calls).toHaveLength(n + 1) // the retry
+      expect(tts.calls[n].text).toBe(S[0])
+      expect(skipped).toEqual([])
+      tts.calls[n].reject(new Error('boom again'))
+      await flush()
+      expect(skipped).toEqual([0])
+      expect(engine.snapshot().phase).not.toBe('error')
+      tts.calls[1].resolve(audio(1)) // sentence 1 arrives
+      await flush()
+      expect(engine.snapshot()).toMatchObject({ index: 1, phase: 'playing' })
+      expect(skipped).toEqual([0]) // reported once
+    })
+
+    it('a retry that works plays the sentence normally', async () => {
+      const { engine, tts, skipped } = setup(S)
+      engine.play()
+      const n = tts.calls.length
+      tts.calls[0].reject(new Error('boom'))
+      await flush()
+      tts.calls[n].resolve(audio(1))
+      await flush()
+      expect(skipped).toEqual([])
+      expect(engine.snapshot()).toMatchObject({ index: 0, phase: 'playing' })
+    })
+
+    it('a failing sentence in the middle is skipped when playback reaches it, and the one after plays', async () => {
+      const { engine, sink, tts, skipped } = setup(S)
+      engine.play()
+      tts.calls[0].resolve(audio(1))
+      tts.calls[1].resolve(audio(1))
+      await flush()
+      const n = tts.calls.length
+      tts.calls[2].reject(new Error('boom'))
+      await flush()
+      tts.calls[n].reject(new Error('boom'))
+      await flush()
+      expect(skipped).toEqual([]) // not reached yet
+      tts.calls[3].resolve(audio(1))
+      await flush()
+      sink.triggerEnded() // -> 1
+      sink.triggerEnded() // -> 2 skipped -> 3
+      await flush()
+      expect(skipped).toEqual([2])
+      expect(engine.snapshot()).toMatchObject({ index: 3, phase: 'playing' })
+    })
+
+    it('the last sentence failing twice finishes the reading rather than erroring', async () => {
+      const { engine, tts, skipped } = setup(['Only one.'])
+      engine.play()
+      tts.calls[0].reject(new Error('boom'))
+      await flush()
+      tts.calls[1].reject(new Error('boom'))
+      await flush()
+      expect(skipped).toEqual([0])
+      expect(engine.snapshot().phase).toBe('finished')
+    })
+
+    it('three skipped sentences in a row mean the voice is not working: the error state', async () => {
+      const { engine, tts, skipped } = setup(S)
+      engine.play()
+      const first = tts.calls.length
+      for (let k = 0; k < first; k++) tts.calls[k].reject(new Error('boom'))
+      await flush()
+      const retries = tts.calls.slice(first)
+      for (const c of retries) c.reject(new Error('boom'))
+      await flush()
+      expect(skipped).toEqual([0, 1, 2])
+      expect(engine.snapshot().phase).toBe('error')
+    })
+
+    it('a good sentence between skips resets the count', async () => {
+      const { engine, sink, tts, skipped } = setup(S)
+      engine.play()
+      const first = tts.calls.length // sentences 0..3
+      tts.calls[0].reject(new Error('boom'))
+      tts.calls[1].resolve(audio(1))
+      tts.calls[2].reject(new Error('boom'))
+      tts.calls[3].reject(new Error('boom'))
+      await flush()
+      for (const c of tts.calls.slice(first)) c.reject(new Error('boom')) // retries of 0, 2, 3
+      await flush()
+      expect(skipped).toEqual([0]) // 0 skipped; 1 plays
+      sink.triggerEnded() // 1 done -> 2 skipped, 3 skipped: only two in a row since 1 was good
+      await flush()
+      expect(skipped).toEqual([0, 2, 3])
+    })
+
+    it('a voice engine that is gone for good (status failed) still raises the error', async () => {
+      const { engine, tts, skipped } = setup(S)
+      engine.play()
+      tts.state = 'failed'
+      tts.calls[0].reject(new Error('voice engine stopped'))
+      await flush()
+      expect(skipped).toEqual([])
+      expect(engine.snapshot().phase).toBe('error')
+    })
+
+    it('a sentence that keeps failing across worker restarts is still skipped', async () => {
+      const { engine, tts, skipped } = setup(S)
+      engine.play()
+      for (let round = 0; round < 2; round++) {
+        const n = tts.calls.length
+        tts.state = 'restarting'
+        tts.calls[round === 0 ? 0 : n - S.length].reject(new Error('timed out'))
+        tts.emitStatus('restarting')
+        await flush()
+        tts.emitStatus('ready') // restart: asks again from the current sentence
+      }
+      await flush()
+      // the second restart's re-request of sentence 0 is not made: it was given up on
+      expect(skipped).toEqual([])
+      const last = tts.calls.at(-1)!
+      expect(last.text).not.toBe(S[0])
+    })
   })
 
-  it('a prefetched sentence that fails does not stop the current one; the error is raised on reaching it (R37)', async () => {
-    const { engine, sink, tts } = setup(S)
+  it('a prefetched sentence that fails does not stop the current one; it is skipped on reaching it (R37, RS-3)', async () => {
+    const { engine, sink, tts, skipped } = setup(S)
     engine.play()
     tts.calls[0].resolve(audio(1))
     tts.calls[1].resolve(audio(1))
     await flush()
     const pausesBefore = sink.pauses
+    const n = tts.calls.length
     tts.calls[2].reject(new Error('boom')) // sentence 2 fails while sentence 0 plays
+    await flush()
+    tts.calls[n].reject(new Error('boom')) // and again on its retry
     await flush()
     expect(engine.snapshot().phase).toBe('playing')
     expect(sink.pauses).toBe(pausesBefore)
     sink.triggerEnded() // -> sentence 1, still fine
     expect(engine.snapshot()).toMatchObject({ index: 1, phase: 'playing' })
-    sink.triggerEnded() // -> sentence 2, the failed one
+    tts.calls[3].resolve(audio(1))
+    sink.triggerEnded() // -> sentence 2, the failed one: skipped, 3 plays
     await flush()
-    expect(engine.snapshot().phase).toBe('error')
+    expect(skipped).toEqual([2])
+    expect(engine.snapshot()).toMatchObject({ index: 3, phase: 'playing' })
   })
 
   describe('a failed prefetched sentence (R37 follow-up)', () => {
@@ -541,7 +666,10 @@ describe('PlayerEngine', () => {
       r.tts.calls[0].resolve(audio(1))
       r.tts.calls[1].resolve(audio(1))
       await flush()
+      const n = r.tts.calls.length
       r.tts.calls[2].reject(new Error('boom'))
+      await flush()
+      r.tts.calls[n].reject(new Error('boom')) // the retry fails too: sentence 2 is given up on
       await flush()
       return r
     }
@@ -553,16 +681,16 @@ describe('PlayerEngine', () => {
       expect(entries.get(3)?.pending).toBeGreaterThan(0) // still in flight, for contrast
     })
 
-    it('Play after the error retries from the current sentence', async () => {
-      const { engine, sink, tts } = await failedTwo()
+    it('reaching it skips it without an error, and Play after a restart does not ask for it again', async () => {
+      const { engine, sink, tts, skipped } = await failedTwo()
       sink.triggerEnded()
       sink.triggerEnded() // reaches the failed sentence
       await flush()
-      expect(engine.snapshot().phase).toBe('error')
-      const n = tts.calls.length
-      engine.play()
-      expect(tts.calls.length).toBeGreaterThan(n)
+      expect(skipped).toEqual([2])
       expect(engine.snapshot().phase).not.toBe('error')
+      const n = tts.calls.length
+      engine.setVoice('v2') // restart from the current sentence
+      expect(tts.calls.slice(n).map((c) => c.text)).not.toContain(S[2])
     })
 
     it('a seek past it and back requests it again instead of raising', async () => {
@@ -727,35 +855,46 @@ describe('PlayerEngine', () => {
       expect(engine.snapshot().index).toBe(0)
     })
 
-    it('a failed clip of a prefetched progressive sentence is raised only on reaching it; a failed later clip of the playing one at once (R37)', async () => {
+    it('a failed clip of a prefetched progressive sentence is skipped only on reaching it; a failed later clip of the playing one skips the rest of it (R37, RS-3)', async () => {
       const np = progressiveClips(long40, { growth: 1 }).length
       expect(np).toBeGreaterThan(2)
       // half 1: sentence 1 (prefetched) has a failing later piece
       {
-        const { engine, sink, tts } = setup(['Short first one here.', long40])
+        const { engine, sink, tts, skipped } = setup(['Short first one here.', long40])
         engine.play()
         const second = tts.calls.filter((c) => long40.includes(c.text.trim()))
         expect(second.length).toBeGreaterThan(0)
+        const n = tts.calls.length
         tts.calls[1].reject(new Error('boom'))
+        await flush()
+        tts.calls[n].reject(new Error('boom')) // the retry fails too
         await flush()
         expect(engine.snapshot().phase).not.toBe('error') // the current sentence keeps going
         tts.calls[0].resolve(audio(1))
         await flush()
         expect(engine.snapshot().phase).toBe('playing')
-        sink.triggerEnded() // reaching the failed sentence
-        expect(engine.snapshot().phase).toBe('error')
+        sink.triggerEnded() // reaching the failed sentence: skipped, and it was the last
+        expect(skipped).toEqual([1])
+        expect(engine.snapshot().phase).toBe('finished')
       }
       // half 2: a later piece of the PLAYING progressive sentence fails
       {
-        const { engine, sink, tts } = setup([long40, 'Second one here.'])
+        const { engine, sink, tts, skipped } = setup([long40, 'Second one here.'])
         engine.play()
         expect(tts.calls.length).toBeGreaterThan(np)
         tts.calls[0].resolve(audio(1))
         await flush()
         expect(sink.sources).toHaveLength(1)
+        const n = tts.calls.length
         tts.calls[1].reject(new Error('boom')) // piece 1 of the playing sentence
         await flush()
-        expect(engine.snapshot().phase).toBe('error')
+        tts.calls[n].reject(new Error('boom')) // its retry fails too
+        await flush()
+        expect(skipped).toEqual([]) // the first clip is still playing
+        sink.triggerEnded() // its end reaches the failed piece: the rest is skipped
+        await flush()
+        expect(skipped).toEqual([0])
+        expect(engine.snapshot().index).toBe(1)
       }
     })
 

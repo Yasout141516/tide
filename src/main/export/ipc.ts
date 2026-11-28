@@ -8,6 +8,7 @@ import { pickFolder } from '../folder-dialog'
 import type { ExportEvent, ExportSpec, ExportStartResult } from '../../shared/ipc-types'
 import { SPEEDS, VOICE_IDS, voiceName } from '../../shared/voices'
 import { pathExists } from '../fs-util'
+import { logError } from '../log'
 import { boundedId, isStr } from '../validate'
 import { runExport, type ExportDeps } from './job'
 import { exportDir, failureReason, safeFileName, uniquePath } from './files'
@@ -152,7 +153,8 @@ export function registerExportIpc(o: {
           // Arrow wrappers: TtsHost's methods use `this`, so they cannot be passed detached.
           synthesize: (text, so) => o.host.synthesize(text, so),
           cancel: (gen) => o.host.cancel(gen),
-          writer
+          writer,
+          onSkip: (i, err) => logError('export', `left out sentence ${i + 1}: ${String(err)}`)
         },
         (done, total) => {
           const now = Date.now()

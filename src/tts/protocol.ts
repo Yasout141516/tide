@@ -23,6 +23,8 @@ export type TtsRequest =
 export type TtsResponse =
   | { id: number; type: 'loaded'; loadMs: number; warmMs: number }
   | { id: number; type: 'started' }
+  /** One chunk of a synthesis job is done: the job is alive, so the host re-arms its timeout. */
+  | { id: number; type: 'progress' }
   | {
       id: number
       type: 'audio'

@@ -55,6 +55,66 @@ describe('runExport', () => {
     expect(progress.at(-1)).toEqual([4, 4])
   })
 
+  it('a sentence that fails twice is left out and the export carries on (RS-3)', async () => {
+    const writer = makeWriter()
+    const skipped: number[] = []
+    const synthesize = vi.fn((text: string) =>
+      text === 'Bad.' ? Promise.reject(new Error('timed out')) : Promise.resolve(audio(24000))
+    )
+    const n = await runExport(
+      spec([
+        { text: 'One.', page: 1 },
+        { text: 'Bad.', page: 1 },
+        { text: 'Three.', page: 2 }
+      ]),
+      { jobId: 'j1', synthesize, cancel: vi.fn(), writer, onSkip: (i) => skipped.push(i) },
+      () => undefined,
+      new AbortController().signal
+    )
+    expect(n).toBe(1)
+    expect(skipped).toEqual([1])
+    expect(synthesize.mock.calls.filter(([t]) => t === 'Bad.')).toHaveLength(2) // tried twice
+    expect(writer.write).toHaveBeenCalledTimes(2)
+    expect(writer.finish).toHaveBeenCalled()
+    expect(writer.abort).not.toHaveBeenCalled()
+  })
+
+  it('a sentence that fails once and then works is kept', async () => {
+    const writer = makeWriter()
+    let calls = 0
+    const synthesize = vi.fn(() =>
+      ++calls === 1 ? Promise.reject(new Error('blip')) : Promise.resolve(audio(24000))
+    )
+    const n = await runExport(
+      spec([{ text: 'One.', page: 1 }]),
+      { jobId: 'j1', synthesize, cancel: vi.fn(), writer },
+      () => undefined,
+      new AbortController().signal
+    )
+    expect(n).toBe(0)
+    expect(writer.write).toHaveBeenCalledTimes(1)
+  })
+
+  it('three sentences in a row failing is a broken voice: the export fails and the file is removed', async () => {
+    const writer = makeWriter()
+    const synthesize = vi.fn(() => Promise.reject(new Error('voice engine stopped')))
+    await expect(
+      runExport(
+        spec([
+          { text: 'A.', page: 1 },
+          { text: 'B.', page: 1 },
+          { text: 'C.', page: 1 },
+          { text: 'D.', page: 1 }
+        ]),
+        { jobId: 'j1', synthesize, cancel: vi.fn(), writer },
+        () => undefined,
+        new AbortController().signal
+      )
+    ).rejects.toThrow('voice engine stopped')
+    expect(writer.abort).toHaveBeenCalled()
+    expect(synthesize).toHaveBeenCalledTimes(6)
+  })
+
   it('cancelling mid-export cancels the generation and aborts the writer', async () => {
     const writer = makeWriter()
     const ac = new AbortController()

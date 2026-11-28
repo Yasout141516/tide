@@ -209,16 +209,16 @@ describe('TtsHost v2', () => {
     }
   })
 
-  it('two failures in a row report failed and stop restarting', async () => {
+  it('two failures in a row on different sentences report failed and stop restarting', async () => {
     vi.useFakeTimers()
     try {
       const { host, child, forks } = hostWith(hangs)
       await host.start()
       const seen: TtsStatus[] = []
       host.onStatus((s) => seen.push(s))
-      for (let i = 0; i < 2; i++) {
-        const r = expect(host.synthesize('Hi.', OPTS)).rejects.toThrow()
-        await vi.advanceTimersByTimeAsync(jobTimeoutMs('Hi.'))
+      for (const text of ['Hi.', 'There.']) {
+        const r = expect(host.synthesize(text, OPTS)).rejects.toThrow()
+        await vi.advanceTimersByTimeAsync(jobTimeoutMs(text))
         await r
       }
       expect(forks()).toBe(2)
@@ -227,6 +227,68 @@ describe('TtsHost v2', () => {
       expect(child().killed).toBe(true)
       await expect(host.synthesize('Hi.', OPTS)).rejects.toThrow('voice engine stopped')
       expect(forks()).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a slow job that keeps sending progress never times out, but a stalled chunk still does', async () => {
+    vi.useFakeTimers()
+    try {
+      const { host, child } = hostWith(loads)
+      await host.start()
+      const text = 'x'.repeat(1500)
+      let outcome: 'pending' | 'ok' | 'timeout' = 'pending'
+      const p = host.synthesize(text, OPTS).then(
+        () => (outcome = 'ok'),
+        () => (outcome = 'timeout')
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const synth = child().sent.find((m) => m.type === 'synthesize')!
+      child().respond({ id: synth.id, type: 'started' })
+      // 20 chunks of 40 s each: 800 s in total, far past jobTimeoutMs, yet always progressing.
+      for (let k = 0; k < 20; k++) {
+        await vi.advanceTimersByTimeAsync(40_000)
+        child().respond({ id: synth.id, type: 'progress' })
+      }
+      expect(outcome).toBe('pending')
+      child().respond(audio(synth.id))
+      await p
+      expect(outcome).toBe('ok')
+      // A stalled chunk: after progress the hard per-chunk limit applies (60 s, not 255 s).
+      const q = host.synthesize(text, OPTS).then(
+        () => (outcome = 'ok'),
+        () => (outcome = 'timeout')
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const synth2 = child().sent.filter((m) => m.type === 'synthesize')[1]
+      child().respond({ id: synth2.id, type: 'started' })
+      child().respond({ id: synth2.id, type: 'progress' })
+      await vi.advanceTimersByTimeAsync(60_000)
+      await q
+      expect(outcome).toBe('timeout')
+      host.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the same sentence timing out twice restarts the worker but does not give up the voice', async () => {
+    vi.useFakeTimers()
+    try {
+      const { host, forks } = hostWith(hangs)
+      await host.start()
+      const seen: TtsStatus[] = []
+      host.onStatus((s) => seen.push(s))
+      for (let i = 0; i < 3; i++) {
+        const r = expect(host.synthesize('Bad one.', OPTS)).rejects.toThrow()
+        await vi.advanceTimersByTimeAsync(jobTimeoutMs('Bad one.'))
+        await r
+      }
+      expect(seen).not.toContain('failed')
+      expect(host.status()).toBe('ready')
+      expect(forks()).toBe(4)
+      host.dispose()
     } finally {
       vi.useRealTimers()
     }
@@ -289,8 +351,7 @@ describe('TtsHost v2', () => {
     await r
     await vi.waitFor(() => expect(host.status()).toBe('ready'))
     expect(forks()).toBe(2)
-    expect(seen).toEqual(['restarting', 'loading'
-, 'ready'])
+    expect(seen).toEqual(['restarting', 'loading', 'ready'])
     host.dispose()
   })
 })

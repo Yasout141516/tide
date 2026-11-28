@@ -218,6 +218,9 @@ export function PlayerProvider({
   const sinkRef = useRef<AudioSink | null>(null)
   const toast = useToast()
   const latestProps = useLatest({ snapshot, onPlayNext, toast })
+  /** The reading that already showed the "skipped a passage" toast: one per reading (RS-3). */
+  const skipToastFor = useRef<ReadingId | null>(null)
+  const readingIdRef = useLatest(reading?.id ?? null)
   /** The reading to play once its sentences arrive (Play next only; opening never autoplays). */
   const autoplayFor = useRef<ReadingId | null>(null)
   /** The sentences on screen when the reading changed: they still belong to the old reading. */
@@ -269,6 +272,16 @@ export function PlayerProvider({
         tts: client,
         makeUrl,
         revokeUrl,
+        onSkip: (index, reason) => {
+          tide().app.log(
+            'renderer',
+            `skipped sentence ${index}: could not be read aloud (${reason})`
+          )
+          const id = readingIdRef.current
+          if (skipToastFor.current === id) return
+          skipToastFor.current = id
+          latestProps.current.toast.show({ text: "Tide skipped a passage it couldn't read aloud." })
+        },
         // The page option stops exactly at the sentence boundary, not on the next poll.
         holdAfter: (i) =>
           tm?.sentenceEnded(i, (k) => sentencesRef.current[k]?.spans[0]?.page ?? -1) ?? false

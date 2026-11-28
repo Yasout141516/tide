@@ -34,8 +34,10 @@ export interface TtsSynthesizeOptions extends Omit<SynthesizeOptions, 'priority'
 }
 
 const LOAD_TIMEOUT_MS = 30_000
+/** Hard limit for ONE chunk once a job has produced its first (the job itself has no overall limit). */
+const CHUNK_TIMEOUT_MS = 60_000
 
-/** How long a synthesis may run once the worker has started it. */
+/** How long a synthesis may run before its first chunk is done (later ones reset it, up to CHUNK_TIMEOUT_MS each). */
 export function jobTimeoutMs(text: string): number {
   return 30_000 + 150 * text.length
 }
@@ -45,8 +47,9 @@ interface Pending {
   reject: (err: Error) => void
   /** For synthesis it only starts when the worker reports 'started'. */
   timer: ReturnType<typeof setTimeout> | null
+  timeoutMs: number
   /** Starts the timer (synthesis jobs only). */
-  arm: (() => void) | null
+  arm: ((ms?: number) => void) | null
 }
 
 interface RequestTiming {
@@ -77,6 +80,8 @@ export class TtsHost {
   private readonly listeners = new Set<(s: TtsStatus) => void>()
   /** Consecutive worker failures since the last successful synthesis. */
   private failures = 0
+  /** The sentence the last failure belonged to: failing again on it is one bad sentence, not a dead voice. */
+  private failedText: string | null = null
   /** Set by dispose() and by giving up after a second failure; no further restarts. */
   private stopped = false
 
@@ -129,11 +134,12 @@ export class TtsHost {
         timeoutMs: this.opts.timeoutMs ?? jobTimeoutMs(text),
         message: (ms) => `voice engine did not answer within ${ms} ms`,
         fromStart: true,
-        onTimeout: () => this.recycle()
+        onTimeout: () => this.recycle(text)
       }
     )
     if (res.type !== 'audio') throw new Error(`unexpected voice engine reply: ${res.type}`)
     this.failures = 0
+    this.failedText = null
     return { pcm: res.pcm, sampleRate: res.sampleRate, synthMs: res.synthMs, chunks: res.chunks }
   }
 
@@ -162,9 +168,12 @@ export class TtsHost {
   }
 
   /** A hang, crash or failed restart: restart once; the second failure in a row gives up. */
-  private recycle(): void {
+  private recycle(text?: string): void {
     if (this.stopped) return
-    this.failures++
+    // The same sentence hanging again restarts the worker but does not count towards giving up:
+    // the player skips it, and the voice stays usable. Only failures across sentences count.
+    if (text === undefined || text !== this.failedText) this.failures++
+    this.failedText = text ?? null
     if (this.failures >= 2) {
       this.stopped = true
       this.setStatus('failed')
@@ -217,6 +226,10 @@ export class TtsHost {
         p.arm?.()
         return
       }
+      if (res.type === 'progress') {
+        p.arm?.(Math.min(p.timeoutMs, CHUNK_TIMEOUT_MS))
+        return
+      }
       this.pending.delete(res.id)
       if (p.timer) clearTimeout(p.timer)
       if (res.type === 'error') p.reject(new Error(res.message))
@@ -245,15 +258,21 @@ export class TtsHost {
     if (!child) return Promise.reject(new Error('voice engine stopped'))
     const id = this.nextId++
     return new Promise<TtsResponse>((resolve, reject) => {
-      const pending: Pending = { resolve, reject, timer: null, arm: null }
-      const arm = (): void => {
-        // A second `started` (the job resumed after stepping aside, R36) restarts the clock.
+      const pending: Pending = {
+        resolve,
+        reject,
+        timer: null,
+        arm: null,
+        timeoutMs: timing.timeoutMs
+      }
+      const arm = (ms: number = timing.timeoutMs): void => {
+        // A second `started` (R36) or a finished chunk ('progress') restarts the clock.
         if (pending.timer) clearTimeout(pending.timer)
         pending.timer = setTimeout(() => {
           this.pending.delete(id)
-          reject(new Error(timing.message(timing.timeoutMs)))
+          reject(new Error(timing.message(ms)))
           timing.onTimeout?.()
-        }, timing.timeoutMs)
+        }, ms)
       }
       if (timing.fromStart) pending.arm = arm
       else arm()

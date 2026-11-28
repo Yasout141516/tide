@@ -12,7 +12,7 @@ import type { LibrarySnapshot, ReadingView } from '../../src/shared/library/type
 import { DEFAULT_FILTERS } from '../../src/shared/text/types'
 import type { PageText } from '../../src/shared/text/types'
 import { ExportUiContext } from '../../src/renderer/src/save/useExport'
-import { bodyPages, fakeDeps, fakeDoc, fakePlayer, renderApp } from './reader-fakes'
+import { bodyPages, fakeDeps, fakeDoc, fakePlayer, renderApp, SILENCE } from './reader-fakes'
 import { fakeTide } from './setup'
 
 const reading: ReadingView = {
@@ -120,7 +120,8 @@ describe('Selection bubble', () => {
   })
 
   it('Read from here plays from the first selected sentence', async () => {
-    await open()
+    const t = await open()
+    t.tts.synthesize = () => Promise.resolve(SILENCE) // a voice that works (the default fake fails)
     select(1, 1)
     await userEvent.click(await screen.findByRole('button', { name: 'Read from here' }))
     await waitFor(() => expect(document.querySelector('[data-sentence-id="1"]')).toBeTruthy())

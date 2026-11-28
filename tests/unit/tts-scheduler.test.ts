@@ -52,13 +52,22 @@ function rig(opts: { preempt?: boolean } = {}) {
       const r = replies.find((x) => x.id === j.id && x.type === 'audio')
       return r && r.type === 'audio' ? [...r.pcm] : []
     },
-    typeOf: (j: Job): string[] => replies.filter((x) => x.id === j.id).map((x) => x.type),
+    typeOf: (j: Job): string[] =>
+      replies.filter((x) => x.id === j.id && x.type !== 'progress').map((x) => x.type),
     order: (): string[] =>
       replies.filter((x) => x.type === 'audio' || x.type === 'cancelled').map((x) => String(x.id))
   }
 }
 
 describe('worker scheduler: priority between chunks (R35)', () => {
+  it('reports progress after every finished chunk, so the host can reset its timeout', async () => {
+    const r = rig()
+    const j = job('a1|a2|a3', 'live')
+    r.queue.push(j)
+    await r.pump()
+    expect(r.replies.filter((x) => x.id === j.id && x.type === 'progress')).toHaveLength(3)
+  })
+
   it('a live job that arrives mid-export runs before the export’s remaining chunks, which then resume in order', async () => {
     const r = rig()
     const exp = job('e1|e2|e3', 'export')

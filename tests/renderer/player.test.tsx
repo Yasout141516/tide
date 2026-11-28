@@ -285,6 +285,23 @@ describe('Player bar', () => {
     expect(button('Play')).toBeTruthy()
   })
 
+  it('a sentence that cannot be read is skipped with one toast and one log line (RS-3)', async () => {
+    const { t } = await open(bodyPages(4))
+    // The first two sentences fail; the rest are read: two skips, one toast.
+    // Requests 1-4 are sentences 0-3; 5 and 6 are the retries of 0 and 1 (made as each fails).
+    let n = 0
+    t.tts.synthesize = vi.fn(() =>
+      [1, 2, 5, 6].includes(++n) ? Promise.reject(new Error('timed out')) : Promise.resolve(SILENCE)
+    )
+    await userEvent.click(button('Play'))
+    expect(await screen.findByText("Tide skipped a passage it couldn't read aloud.")).toBeTruthy()
+    await waitFor(() => expect(button('Pause')).toBeTruthy()) // playing on, not the error state
+    expect(screen.queryByText("The voice isn't working right now.")).toBeNull()
+    expect(screen.getAllByText("Tide skipped a passage it couldn't read aloud.")).toHaveLength(1)
+    const logs = (t.calls['app.log'] ?? []) as unknown[][]
+    expect(logs.filter((c) => String(c[1]).includes('could not be read aloud'))).toHaveLength(2)
+  })
+
   it('stays put after her own scroll, however long, until Back to reading is pressed', async () => {
     await open(bodyPages(4))
     // The opening highlight may still be scrolling itself into view (more slowly under load): let it
