@@ -232,3 +232,39 @@ describe('worker scheduler: fairness (R38b)', () => {
     expect(r.order().indexOf(String(exp.id))).toBe(2) // answered after only two live jobs
   })
 })
+
+describe('clip silence trimming', () => {
+  const ms = (n: number): number => Math.round((n * 24000) / 1000)
+  /** 310 ms of silence, 200 ms of tone, 470 ms of silence. */
+  const padded = (): Float32Array => {
+    const p = new Float32Array(ms(310 + 200 + 470))
+    for (let i = 0; i < ms(200); i++) p[ms(310) + i] = 0.4 * Math.sin(i / 5)
+    return p
+  }
+  async function run(text: string): Promise<number> {
+    const queue = new JobQueue<Job>()
+    const replies: TtsResponse[] = []
+    const pump = createPump<Job>({
+      queue,
+      chunks: (t) => Promise.resolve(t.split('|')),
+      chunkLimit: () => 400,
+      generate: () => Promise.resolve(padded()),
+      isLoaded: () => true,
+      isCancelled: () => false,
+      reply: (r) => replies.push(r),
+      yieldToMessages: () => Promise.resolve(),
+      now: () => 0
+    })
+    queue.push(job(text, 'live'))
+    await pump()
+    const r = replies.find((x) => x.type === 'audio')
+    return r && r.type === 'audio' ? r.pcm.length : -1
+  }
+  it('a one-chunk clip keeps about 70 ms of silence at each end', async () => {
+    expect(Math.abs((await run('a')) - ms(70 + 200 + 70))).toBeLessThan(3)
+  })
+  it('chunks of one clip meet with about 70 ms of silence between them', async () => {
+    // two chunks: 70 lead + 200 + 35 | 35 + 200 + 70
+    expect(Math.abs((await run('a|b')) - ms(70 + 200 + 35 + 35 + 200 + 70))).toBeLessThan(5)
+  })
+})

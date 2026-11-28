@@ -2,7 +2,7 @@
 // One job runs at a time (ONNX inference is not re-entrant), but a running job of lower priority
 // steps aside between its chunks for one waiting job of higher priority (live > preview > export),
 // then advances a chunk and resumes in order, so a busy higher lane cannot starve it.
-import { concatPcm, SAMPLE_RATE } from '../shared/pcm'
+import { concatPcm, SAMPLE_RATE, TRIM_KEEP_MS, trimSilence } from '../shared/pcm'
 import type { JobQueue } from './queue'
 import type { Priority, TtsResponse } from './protocol'
 
@@ -36,14 +36,22 @@ export function createPump<J extends SynthJobLike>(d: SchedulerDeps<J>): () => P
     // Kokoro truncates silently past ~510 tokens, so synthesize short chunks and join (live: smaller, so a cancel lands sooner).
     const chunks = await d.chunks(msg.text, d.chunkLimit(msg.priority))
     const parts: Float32Array[] = []
-    for (const chunk of chunks) {
+    for (const [i, chunk] of chunks.entries()) {
       await d.yieldToMessages()
       // A waiting higher-priority job goes first; this job's remaining chunks resume after it.
       const stepped = await runHigher(msg.priority)
       if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
       // R36: resuming after nested jobs, so the host restarts this job's timeout.
       if (stepped) d.reply({ id: msg.id, type: 'started' })
-      parts.push(await d.generate(chunk, msg.voice, msg.speed))
+      // Kokoro pads every clip with ~0.3 s lead and ~0.5 s trail silence: trim it to a short pause at the clip's
+      // ends, and to half of that at a seam between two chunks of one clip (so the seam is about as long too).
+      const raw = await d.generate(chunk, msg.voice, msg.speed)
+      parts.push(
+        trimSilence(raw, {
+          keepLeadMs: i === 0 ? TRIM_KEEP_MS : TRIM_KEEP_MS / 2,
+          keepTrailMs: i === chunks.length - 1 ? TRIM_KEEP_MS : TRIM_KEEP_MS / 2
+        })
+      )
       d.reply({ id: msg.id, type: 'progress' })
     }
     if (d.isCancelled(msg.gen)) return { id: msg.id, type: 'cancelled' }
