@@ -87,6 +87,7 @@ export class FakeSink implements AudioSink {
   playing = false
   currentTime = 0
   volume = 1
+  playbackRate = 1
   plays = 0
   private endedCb: (() => void) | undefined
   setSource(url: string): void {

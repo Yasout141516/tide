@@ -1,12 +1,13 @@
 import { formatMinutes } from '../lib/minutes'
 
+/** Estimated listening time: the 1x estimate over the rate the audio plays at. */
 export function estimateSec(text: string, speed: number): number {
-  return text.length / (14.5 * speed) + 0.25
+  return (text.length / 14.5 + 0.25) / speed
 }
 
 export class Timeline {
   private readonly texts: string[]
-  /** measured seconds * speed, i.e. duration at 1x */
+  /** measured duration at 1x (live audio is always made at 1x; the sink plays it faster or slower) */
   private readonly measured: (number | undefined)[]
 
   constructor(texts: string[]) {
@@ -14,10 +15,12 @@ export class Timeline {
     this.measured = new Array<number | undefined>(texts.length).fill(undefined)
   }
 
-  record(i: number, seconds: number, speed: number): void {
-    this.measured[i] = seconds * speed
+  /** The real (1x) length of sentence i's audio. */
+  record(i: number, seconds: number): void {
+    this.measured[i] = seconds
   }
 
+  /** Seconds of listening at playback rate `speed`. */
   durationOf(i: number, speed: number): number {
     const m = this.measured[i]
     return m !== undefined ? m / speed : estimateSec(this.texts[i], speed)
@@ -29,6 +32,7 @@ export class Timeline {
     return s
   }
 
+  /** `offsetSec` and `deltaSec` are seconds of listening (wall-clock), at rate `speed`. */
   skipTarget(current: number, offsetSec: number, deltaSec: number, speed: number): number {
     const last = this.texts.length - 1
     const total = this.start(last + 1, speed)

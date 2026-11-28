@@ -11,6 +11,8 @@ export interface AudioSink {
   pause(): void
   readonly currentTime: number
   volume: number
+  /** How fast the clip plays (pitch kept); the engine sets it to the effective speed. */
+  playbackRate: number
   onEnded(cb: () => void): void
   onError(cb: () => void): void
 }
@@ -74,12 +76,16 @@ const FIRST_CLIP_WORDS = 8
 /** Never reused for the life of the app: the TTS worker never forgets a cancelled gen. */
 let genCounter = 0
 
-/** Audio for one sentence, made for one voice and speed (a change of either empties the cache). */
+/**
+ * Audio for one sentence, made for one voice. Live audio is always made at 1x; the speed is the
+ * sink's playbackRate (RS-1), so it is no part of what an entry is.
+ */
 interface Entry {
   /** Unique per request, so cancelling one sentence never touches another. */
   gen: string
   voice: string
-  speed: number
+  /** Kept playing in its old voice after a voice change (RS-2) until the reading moves off it. */
+  keepVoice?: boolean
   /** Request order; the lowest pending one is at the head of the worker's queue. */
   seq: number
   /** Queued ahead of other jobs (a seek target). */
@@ -138,6 +144,7 @@ export class PlayerEngine {
     this.deps = deps
     this.voice = voice
     this.speed = speed
+    deps.sink.playbackRate = speed
     deps.sink.onEnded(() => this.handleEnded())
     deps.sink.onError(() => this.handleSinkError())
     this.unsubStatus = deps.tts.onStatus((s) => this.handleStatus(s))
@@ -215,16 +222,30 @@ export class PlayerEngine {
     this.setIndex(this.tl.skipTarget(this.index, this.offsetSec(), deltaSec, this.speed))
   }
 
+  /**
+   * While a clip plays, the current sentence goes on in the old voice and only what follows it is
+   * dropped and asked for again in the new one (RS-2). Otherwise start again from the index.
+   */
   setVoice(id: string): void {
     if (this.disposed || id === this.voice) return
     this.voice = id
+    const cur = this.entries.get(this.cur.i)
+    if (this.wantPlay && this.clipLoaded && cur) {
+      cur.keepVoice = true
+      for (const k of [...this.entries.keys()]) if (k !== this.cur.i) this.evict(k)
+      this.fill()
+      this.emit()
+      return
+    }
     this.restart()
   }
 
+  /** The audio is made at 1x, so a new speed is only a new playback rate: nothing is redone. */
   setSpeed(s: number): void {
     if (this.disposed || s === this.speed) return
     this.speed = s
-    this.restart()
+    this.deps.sink.playbackRate = s
+    this.emit()
   }
 
   /**
@@ -236,7 +257,7 @@ export class PlayerEngine {
     this.restart()
   }
 
-  /** Seconds played into the current sentence: finished clips plus the playing clip. */
+  /** Seconds of listening into the current sentence: finished clips plus the playing clip, over the rate. */
   offsetSec(): number {
     if (this.index === null || this.cur.i !== this.index) return 0
     const e = this.entries.get(this.index)
@@ -244,7 +265,7 @@ export class PlayerEngine {
     let sum = 0
     for (let p = 0; p < this.cur.p; p++) sum += e.secs[p] ?? 0
     if (this.clipLoaded) sum += this.deps.sink.currentTime
-    return sum
+    return sum / this.speed
   }
 
   subscribe(cb: (s: PlayerSnapshot) => void): () => void {
@@ -296,10 +317,10 @@ export class PlayerEngine {
     this.cur = { i: this.firstIdx, p: 0 }
   }
 
-  /** Audio for sentence i, only if it was made for the current voice and speed. */
+  /** Audio for sentence i, only if it was made for the current voice (or is the one finishing in the old). */
   private entryFor(i: number): Entry | undefined {
     const e = this.entries.get(i)
-    if (e && (e.voice !== this.voice || e.speed !== this.speed)) {
+    if (e && e.voice !== this.voice && !e.keepVoice) {
       this.evict(i)
       return undefined
     }
@@ -323,6 +344,7 @@ export class PlayerEngine {
     this.deps.sink.pause()
     this.clipLoaded = false
     this.resetCursor()
+    for (const e of this.entries.values()) e.keepVoice = false // a jump ends the old-voice grace
     const lo = this.index
     const hi = this.index + AHEAD
     for (const [k, e] of [...this.entries]) {
@@ -396,7 +418,6 @@ export class PlayerEngine {
       seq: genCounter,
       front,
       voice: this.voice,
-      speed: this.speed,
       pieces,
       pending: pieces.length,
       urls: new Array<string | undefined>(pieces.length).fill(undefined),
@@ -415,7 +436,7 @@ export class PlayerEngine {
     void this.deps.tts
       .synthesize(entry.pieces[p], {
         voice: entry.voice,
-        speed: entry.speed,
+        speed: 1, // live audio is made at 1x; the sink plays it at the chosen rate (RS-1)
         priority: 'live',
         gen: entry.gen,
         ...(entry.front && { front: true })
@@ -439,8 +460,7 @@ export class PlayerEngine {
     if (entry.secs.every((s) => s !== undefined)) {
       this.tl.record(
         i,
-        entry.secs.reduce<number>((a, b) => a + (b ?? 0), 0),
-        entry.speed
+        entry.secs.reduce<number>((a, b) => a + (b ?? 0), 0)
       )
     }
     this.tryStart()
@@ -557,6 +577,7 @@ export class PlayerEngine {
       return
     }
     this.deps.sink.setSource(url)
+    this.deps.sink.playbackRate = this.speed
     this.clipLoaded = true
     this.deps.sink.play().catch(() => undefined)
     this.phase = 'playing'

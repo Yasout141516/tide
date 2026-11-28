@@ -12,6 +12,7 @@ class FakeSink implements AudioSink {
   sources: string[] = []
   currentTime = 0
   volume = 1
+  playbackRate = 1
   plays = 0
   pauses = 0
   private ended: () => void = () => undefined
@@ -241,6 +242,7 @@ describe('PlayerEngine', () => {
     await flush()
     const arrived = made.length
     expect(arrived).toBeGreaterThan(0)
+    engine.pause() // nothing playing: a voice change starts afresh
     engine.setVoice('v2')
     expect(revoked).toHaveLength(arrived)
     expect(made.every((u) => revoked.includes(u))).toBe(true)
@@ -256,26 +258,109 @@ describe('PlayerEngine', () => {
     expect(engine.snapshot().phase).toBe('buffering')
   })
 
-  it('changing speed or voice cancels the old generation and re-synthesises from the current sentence', async () => {
+  it('setSpeed while playing changes the rate only: no request, no cancel, no pause', async () => {
     const { engine, sink, tts } = setup(S)
     engine.play()
     for (const c of tts.calls) c.resolve(audio(1))
     await flush()
     sink.triggerEnded()
-    expect(engine.snapshot().index).toBe(1)
-    const inFlight = tts.calls[tts.calls.length - 1] // sentence 4, requested when 1 became current
     const n = tts.calls.length
+    const pauses = sink.pauses
+    const sources = sink.sources.length
     engine.setSpeed(1.5)
-    expect(tts.cancels).toEqual([inFlight.gen]) // finished audio needs no cancel
-    const fresh = tts.calls.slice(n)
-    expect(fresh.map((c) => c.text)).toEqual(S.slice(1, 5))
-    expect(fresh.every((c) => c.speed === 1.5 && c.gen !== inFlight.gen)).toBe(true)
-    expect(engine.snapshot().speed).toBe(1.5)
-    const m = tts.calls.length
+    expect(tts.calls).toHaveLength(n)
+    expect(tts.cancels).toEqual([])
+    expect(sink.playbackRate).toBe(1.5)
+    expect(sink.pauses).toBe(pauses)
+    expect(sink.sources).toHaveLength(sources)
+    expect(engine.snapshot()).toMatchObject({ speed: 1.5, phase: 'playing', index: 1 })
+    // everything is synthesised at 1x whatever the chosen speed is
+    expect(tts.calls.every((c) => c.speed === 1)).toBe(true)
+    sink.triggerEnded() // the next clip plays at the new rate too
+    expect(sink.playbackRate).toBe(1.5)
+  })
+
+  it('a speed set before playing sets the rate and later requests stay at 1x', () => {
+    const { engine, sink, tts } = setup(S)
+    engine.setSpeed(2)
+    expect(sink.playbackRate).toBe(2)
+    engine.play()
+    expect(tts.calls.every((c) => c.speed === 1)).toBe(true)
+  })
+
+  it('setVoice while playing keeps the current sentence and re-requests only those after it', async () => {
+    const { engine, sink, tts } = setup(S)
+    engine.play()
+    for (const c of tts.calls.slice(0, 2)) c.resolve(audio(1))
+    await flush()
+    sink.triggerEnded()
+    expect(engine.snapshot().index).toBe(1)
+    const current = tts.calls.find((c) => c.text === S[1])!
+    const later = tts.calls.filter((c) => S.indexOf(c.text) > 1 && c.gen !== current.gen)
+    const n = tts.calls.length
+    const pauses = sink.pauses
+    const sources = sink.sources.length
     engine.setVoice('v2')
-    expect(tts.calls.slice(m).map((c) => c.text)).toEqual(S.slice(1, 5))
-    expect(tts.calls[m].voice).toBe('v2')
     expect(engine.snapshot().voice).toBe('v2')
+    expect(engine.snapshot().phase).toBe('playing')
+    expect(sink.pauses).toBe(pauses)
+    expect(sink.sources).toHaveLength(sources)
+    expect(tts.cancels).not.toContain(current.gen)
+    expect(tts.cancels).toEqual(expect.arrayContaining(later.map((c) => c.gen)))
+    const fresh = tts.calls.slice(n)
+    expect(fresh.map((c) => c.text)).toEqual(S.slice(2, 5))
+    expect(fresh.every((c) => c.voice === 'v2')).toBe(true)
+    // the current sentence ends, the next one plays from the new voice's audio
+    for (const c of fresh) c.resolve(audio(1))
+    await flush()
+    sink.triggerEnded()
+    expect(engine.snapshot().index).toBe(2)
+    expect(sink.sources).toHaveLength(sources + 1)
+  })
+
+  it('setVoice while nothing is playing starts afresh from the current sentence', async () => {
+    const { engine, tts } = setup(S)
+    engine.play()
+    const n = tts.calls.length // still buffering: nothing is playing
+    engine.setVoice('v2')
+    const fresh = tts.calls.slice(n)
+    expect(fresh.map((c) => c.text)).toEqual(S.slice(0, 4))
+    expect(fresh.every((c) => c.voice === 'v2')).toBe(true)
+  })
+
+  it('refreshAudio still starts the current sentence again', async () => {
+    const { engine, sink, tts } = setup(S)
+    engine.play()
+    for (const c of tts.calls) c.resolve(audio(1))
+    await flush()
+    const n = tts.calls.length
+    engine.refreshAudio()
+    expect(tts.calls.slice(n)[0].text).toBe(S[0])
+    expect(sink.pauses).toBeGreaterThan(0)
+  })
+
+  it('time maths divide the 1x durations by the effective rate', async () => {
+    const { engine, sink, tts } = setup(S.slice(0, 2))
+    engine.play()
+    for (const c of tts.calls) c.resolve(audio(2))
+    await flush()
+    expect(engine.snapshot().secondsLeft).toBeCloseTo(4)
+    engine.setSpeed(2)
+    expect(engine.snapshot().secondsLeft).toBeCloseTo(2)
+    sink.currentTime = 1 // one second of audio = half a second of listening at 2x
+    expect(engine.offsetSec()).toBeCloseTo(0.5)
+    expect(engine.snapshot().secondsLeft).toBeCloseTo(1.5)
+  })
+
+  it('skip moves 15 s of listening at any rate', async () => {
+    const texts = Array.from({ length: 30 }, (_, i) => `Sentence number ${i}.`)
+    const { engine, tts } = setup(texts)
+    engine.play()
+    for (const c of tts.calls) c.resolve(audio(2)) // 2 s of audio each at 1x
+    await flush()
+    engine.setSpeed(2) // each sentence lasts 1 s of listening
+    engine.skip(5)
+    expect(engine.snapshot().index).toBe(5)
   })
 
   it('refreshAudio cancels cached gens and re-requests the current sentence while playing', async () => {
@@ -483,16 +568,16 @@ describe('PlayerEngine', () => {
     expect(new Set(revoked).size).toBe(revoked.length)
   })
 
-  it('a voice change still discards the cache', async () => {
+  it('a voice change while playing discards the cache after the current sentence only', async () => {
     const { engine, sink, tts, made, revoked } = setup(S)
     engine.play()
     for (const c of tts.calls) c.resolve(audio(1))
     await flush()
     const n = tts.calls.length
     engine.setVoice('v2')
-    expect(revoked).toHaveLength(made.length)
+    expect(revoked).toHaveLength(made.length - 1) // the playing sentence's clip stays
     const fresh = tts.calls.slice(n)
-    expect(fresh.map((c) => c.text)).toEqual(S.slice(0, 4))
+    expect(fresh.map((c) => c.text)).toEqual(S.slice(1, 4))
     expect(fresh.every((c) => c.voice === 'v2')).toBe(true)
     // the old voice's audio can never be served: a seek must ask again
     engine.setIndex(1)
@@ -932,7 +1017,7 @@ describe('PlayerEngine', () => {
         await flush()
       }
       const n = tts.calls.length
-      engine.setSpeed(1.25) // restart: the measured RTF now allows growth
+      engine.refreshAudio() // restart: the measured RTF now allows growth
       const fresh = tts.calls.slice(n)
       expect(fresh.length).toBeLessThan(flat)
       expect(fresh.map((c) => c.text).join('')).toBe(long40)

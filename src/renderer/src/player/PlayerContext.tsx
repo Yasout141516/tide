@@ -474,13 +474,33 @@ export function PlayerProvider({
   // --- Preview: a second element, so the reading's own audio is never touched -----------------
   /** The running preview; `release` frees its object URL (if it has one) once, when it is dropped. */
   const previewing = useRef<{ a: PreviewAudio; release?: () => void } | null>(null)
-  const stopPreview = useCallback(() => {
-    const cur = previewing.current
-    previewing.current = null
-    cur?.a.pause()
-    cur?.release?.()
-  }, [])
-  useEffect(() => stopPreview, [stopPreview])
+  /** The reading was playing when a preview paused it, so it carries on once the preview is over (RS-2). */
+  const resumeAfterPreview = useRef(false)
+  /**
+   * Drop the running preview. With `resume`, a reading the preview paused carries on; without it the
+   * pending resume is left as it is (a replacing preview keeps it) for the caller to clear.
+   */
+  const endPreview = useCallback(
+    (resume: boolean) => {
+      const cur = previewing.current
+      previewing.current = null
+      cur?.a.pause()
+      cur?.release?.()
+      if (resume && resumeAfterPreview.current) {
+        resumeAfterPreview.current = false
+        engine?.play()
+      }
+    },
+    [engine]
+  )
+  const stopPreview = useCallback(() => endPreview(true), [endPreview])
+  /** Drop the preview and forget the pending resume: she took the reading into her own hands. */
+  const cancelPreview = useCallback(() => {
+    resumeAfterPreview.current = false
+    endPreview(false)
+  }, [endPreview])
+  // Leaving the screen never restarts the reading.
+  useEffect(() => cancelPreview, [cancelPreview])
 
   // --- Crash toasts: the voice engine restarting, or given up on ------------------------------
   useEffect(
@@ -504,47 +524,50 @@ export function PlayerProvider({
     () => {
       /** Pause the reading, then play one url on the preview element; `release` runs when it ends or is stopped. */
       const startPreview = (url: string, release?: () => void): void => {
-        const ph = engine?.snapshot().phase
-        if (isListening(ph)) engine?.pause()
-        stopPreview()
+        // Replacing a preview must not resume the reading in between: it stays paused for the next one.
+        if (isListening(engine?.snapshot().phase)) {
+          engine?.pause()
+          resumeAfterPreview.current = true
+        }
+        endPreview(false)
         const a = deps.makePreview ? deps.makePreview(url) : htmlPreview(url)
         previewing.current = { a, release }
         a.onEnded?.(() => {
           // Dropped already (stopped or replaced): stopPreview released it.
           if (previewing.current?.a !== a) return
-          previewing.current = null
-          release?.()
+          endPreview(true)
         })
         void Promise.resolve(a.play()).catch(() => {
           // Playback refused: drop the preview and free its clip, unless something replaced it.
           if (previewing.current?.a !== a) return
-          previewing.current = null
-          release?.()
+          endPreview(true)
         })
       }
       return {
         play: () => {
           autoplayFor.current = null
-          stopPreview()
+          cancelPreview() // her own Play wins over carrying on after the preview
           engine?.play()
         },
         pause: () => {
           autoplayFor.current = null
+          resumeAfterPreview.current = false // her own Pause wins: the reading stays paused
           engine?.pause()
         },
         toggle: () => {
           autoplayFor.current = null
           const ph = engine?.snapshot().phase
-          if (!isListening(ph)) stopPreview()
+          if (!isListening(ph)) cancelPreview()
+          else resumeAfterPreview.current = false
           engine?.toggle()
         },
         skip: (d) => {
-          stopPreview()
+          cancelPreview()
           engine?.skip(d)
         },
         readFrom: (i) => {
           if (!engine) return
-          stopPreview()
+          cancelPreview()
           engine.setIndex(i)
           engine.play()
         },

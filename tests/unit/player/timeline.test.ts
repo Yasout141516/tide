@@ -8,12 +8,12 @@ const make = (): Timeline => new Timeline([T(145), T(145), T(145), T(145)]) // 1
 describe('timeline', () => {
   it('estimateSec scales inversely with speed', () => {
     expect(estimateSec(T(145), 1)).toBeCloseTo(10.25)
-    expect(estimateSec(T(145), 2)).toBeCloseTo(5.25)
+    expect(estimateSec(T(145), 2)).toBeCloseTo(5.125) // 1x length over the rate
   })
 
-  it('measured durations replace estimates and are speed-normalised', () => {
+  it('measured 1x durations replace estimates and divide by the rate', () => {
     const t = make()
-    t.record(0, 4, 2) // 8 s at 1x
+    t.record(0, 8) // 8 s at 1x
     expect(t.durationOf(0, 1)).toBeCloseTo(8)
     expect(t.durationOf(0, 2)).toBeCloseTo(4)
     expect(t.durationOf(1, 1)).toBeCloseTo(10.25)
@@ -48,7 +48,7 @@ describe('timeline', () => {
   it('secondsLeft sums the rest of the reading', () => {
     const t = make()
     expect(t.secondsLeft(1, 2, 1)).toBeCloseTo(10.25 * 3 - 2)
-    expect(t.secondsLeft(1, 2, 2)).toBeCloseTo(5.25 * 3 - 2)
+    expect(t.secondsLeft(1, 2, 2)).toBeCloseTo(5.125 * 3 - 2)
   })
 
   it('timeLeftLabel wording', () => {

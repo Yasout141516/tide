@@ -145,10 +145,44 @@ describe('Voice and speed popover', () => {
     expect(previews[0].playing).toBe(true)
   })
 
-  it('the reading stays paused after a preview', async () => {
+  it('the reading carries on when a preview ends, if it was playing before', async () => {
     const { sink, previews } = await open()
     await userEvent.click(within(player()).getByRole('button', { name: 'Play' }))
     await waitFor(() => expect(sink.playing).toBe(true))
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    expect(sink.playing).toBe(false)
+    act(() => previews[0].end())
+    await waitFor(() => expect(sink.playing).toBe(true))
+    expect(player().textContent).toContain('Pause')
+  })
+
+  it('the reading carries on when the popover closes on a running preview', async () => {
+    const { sink, previews } = await open()
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    expect(sink.playing).toBe(false)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(sink.playing).toBe(true))
+    expect(previews[0].playing).toBe(false)
+  })
+
+  it('a second Listen keeps the reading paused, then it carries on after the last one', async () => {
+    const { sink, previews } = await open()
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Nicole' }))
+    expect(sink.playing).toBe(false)
+    act(() => previews[1].end())
+    await waitFor(() => expect(sink.playing).toBe(true))
+  })
+
+  it('Listen while the reading is paused leaves it paused when the preview ends', async () => {
+    const { sink, previews } = await open()
     const pop = await openPopover()
     await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
     const plays = sink.plays
@@ -156,8 +190,20 @@ describe('Voice and speed popover', () => {
     await new Promise((r) => setTimeout(r, 50))
     expect(sink.playing).toBe(false)
     expect(sink.plays).toBe(plays)
-    expect(player().textContent).toContain('Play')
     expect(player().textContent).not.toContain('Pause')
+  })
+
+  it('her own Play during a preview wins: one play, the preview stopped', async () => {
+    const { sink, previews } = await open()
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    const pop = await openPopover()
+    await userEvent.click(within(pop).getByRole('button', { name: 'Listen to Kore' }))
+    const plays = sink.plays
+    await userEvent.click(within(player()).getByRole('button', { name: 'Play', hidden: true }))
+    await waitFor(() => expect(sink.playing).toBe(true))
+    expect(previews[0].playing).toBe(false)
+    expect(sink.plays).toBe(plays + 1)
   })
 
   it('pressing Play after a preview stops the preview', async () => {

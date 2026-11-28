@@ -6,6 +6,7 @@ export class HtmlAudioSink implements AudioSink {
 
   constructor(el: HTMLAudioElement) {
     this.el = el
+    el.preservesPitch = true
   }
 
   setSource(url: string): void {
@@ -30,6 +31,16 @@ export class HtmlAudioSink implements AudioSink {
 
   set volume(v: number) {
     this.el.volume = v
+  }
+
+  get playbackRate(): number {
+    return this.el.playbackRate
+  }
+
+  /** Also the default rate: loading a new source resets playbackRate to it. */
+  set playbackRate(r: number) {
+    this.el.defaultPlaybackRate = r
+    this.el.playbackRate = r
   }
 
   onEnded(cb: () => void): void {
