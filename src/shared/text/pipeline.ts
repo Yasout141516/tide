@@ -96,7 +96,20 @@ export function buildSentences(
     for (const page of dropped.emptied) skippedPages.push({ page, reason: 'contents' })
   }
   if (filters.skipFootnotes) lines = dropFootnotes(lines, heights, body)
-  if (filters.skipCaptionsTables) lines = dropCaptionsAndTables(lines, body)
+  // Pages whose table filter dropped lines above their first body-size line: any small lines still
+  // sitting there are leftover table labels ("AC1 [95% CI]"), see appendPage.
+  let tableAtTop = lines.map(() => false)
+  if (filters.skipCaptionsTables) {
+    const before = lines
+    lines = dropCaptionsAndTables(lines, body)
+    tableAtTop = lines.map((kept, p) => {
+      const keptSet = new Set(kept)
+      const firstBody = before[p].findIndex((l) => l.fontSize >= SMALL_RATIO * body)
+      return before[p]
+        .slice(0, firstBody < 0 ? undefined : firstBody)
+        .some((l) => !keptSet.has(l))
+    })
+  }
   if (filters.stopAtReferences) {
     const refs = referencesStart(lines, body)
     if (refs) {
@@ -132,9 +145,9 @@ export function buildSentences(
     documentWords: documentWordsIn(docLines)
   })
   let prevLast: Line | undefined
-  for (const pageLines of lines) {
+  for (const [p, pageLines] of lines.entries()) {
     const open = prevLast !== undefined && !SENTENCE_END.test(prevLast.text)
-    appendPage(spoken, pageLines, body, { open, skipLeading: filters.skipCaptionsTables })
+    appendPage(spoken, pageLines, body, { open, skipLeading: filters.skipCaptionsTables, tableAtTop: tableAtTop[p] })
     if (pageLines.length) prevLast = pageLines[pageLines.length - 1]
   }
   if (!filters.readCitations) removeCitations(spoken)
@@ -150,49 +163,36 @@ export function buildSentences(
   return { sentences, textlessPages, skippedPages }
 }
 
-/** A line this much smaller than body text may be figure or table material (never prose, see below). */
+/** A leading line this much smaller than body text may be a leftover table label (see `appendPage`). */
 const SMALL_RATIO = 0.9
 /** At most this many lines at the top of a page are skipped or broken off as table material. */
 const MAX_LEADING_LINES = 12
-/** A small non-numeric line of at most this many words (a column header, a figure label) is table-like. */
-const MAX_LABEL_WORDS = 4
-
-/**
- * Table or figure material at the top of a page: a line of numbers, or a short small-font label that
- * does not start in lower case (so it cannot continue a sentence). Small PROSE (a block quote set in
- * a smaller size, which may continue the previous page's sentence) is never table-like.
- */
-function tableLike(l: Line, body: number): boolean {
-  if (isNumericLine(l)) return true
-  return (
-    l.fontSize < SMALL_RATIO * body &&
-    l.text.split(/\s+/).length <= MAX_LABEL_WORDS &&
-    !/^["'“‘(]?[a-z]/.test(l.text)
-  )
-}
 
 /**
  * Appends one page's lines, with hard breaks at headings and at large vertical gaps.
  *
- * Page start: leading table-like lines (see `tableLike`, at most 12) are not the continuation of the
+ * Page start: leading lines of numbers (see `isNumericLine`), and small leftovers of a table dropped above them (`tableAtTop`), at most 12 lines, are not the continuation of the
  * previous page's sentence. When that sentence is still `open` (its last line did not end it, e.g.
  * "mar-") and the caption/table filter is on, they are not spoken, so the join attaches to the page's
- * first body line. Otherwise a hard break goes before and after them. Small prose is never dropped and
+ * first body line. Otherwise a hard break goes before and after them. Small prose on a page with no table at its top is never dropped and
  * never broken from the sentence it continues.
  */
 function appendPage(
   spoken: SpokenText,
   allLines: Line[],
   body: number,
-  start: { open: boolean; skipLeading: boolean }
+  start: { open: boolean; skipLeading: boolean; tableAtTop: boolean }
 ): void {
   let lines = allLines
+  // Leading lines that are table material: lines of numbers, and, when the table filter dropped
+  // lines above this page's first body line, the small lines left over there. Small prose on a page
+  // with no table at its top (a block quote, "As Freud put it,") is never table material.
   let leading = 0
-  while (
-    leading < Math.min(lines.length, MAX_LEADING_LINES) &&
-    tableLike(lines[leading], body)
-  )
-    leading++
+  for (let i = 0; i < Math.min(lines.length, MAX_LEADING_LINES); i++) {
+    if (isNumericLine(lines[i])) leading = i + 1
+    else if (lines[i].fontSize >= SMALL_RATIO * body) break
+    else if (start.tableAtTop) leading = i + 1
+  }
   const bodyFollows = leading > 0 && leading < lines.length
   if (bodyFollows && start.open && start.skipLeading) lines = lines.slice(leading)
   else if (bodyFollows) spoken.hardBreak()

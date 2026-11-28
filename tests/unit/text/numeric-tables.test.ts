@@ -74,11 +74,11 @@ describe('table text and the page-start join', () => {
 
   it('still joins when a leftover small line sits at the top of the page', () => {
     const p2 = page2()
-    const stray = { ...p2.items[0], str: 'Source: synthetic survey notes', index: 99, y: 70 }
+    const stray = { ...p2.items[0], str: '12 15 18 21 24', index: 99, y: 70 }
     p2.items = [stray, ...p2.items.filter((i) => i.fontSize === BODY)]
     const text = join(buildSentences([page1(), p2]))
     expect(text).toContain('marriages, and deserted women')
-    expect(text).not.toContain('Source')
+    expect(text).not.toMatch(/21/)
   })
 
   it('reads and joins a smaller-font block quote that continues across the page break', () => {
@@ -103,6 +103,37 @@ describe('table text and the page-start join', () => {
       expect(text).toContain('marriages, and the elders who spoke')
       expect(text).toContain('was older than any record the village kept')
     }
+  })
+
+  it('reads and joins a short capitalised quote opening at the top of the page', () => {
+    const p2 = page(
+      [
+        { str: 'As Freud put it,', x: 90, y: 80, fontSize: 9.5, width: 80 },
+        prose(120, 'riages are rarely what they seem to the observer.')
+      ],
+      2
+    )
+    for (const f of [undefined, READ_EVERYTHING]) {
+      const r = f ? buildSentences([page1(), p2], f) : buildSentences([page1(), p2])
+      const sentence = r.sentences.find((x) => x.text.includes('As Freud put it'))
+      expect(sentence?.text).toContain('plural mar')
+    }
+  })
+
+  it('skips leftover small labels that sit before a line of numbers, not just the numbers', () => {
+    const small = (y: number, str: string): ItemSpec => ({ str, x: 77, y, fontSize: 8.8, width: 120 })
+    const p2 = page(
+      [
+        small(70, 'Fleiss kappa Kept'),
+        small(80, 'AC1 [95% CI]'),
+        small(90, '372 396 372'),
+        prose(300, 'riages, and deserted women are counted separately in the later tables.')
+      ],
+      2
+    )
+    const text = join(buildSentences([page1(), p2]))
+    expect(text).toContain('marriages, and deserted women')
+    expect(text).not.toMatch(/Fleiss|AC1|372/)
   })
 
   it('reads the table again under Read everything', () => {
@@ -182,6 +213,14 @@ describe('sentence cap', () => {
     const text = `${'alpha beta gamma delta '.repeat(13).trim()} omega.`
     const ranges = segmentSentences(text)
     for (const r of ranges) expect(r.end - r.start).toBeGreaterThanOrEqual(60)
+  })
+
+  it('keeps the tail at 60 chars or more when the cut lands on a space', () => {
+    for (let extra = 55; extra <= 65; extra++) {
+      const text = `${'a'.repeat(299)} ${'b'.repeat(extra)} c.`
+      const ranges = segmentSentences(text)
+      for (const r of ranges) expect(r.end - r.start).toBeGreaterThanOrEqual(60)
+    }
   })
 
   it('falls back to word boundaries without punctuation', () => {
