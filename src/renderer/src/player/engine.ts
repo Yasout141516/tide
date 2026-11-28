@@ -233,6 +233,7 @@ export class PlayerEngine {
     if (this.wantPlay && this.clipLoaded && cur) {
       cur.keepVoice = true
       for (const k of [...this.entries.keys()]) if (k !== this.cur.i) this.evict(k)
+      this.firstIdx = this.cur.i + 1 // the new voice's first audio comes in short clips
       this.fill()
       this.emit()
       return
