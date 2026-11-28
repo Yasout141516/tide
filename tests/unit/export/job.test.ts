@@ -97,6 +97,7 @@ describe('runExport', () => {
 
   it('three sentences in a row failing is a broken voice: the export fails and the file is removed', async () => {
     const writer = makeWriter()
+    const logged: number[] = []
     const synthesize = vi.fn(() => Promise.reject(new Error('voice engine stopped')))
     await expect(
       runExport(
@@ -106,11 +107,12 @@ describe('runExport', () => {
           { text: 'C.', page: 1 },
           { text: 'D.', page: 1 }
         ]),
-        { jobId: 'j1', synthesize, cancel: vi.fn(), writer },
+        { jobId: 'j1', synthesize, cancel: vi.fn(), writer, onSkip: (i) => logged.push(i) },
         () => undefined,
         new AbortController().signal
       )
     ).rejects.toThrow('voice engine stopped')
+    expect(logged).toEqual([0, 1, 2]) // every left-out sentence is reported
     expect(writer.abort).toHaveBeenCalled()
     expect(synthesize).toHaveBeenCalledTimes(6)
   })

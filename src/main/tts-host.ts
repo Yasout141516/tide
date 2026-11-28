@@ -35,7 +35,7 @@ export interface TtsSynthesizeOptions extends Omit<SynthesizeOptions, 'priority'
 
 const LOAD_TIMEOUT_MS = 30_000
 /** Hard limit for ONE chunk once a job has produced its first (the job itself has no overall limit). */
-const CHUNK_TIMEOUT_MS = 60_000
+const CHUNK_TIMEOUT_MS = 120_000
 
 /** How long a synthesis may run before its first chunk is done (later ones reset it, up to CHUNK_TIMEOUT_MS each). */
 export function jobTimeoutMs(text: string): number {

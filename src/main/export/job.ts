@@ -64,8 +64,8 @@ export async function runExport(
           if (signal.aborted || isAbortError(err)) throw err
           skipped++
           lastErr = err
-          if (++skipRun >= MAX_CONSECUTIVE_SKIPS) throw err
           onSkip?.(i, err)
+          if (++skipRun >= MAX_CONSECUTIVE_SKIPS) throw err
         }
         if (signal.aborted) throw abortError()
         if (audio === null) {

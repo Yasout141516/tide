@@ -255,7 +255,7 @@ describe('TtsHost v2', () => {
       child().respond(audio(synth.id))
       await p
       expect(outcome).toBe('ok')
-      // A stalled chunk: after progress the hard per-chunk limit applies (60 s, not 255 s).
+      // A stalled chunk: after progress the hard per-chunk limit applies (120 s, not 255 s).
       const q = host.synthesize(text, OPTS).then(
         () => (outcome = 'ok'),
         () => (outcome = 'timeout')
@@ -264,7 +264,7 @@ describe('TtsHost v2', () => {
       const synth2 = child().sent.filter((m) => m.type === 'synthesize')[1]
       child().respond({ id: synth2.id, type: 'started' })
       child().respond({ id: synth2.id, type: 'progress' })
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(120_000)
       await q
       expect(outcome).toBe('timeout')
       host.dispose()

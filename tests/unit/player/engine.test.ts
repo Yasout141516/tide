@@ -111,6 +111,8 @@ interface Rig {
   skipped: number[]
 }
 
+let holdAfter: (i: number) => boolean = () => false
+
 function setup(texts: string[], index: number | null = 0): Rig {
   const sink = new FakeSink()
   const tts = new FakeTts()
@@ -130,6 +132,7 @@ function setup(texts: string[], index: number | null = 0): Rig {
       revokeUrl: (u) => {
         revoked.push(u)
       },
+      holdAfter: (i) => holdAfter(i),
       onSkip: (i) => {
         skipped.push(i)
       }
@@ -604,6 +607,27 @@ describe('PlayerEngine', () => {
       sink.triggerEnded() // 1 done -> 2 skipped, 3 skipped: only two in a row since 1 was good
       await flush()
       expect(skipped).toEqual([0, 2, 3])
+    })
+
+    it('a skipped last sentence of a page still honours the end-of-page sleep', async () => {
+      holdAfter = (i) => i === 1 // the page ends after sentence 1
+      try {
+        const { engine, sink, tts, skipped } = setup(S)
+        engine.play()
+        tts.calls[0].resolve(audio(1))
+        const n = tts.calls.length
+        tts.calls[1].reject(new Error('boom'))
+        await flush()
+        tts.calls[n].reject(new Error('boom'))
+        await flush()
+        sink.triggerEnded() // 0 done -> 1 is skipped -> held at the page end
+        await flush()
+        expect(skipped).toEqual([1])
+        expect(engine.snapshot().phase).toBe('paused')
+        expect(engine.snapshot().index).toBe(0)
+      } finally {
+        holdAfter = () => false
+      }
     })
 
     it('a voice engine that is gone for good (status failed) still raises the error', async () => {

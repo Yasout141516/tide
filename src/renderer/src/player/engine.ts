@@ -492,8 +492,15 @@ export class PlayerEngine {
       this.raiseError() // "the voice isn't working": failures across different sentences
       this.emit()
     } else if (i + 1 < this.texts.length) {
-      this.index = i + 1
       this.cur = { i: i + 1, p: 0 }
+      if (this.deps.holdAfter?.(i)) {
+        // e.g. the sleep timer's "end of page": the skipped sentence ended the page, so stop there
+        this.wantPlay = false
+        this.phase = 'paused'
+        this.emit()
+        return
+      }
+      this.index = i + 1
       this.fill() // the window moves on, so what follows a run of skipped sentences is requested
       this.tryStart()
     } else {
