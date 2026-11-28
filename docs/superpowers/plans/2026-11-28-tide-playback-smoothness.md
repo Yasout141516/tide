@@ -98,6 +98,14 @@
 - [ ] Commit `feat: speed gets its own player button`.
 
 ### Task 8: Verify end to end
+
+Yasin's instruction (2026-11-28): measure smoothness on his real documents, not on the synthetic "morning fog" fixtures.
+- Run the measurements on her readings in the git-ignored `local-fixtures/` (5 PDFs) and on his paper (the scratchpad copy). That means the gap harness, the hole after Play, seek and settings changes, the sentence hand-off gap, and the longest sentence.
+- Add a local-only e2e, `tests/e2e/local-smoothness.spec.ts`, following `tests/e2e/local-readings.spec.ts`. It skips when `local-fixtures/` is absent, so CI is unaffected. For each local PDF it plays about 60 s from a mid-reading point and asserts:
+  - no audio gap over about 1.5 s;
+  - no stall;
+  - a speed change and a voice change cause no gap over about 1.5 s.
+- Report aggregate numbers per reading index only. Never quote or name a reading, and keep their text out of committed tests, goldens, logs and commits (repo-wide copyright rule). Committed unit tests stay synthetic.
 - [ ] Run the full `npx vitest run`, typecheck and lint. Run `npm run package`, then `TIDE_PACKAGED=1 TIDE_OFFLINE_GUARD=1 npx playwright test`. The known flaky jump test may be re-run alone once.
 - [ ] Use the report's harness on the real worker to record, before and after: the hole after Play, seek, speed, voice and pronunciation changes; the sentence hand-off gap; and the longest sentence on the paper. Write these into the report.
 - [ ] Push and run a release dry run.
