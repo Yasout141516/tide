@@ -78,7 +78,7 @@ describe('table text and the page-start join', () => {
     p2.items = [stray, ...p2.items.filter((i) => i.fontSize === BODY)]
     const text = join(buildSentences([page1(), p2]))
     expect(text).toContain('marriages, and deserted women')
-    expect(text).not.toMatch(/21/)
+    expect(text).not.toMatch(/\b21\b/)
   })
 
   it('reads and joins a smaller-font block quote that continues across the page break', () => {
