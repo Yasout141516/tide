@@ -3,6 +3,7 @@ import type { TtsAudio, TtsStatus } from '../../../src/shared/ipc-types'
 import {
   PlayerEngine,
   type AudioSink,
+  type EngineDeps,
   type PlayerSnapshot,
   type TtsClient
 } from '../../../src/renderer/src/player/engine'
@@ -114,7 +115,14 @@ interface Rig {
 
 let holdAfter: (i: number) => boolean = () => false
 
-function setup(texts: string[], index: number | null = 0): Rig {
+/** The old fixed window (3 ahead, 8 cached): the mechanics tests below were written against it. */
+const NARROW = { maxAhead: 3, keepBehind: 4 }
+
+function setup(
+  texts: string[],
+  index: number | null = 0,
+  prefetch: EngineDeps['prefetch'] = NARROW
+): Rig {
   const sink = new FakeSink()
   const tts = new FakeTts()
   let n = 0
@@ -136,7 +144,8 @@ function setup(texts: string[], index: number | null = 0): Rig {
       holdAfter: (i) => holdAfter(i),
       onSkip: (i) => {
         skipped.push(i)
-      }
+      },
+      prefetch
     },
     'v1',
     1
@@ -868,7 +877,8 @@ describe('PlayerEngine', () => {
             durs.set(u, (wav.byteLength - 44) / 2 / 24000)
             return u
           },
-          revokeUrl: () => undefined
+          revokeUrl: () => undefined,
+          prefetch: NARROW
         },
         'v1',
         1
@@ -1022,5 +1032,166 @@ describe('PlayerEngine', () => {
       expect(fresh.length).toBeLessThan(flat)
       expect(fresh.map((c) => c.text).join('')).toBe(long40)
     })
+  })
+})
+
+describe('PlayerEngine time-based prefetch', () => {
+  const sentence = (n: number, ch: number): string => `S${n} ` + 'x'.repeat(ch - 4) + '.'
+  const inFlight = (e: PlayerEngine): number =>
+    [...(e as unknown as { entries: Map<number, { pending: number }> }).entries.values()].filter(
+      (x) => x.pending > 0
+    ).length
+
+  it('asks for sentences until about 30 s of audio is covered ahead', () => {
+    // 300 chars is about 21 s each at 1x: the current one plus two more cover 30 s
+    const texts = Array.from({ length: 10 }, (_, k) => sentence(k, 300))
+    const { engine, tts } = setup(texts, 0, {})
+    engine.play()
+    expect(tts.calls.length).toBe(3)
+  })
+
+  it('a faster playback rate needs more sentences ahead for the same listening time', () => {
+    const texts = Array.from({ length: 12 }, (_, k) => sentence(k, 150)) // about 10.6 s each at 1x
+    const a = setup(texts, 0, {})
+    a.engine.play()
+    const at1x = a.tts.calls.length
+    const b = setup(texts, 0, {})
+    b.engine.setSpeed(2)
+    b.engine.play()
+    expect(b.tts.calls.length).toBeGreaterThan(at1x)
+    expect(at1x).toBeGreaterThanOrEqual(4) // the current one and 3 ahead (about 32 s)
+    expect(b.tts.calls.length).toBeGreaterThanOrEqual(7) // 5.3 s each: 6 ahead
+  })
+
+  it('never has more than 8 entries in flight, however short the sentences', async () => {
+    const texts = Array.from({ length: 40 }, (_, k) => `Short ${k}.`)
+    const { engine, tts, sink } = setup(texts, 0, {})
+    engine.play()
+    expect(inFlight(engine)).toBe(8)
+    for (let k = 0; k < 6; k++) {
+      tts.calls[k].resolve(audio(1))
+      await flush()
+      expect(inFlight(engine)).toBeLessThanOrEqual(8)
+    }
+    expect(sink.sources.length).toBe(1)
+  })
+
+  it('uses the real length of audio that arrived: long made audio covers the window', async () => {
+    const texts = Array.from({ length: 10 }, (_, k) => sentence(k, 60)) // about 4.4 s each est.
+    const { engine, tts, sink } = setup(texts, 0, {})
+    engine.play()
+    const n0 = tts.calls.length
+    expect(n0).toBe(8) // 7 ahead is about 31 s, capped at 8 in flight anyway
+    for (const c of tts.calls) c.resolve(audio(40)) // far longer than estimated
+    await flush()
+    sink.triggerEnded() // moves to sentence 1; 40 s of made audio is already ahead
+    expect(tts.calls.length).toBe(n0 + 0)
+  })
+
+  it('after a voice change the next sentences are requested in playback order, next first piece in front', async () => {
+    const texts = [
+      sentence(0, 120),
+      LONG,
+      ...Array.from({ length: 8 }, (_, k) => sentence(k + 2, 80))
+    ]
+    const { engine, tts } = setup(texts, 0, {})
+    engine.play()
+    tts.calls[0].resolve(audio(8))
+    await flush()
+    const n = tts.calls.length
+    engine.setVoice('v2')
+    const fresh = tts.calls.slice(n)
+    // the next sentence's pieces first (in order, the first the short one), then each later sentence
+    expect(fresh[0].text).toBe(LONG_PIECES[0])
+    let k = 0
+    let joined = ''
+    while (joined.length < LONG.length) joined += fresh[k++].text
+    expect(joined).toBe(LONG)
+    expect(fresh.slice(k).map((c) => c.text)).toEqual(texts.slice(2, 2 + fresh.length - k))
+    expect(fresh.length - k).toBeGreaterThanOrEqual(3)
+  })
+
+  /** One serial worker at a constant synthesis speed, a sink that plays each clip for its length. */
+  async function simulate(
+    texts: string[],
+    rtfOf: (i: number) => number
+  ): Promise<{ stalls: number; longest: number }> {
+    const sink = new FakeSink()
+    const tts = new FakeTts()
+    const durs = new Map<string, number>()
+    let n = 0
+    const engine = new PlayerEngine(
+      {
+        sink,
+        tts,
+        makeUrl: (wav) => {
+          const u = `blob:${++n}`
+          durs.set(u, (wav.byteLength - 44) / 2 / 24000)
+          return u
+        },
+        revokeUrl: () => undefined
+      },
+      'v1',
+      1
+    )
+    engine.setSentences(texts, 0)
+    let now = 0
+    let workerFree = 0
+    let served = 0
+    const askedAt = new Map<Call, number>()
+    let playEnd: number | null = null
+    let lastEnd = 0
+    let started = false
+    const gaps: number[] = []
+    const setSource = sink.setSource.bind(sink)
+    sink.setSource = (u: string): void => {
+      setSource(u)
+      if (started) gaps.push(now - lastEnd)
+      started = true
+      playEnd = now + (durs.get(u) ?? 0)
+    }
+    const secOf = (t: string): number => t.length / 14.5
+    const sentenceOf = (t: string): number => texts.findIndex((x) => x.includes(t.trim()))
+    engine.play()
+    for (let guard = 0; guard < 2000 && engine.snapshot().phase !== 'finished'; guard++) {
+      // the worker takes the lowest-numbered live call not cancelled, front ones first
+      while (served < tts.calls.length && tts.cancels.includes(tts.calls[served].gen)) served += 1
+      const pending = tts.calls.slice(served)
+      for (const c of pending) if (!askedAt.has(c)) askedAt.set(c, now)
+      const call = pending.find((c) => c.front) ?? pending[0]
+      const synthDone = call
+        ? Math.max(workerFree, askedAt.get(call) ?? now) +
+          secOf(call.text) * rtfOf(sentenceOf(call.text))
+        : Infinity
+      const endAt = playEnd ?? Infinity
+      if (synthDone === Infinity && endAt === Infinity) break
+      if (synthDone <= endAt) {
+        now = synthDone
+        workerFree = synthDone
+        const sec = secOf(call.text)
+        tts.calls.splice(tts.calls.indexOf(call), 1)
+        call.resolve({
+          pcm: new Float32Array(Math.round(sec * 24000)),
+          sampleRate: 24000,
+          synthMs: sec * rtfOf(sentenceOf(call.text)) * 1000,
+          chunks: 1
+        })
+      } else {
+        now = endAt
+        lastEnd = endAt
+        playEnd = null
+        sink.triggerEnded()
+      }
+      await flush()
+    }
+    const stalls = gaps.filter((g) => g > 0.05)
+    return { stalls: stalls.length, longest: Math.max(0, ...gaps) }
+  }
+
+  it('slow sentences in a run (RTF about 1 on average) do not stall once playing', async () => {
+    // 20 sentences of about 3.4 s; a run of two slow ones (RTF 2.5) after fast ones (0.4)
+    const texts = Array.from({ length: 20 }, (_, k) => sentence(k, 50))
+    const r = await simulate(texts, (i) => (i >= 8 && i < 10 ? 2.5 : 0.4))
+    expect(r.stalls).toBe(0)
   })
 })

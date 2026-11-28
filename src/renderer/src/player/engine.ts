@@ -58,13 +58,33 @@ export interface EngineDeps {
    * once per skipped sentence; the caller shows the toast and writes the log.
    */
   onSkip?(index: number, reason: string): void
+  /** Window sizes (tests); the defaults are PREFETCH_SEC, MAX_IN_FLIGHT, MAX_AHEAD and KEEP_BEHIND. */
+  prefetch?: { seconds?: number; maxInFlight?: number; maxAhead?: number; keepBehind?: number }
 }
 
-const AHEAD = 3
+/**
+ * Prefetch is by time, not by count: sentences are requested ahead until this many seconds of
+ * listening (1x seconds over the playback rate) are covered. At a synthesis speed near real time
+ * (RTF about 1) a few sentences ahead is no buffer at all; about 30 s lets a slow sentence be made
+ * while earlier ones play.
+ */
+const PREFETCH_SEC = 30
+/** At most this many sentences are being made at once, so a run of short ones stays bounded. */
+const MAX_IN_FLIGHT = 8
+/** The window never reaches further than this many sentences past the current one. */
+const MAX_AHEAD = 12
+/** Sentences just played that stay cached for a seek back. */
+const KEEP_BEHIND = 3
 /** This many skipped sentences with no good one between them: not one bad sentence, a dead voice. */
 const MAX_SKIPS_IN_A_ROW = 3
-/** Sentences of made audio kept (the current one, those ahead, and those just played). */
-const CACHE_MAX = 8
+/**
+ * Sentences of made audio kept: the current one, a full prefetch window ahead, and those just
+ * played. It was 8 when the window was 3 ahead; the window can now be MAX_AHEAD long, and a cache
+ * smaller than it would evict prefetched audio before it plays. Memory stays bounded: each clip is
+ * one sentence of 24 kHz mono 16-bit WAV (about 50 KB per second, so roughly 0.5 MB for a typical
+ * sentence, 8 MB for a full cache), and the object URLs are revoked on eviction.
+ */
+const CACHE_MAX_DEFAULT = 1 + MAX_AHEAD + KEEP_BEHIND
 /**
  * The sentence playback (re)starts at is cut into progressively larger clips: the first has at most
  * this many words, so the first audio comes early, and each next one is only as much larger as the
@@ -112,6 +132,7 @@ function clamp(i: number, n: number): number {
 
 export class PlayerEngine {
   private readonly deps: EngineDeps
+  private readonly win: { seconds: number; maxInFlight: number; maxAhead: number; cacheMax: number }
   private texts: string[] = []
   private tl = new Timeline([])
   private voice: string
@@ -142,6 +163,17 @@ export class PlayerEngine {
 
   constructor(deps: EngineDeps, voice: string, speed: number) {
     this.deps = deps
+    const w = deps.prefetch ?? {}
+    const maxAhead = w.maxAhead ?? MAX_AHEAD
+    this.win = {
+      seconds: w.seconds ?? PREFETCH_SEC,
+      maxInFlight: w.maxInFlight ?? MAX_IN_FLIGHT,
+      maxAhead,
+      cacheMax:
+        w.maxAhead === undefined && w.keepBehind === undefined
+          ? CACHE_MAX_DEFAULT
+          : 1 + maxAhead + (w.keepBehind ?? KEEP_BEHIND)
+    }
     this.voice = voice
     this.speed = speed
     deps.sink.playbackRate = speed
@@ -347,7 +379,7 @@ export class PlayerEngine {
     this.resetCursor()
     for (const e of this.entries.values()) e.keepVoice = false // a jump ends the old-voice grace
     const lo = this.index
-    const hi = this.index + AHEAD
+    const hi = this.index + this.win.maxAhead
     for (const [k, e] of [...this.entries]) {
       if (e.failed || (e.pending > 0 && (k < lo || k > hi))) this.evict(k) // a failed one is retried
     }
@@ -380,10 +412,10 @@ export class PlayerEngine {
     }
   }
 
-  /** Keep at most CACHE_MAX sentences, dropping those farthest from the current one (behind first). */
+  /** Keep at most the cache size (CACHE_MAX_DEFAULT) sentences, dropping those farthest from the current one (behind first). */
   private trim(): void {
     const at = this.index ?? 0
-    while (this.entries.size > CACHE_MAX) {
+    while (this.entries.size > this.win.cacheMax) {
       let victim: number | null = null
       for (const k of this.entries.keys()) {
         if (k === at || k === this.cur.i) continue
@@ -399,11 +431,26 @@ export class PlayerEngine {
     }
   }
 
-  /** Keep the current sentence and AHEAD more requested. */
+  /**
+   * Keep the current sentence requested, and enough of the following ones to cover PREFETCH_SEC of
+   * listening: real lengths where audio has arrived, the estimate otherwise, over the playback
+   * rate. Requests go out in playback order, so the next sentence is always first in the queue.
+   */
   private fill(): void {
     if (this.index === null) return
-    const last = Math.min(this.texts.length - 1, this.index + AHEAD)
-    for (let i = this.index; i <= last; i++) if (this.entryFor(i) === undefined) this.request(i)
+    const last = Math.min(this.texts.length - 1, this.index + this.win.maxAhead)
+    let inFlight = 0
+    for (const e of this.entries.values()) if (e.pending > 0) inFlight += 1
+    let covered = 0
+    for (let i = this.index; i <= last; i++) {
+      if (i > this.index && covered >= this.win.seconds) break
+      if (this.entryFor(i) === undefined) {
+        if (i > this.index && inFlight >= this.win.maxInFlight) break
+        this.request(i)
+        inFlight += 1
+      }
+      if (i > this.index) covered += this.tl.durationOf(i, 1) / this.speed
+    }
     this.trim()
   }
 
@@ -464,6 +511,7 @@ export class PlayerEngine {
         entry.secs.reduce<number>((a, b) => a + (b ?? 0), 0)
       )
     }
+    if (entry.pending === 0 && this.wantPlay) this.fill() // room in the window again
     this.tryStart()
     this.emit()
   }

@@ -288,11 +288,15 @@ describe('Player bar', () => {
   it('a sentence that cannot be read is skipped with one toast and one log line (RS-3)', async () => {
     const { t } = await open(bodyPages(4))
     // The first two sentences fail; the rest are read: two skips, one toast.
-    // Requests 1-4 are sentences 0-3; 5 and 6 are the retries of 0 and 1 (made as each fails).
-    let n = 0
-    t.tts.synthesize = vi.fn(() =>
-      [1, 2, 5, 6].includes(++n) ? Promise.reject(new Error('timed out')) : Promise.resolve(SILENCE)
-    )
+    // The first two requests made (sentences 0 and 1, by gen) fail every time, retries included; the
+    // window is by time now, so the request numbers no longer say which sentence is which.
+    const bad = new Set<string>()
+    t.tts.synthesize = vi.fn((_text: string, o: { gen?: string }) => {
+      if (bad.size < 2) bad.add(o.gen ?? '')
+      return bad.has(o.gen ?? '')
+        ? Promise.reject(new Error('timed out'))
+        : Promise.resolve(SILENCE)
+    })
     await userEvent.click(button('Play'))
     expect(await screen.findByText("Tide skipped a passage it couldn't read aloud.")).toBeTruthy()
     await waitFor(() => expect(button('Pause')).toBeTruthy()) // playing on, not the error state

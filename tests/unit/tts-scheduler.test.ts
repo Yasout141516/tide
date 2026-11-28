@@ -233,6 +233,24 @@ describe('worker scheduler: fairness (R38b)', () => {
   })
 })
 
+describe('worker scheduler: a deep live prefetch window (Task 6)', () => {
+  it('an export still progresses one chunk per live job when 8 live jobs are queued ahead of it', async () => {
+    const r = rig()
+    const exp = job('e1|e2|e3', 'export')
+    r.queue.push(exp)
+    // the engine's window: 8 live sentences arrive at once while the export is running
+    r.onGenerate((c) => {
+      if (c !== 'e1') return
+      for (let k = 0; k < 8; k++) r.queue.push(job('l1', 'live'))
+    })
+    await r.pump()
+    // the export is not behind all 8: it gets a chunk between live jobs (one higher job per chunk)
+    expect(r.generated.slice(0, 5)).toEqual(['e1', 'l1', 'e2', 'l1', 'e3'])
+    expect(r.audioOf(exp)).toEqual([1, 2, 3])
+    expect(r.order().indexOf(String(exp.id))).toBe(2) // answered after two live jobs, not after all 8
+  })
+})
+
 describe('clip silence trimming', () => {
   const ms = (n: number): number => Math.round((n * 24000) / 1000)
   /** 310 ms of silence, 200 ms of tone, 470 ms of silence. */
